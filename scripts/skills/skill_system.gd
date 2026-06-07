@@ -472,6 +472,18 @@ const _ITEM_TRANSFORM_SLOT: Dictionary = {
 	"necro_curse_field": 1,
 }
 
+# Which BASE skill a slot-swap transform is meant to replace. The druid reuses
+# slots 0/1 for different skills per shapeshift form (see DRUID_FORM_SLOTS), so a
+# transform keyed only by slot index would leak onto whatever in-form skill now
+# occupies that slot — e.g. casting Leap in Dire Wolf form would get hijacked
+# back into "enter Dire Wolf form". Gating the transform on the slot's CURRENT
+# skill_id fixes that. Transforms NOT listed here (necro_*) live on classes that
+# never reuse slots, so they always apply — listing them is unnecessary.
+const _TRANSFORM_BASE_SKILL: Dictionary = {
+	"druid_hurricane": "druid_wolf_form",
+	"druid_dire_wolf": "druid_bear_form",
+}
+
 # Druid form -> slot 0/1 swap. Slots 2 & 3 (stone armor, summon) stay fixed.
 # Slot 4 (eagle form) is reserved separately as the druid's ultimate.
 const DRUID_FORM_SLOTS: Dictionary = {
@@ -672,9 +684,18 @@ func get_transform(slot: int) -> String:
 		return ""
 	# Level-up-applied transform wins; otherwise honor a slot-swap transform
 	# granted by an EQUIPPED unique item.
-	if transforms[slot] != "":
-		return transforms[slot]
-	return _equipped_item_transform_for_slot(slot)
+	var t: String = transforms[slot]
+	if t == "":
+		t = _equipped_item_transform_for_slot(slot)
+	if t == "":
+		return ""
+	# Form-aware guard: a slot-swap transform with a known base skill only applies
+	# while the slot actually holds that base skill. Without this, a druid in a
+	# beast form (slots 0/1 reused for in-form skills) would have those skills
+	# hijacked by the human-form transform sitting on the same slot index.
+	if _TRANSFORM_BASE_SKILL.has(t) and String(skill_ids[slot]) != String(_TRANSFORM_BASE_SKILL[t]):
+		return ""
+	return t
 
 
 # Returns the slot-swap transform id granted by an equipped unique item for this
@@ -717,15 +738,16 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	# Compute damage with stat scaling + modifier damage bonus + player buff.
 	var base_damage: int = GameManager.player_damage if GameManager else 14
 	var dmg_mult: float = float(data.get("damage_mult", 1.0))
-	# Slot-based +damage modifier ids (kept generic so they work for any class):
-	# "fw_damage" (slot 0), "ib_damage" (1), "cl_damage" (2), "mt_damage" (3).
-	# Each class' slot 0..3 gets +30% per stack.
+	# Generic +damage modifiers: ANY modifier id ending in "_damage" grants +30%
+	# per stack on its slot. This is class-agnostic by convention — the mage's
+	# "fw_damage"/"ib_damage"/"cl_damage"/"mt_damage" and every other class'
+	# "<prefix>_<skill>_damage" all flow through the same path with no per-skill
+	# wiring. Slot 4 (the class ultimate) simply has no such modifier.
 	var stack_bonus: float = 0.0
-	var stack_ids := ["fw_damage", "ib_damage", "cl_damage", "mt_damage"]
-	# Only slots 0..3 carry a stacking +damage modifier; slot 4 (the class
-	# ultimate) has none, so guard the lookup to avoid an out-of-bounds read.
-	if slot >= 0 and slot < stack_ids.size():
-		stack_bonus = 0.3 * float(get_modifier(slot, stack_ids[slot]))
+	if slot >= 0 and slot < modifiers.size():
+		for mod_id in modifiers[slot]:
+			if String(mod_id).ends_with("_damage"):
+				stack_bonus += 0.3 * float(modifiers[slot][mod_id])
 	# Buff multiplier (from Battle Cry etc.).
 	var buff_mult: float = _player_buff_dmg(caster)
 	var scaled_damage: int = int(
@@ -820,9 +842,19 @@ func _build_mods_for(slot: int, skill_id: String, caster: Node) -> Dictionary:
 			mods["radius_bonus"] = 0.5 * float(get_modifier(slot, "mt_radius"))
 		"battle_cry":
 			mods["radius"] = 240.0
-			mods["duration"] = 5.0
+			mods["duration"] = 5.0 + 2.0 * float(get_modifier(slot, "barb_cry_power"))
 			mods["dmg_mult"] = 1.6
-			mods["spd_mult"] = 1.3
+			mods["spd_mult"] = 1.3 + 0.15 * float(get_modifier(slot, "barb_cry_power"))
+		"earthquake":
+			mods["wave_bonus"] = get_modifier(slot, "barb_quake_waves")
+		"fan_of_knives":
+			mods["count_bonus"] = get_modifier(slot, "rogue_knives_count") * 2
+		"caltrops":
+			mods["duration_bonus"] = 4.0 * float(get_modifier(slot, "rogue_caltrops_duration"))
+		"hexen_hex_mark":
+			mods["duration_bonus"] = 1.5 * float(get_modifier(slot, "hexen_mark_duration"))
+		"storm_chain_bolt":
+			mods["jump_bonus"] = get_modifier(slot, "storm_bolt_jumps")
 	return mods
 
 

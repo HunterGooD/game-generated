@@ -7,17 +7,20 @@ const DAGGER_COUNT: int = 8
 
 var damage: int = 14
 var caster_ref: Node = null
+var count_bonus: int = 0
 
 
 func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
 	damage = dmg
 	caster_ref = mods.get("caster", null) if mods != null else null
+	count_bonus = int(mods.get("count_bonus", 0)) if mods != null else 0
 
 
 func _ready() -> void:
 	var venomweave: bool = InventorySystem != null and InventorySystem.has_unique("venomweave")
-	for i in DAGGER_COUNT:
-		var angle: float = (float(i) / float(DAGGER_COUNT)) * TAU
+	var total: int = DAGGER_COUNT + count_bonus
+	for i in total:
+		var angle: float = (float(i) / float(total)) * TAU
 		var dir: Vector2 = Vector2.RIGHT.rotated(angle)
 		var d := DAGGER_SCENE.instantiate()
 		d.position = global_position + dir * 28.0

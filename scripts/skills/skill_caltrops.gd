@@ -10,12 +10,15 @@ const TICK_INTERVAL: float = 0.6
 var damage: int = 6
 var slow_t: float = 1.0
 var slow_mult: float = 0.55
+var extra_lifetime: float = 0.0
 
 @onready var grid_root: Node2D = self
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, _mods: Dictionary) -> void:
+func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
 	damage = dmg
+	# Lasting Barbs modifier — each stack keeps the spikes on the ground longer.
+	extra_lifetime = float(mods.get("duration_bonus", 0.0)) if mods != null else 0.0
 
 
 func _ready() -> void:
@@ -31,7 +34,7 @@ func _ready() -> void:
 			var local_pos := Vector2(float(xi - 1) * SPACING, float(yi - 1) * SPACING)
 			local_pos += Vector2(randf_range(-6, 6), randf_range(-6, 6))
 			_spawn_spike(local_pos, tex)
-	var t := get_tree().create_timer(LIFETIME)
+	var t := get_tree().create_timer(LIFETIME + extra_lifetime)
 	t.timeout.connect(queue_free)
 	# Mark of the Coil unique — detonate after 4 seconds for burst damage.
 	if InventorySystem and InventorySystem.has_unique("mark_of_coil"):

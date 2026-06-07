@@ -31,6 +31,8 @@ func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
 	var caster = mods.get("caster", null)
 	if caster and InventorySystem and InventorySystem.has_method("has_unique"):
 		eternal = bool(InventorySystem.call("has_unique", "hexen_eternal_mark"))
+	# Lingering Hex modifier — each stack ticks longer before detonating.
+	life_t = DURATION + float(mods.get("duration_bonus", 0.0))
 
 
 func _ready() -> void:

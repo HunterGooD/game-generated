@@ -73,6 +73,15 @@ func _physics_process(delta: float) -> void:
 			var s: float = clamp(140.0 / src_h, 0.05, 0.5)
 			tel.scale = Vector2(s, s)
 	get_tree().current_scene.add_child(tel)
+	# Safety self-free owned by the telegraph. If the caster dies or the skill
+	# expires during this window, _physics_process queue_frees this node and the
+	# _resolve_strike callback below — bound to us — is dropped, so the telegraph
+	# would otherwise stay on the ground forever. The tween lives on `tel`
+	# (parented to the scene), so it survives us; if _resolve_strike fires first
+	# it frees `tel` and this tween dies with it (no double-free).
+	var tel_safety := tel.create_tween()
+	tel_safety.tween_interval(TELEGRAPH_TIME + 0.5)
+	tel_safety.tween_callback(tel.queue_free)
 	# Fire the strike after the telegraph window.
 	var t := get_tree().create_timer(TELEGRAPH_TIME)
 	t.timeout.connect(_resolve_strike.bind(target_pos, tel))

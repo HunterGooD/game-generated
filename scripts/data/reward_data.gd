@@ -182,6 +182,106 @@ const SKILL_MODIFIERS := [
 		"rarity": "common",
 		"stack_bonus": "+30% radius"
 	},
+	# BARBARIAN — slots: Whirlwind(0), Leap Slam(1), Battle Cry(2), Earthquake(3)
+	{
+		"id": "barb_whirl_damage",
+		"slot": 0,
+		"title": "Reaving Spin",
+		"desc": "+30% Whirlwind damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "barb_cry_power",
+		"slot": 2,
+		"title": "Warlord's Roar",
+		"desc": "Battle Cry lasts longer and boosts move speed more",
+		"rarity": "rare",
+		"stack_bonus": "+2s duration & +15% speed"
+	},
+	{
+		"id": "barb_quake_waves",
+		"slot": 3,
+		"title": "Aftershocks",
+		"desc": "Earthquake sends one more shockwave ring",
+		"rarity": "rare",
+		"stack_bonus": "+1 shockwave"
+	},
+	# ROGUE — slots: Caltrops(0), Smoke Bomb(1), Poison Vial(2), Fan of Knives(3)
+	{
+		"id": "rogue_knives_damage",
+		"slot": 3,
+		"title": "Honed Blades",
+		"desc": "+30% Fan of Knives damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "rogue_knives_count",
+		"slot": 3,
+		"title": "Blade Tempest",
+		"desc": "Fan of Knives throws two more daggers",
+		"rarity": "rare",
+		"stack_bonus": "+2 daggers"
+	},
+	{
+		"id": "rogue_caltrops_duration",
+		"slot": 0,
+		"title": "Lasting Barbs",
+		"desc": "Caltrops linger on the ground longer",
+		"rarity": "common",
+		"stack_bonus": "+4s duration"
+	},
+	# HEXEN — slots: Hex Mark(0), Blood Whip(1), Soul Tether(2), Crimson Ritual(3)
+	{
+		"id": "hexen_mark_damage",
+		"slot": 0,
+		"title": "Deepening Curse",
+		"desc": "+30% Hex Mark damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "hexen_mark_duration",
+		"slot": 0,
+		"title": "Lingering Hex",
+		"desc": "Hex Mark ticks longer before it detonates",
+		"rarity": "rare",
+		"stack_bonus": "+1.5s duration"
+	},
+	{
+		"id": "hexen_whip_damage",
+		"slot": 1,
+		"title": "Flensing Lash",
+		"desc": "+30% Blood Whip damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	# STORMCALLER — slots: Chain Bolt(0), Storm Step(1), Sky Strike(2), Static Discharge(3)
+	{
+		"id": "storm_bolt_damage",
+		"slot": 0,
+		"title": "Overcharged Arc",
+		"desc": "+30% Chain Bolt damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "storm_bolt_jumps",
+		"slot": 0,
+		"title": "Forking Path",
+		"desc": "Chain Bolt arcs to one more target",
+		"rarity": "rare",
+		"stack_bonus": "+1 jump"
+	},
+	{
+		"id": "storm_sky_damage",
+		"slot": 2,
+		"title": "Thunderhead",
+		"desc": "+30% Sky Strike damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
 ]
 
 const UNIQUES := [
@@ -460,6 +560,8 @@ const _ID_CLASS_PREFIXES := {
 	"ib_": "mage",
 	"cl_": "mage",
 	"mt_": "mage",
+	"barb_": "barbarian",
+	"rogue_": "rogue",
 	"wolf_": "druid",
 	"bear_": "druid",
 	"stone_armor_": "druid",

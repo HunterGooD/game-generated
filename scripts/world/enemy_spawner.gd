@@ -295,23 +295,51 @@ func _find_player() -> Node2D:
 func _on_enemy_defeated() -> void:
 	if GameManager:
 		GameManager.enemies_killed += 1
+	# enemies_remaining is now advisory only (used for HUD/stats). The real
+	# wave-end gate is the actual count of live enemies in the scene — the manual
+	# counter only ever knew about a wave's INITIAL spawn, so dynamically-born
+	# foes (brood-mother hatchlings, boss minions) decremented it without ever
+	# being added, draining it to 0 while real enemies were still alive. That
+	# cleared the wave early and let survivors keep fighting during the merchant
+	# break ("волны продолжаются в магазине").
 	enemies_remaining = max(0, enemies_remaining - 1)
-	if enemies_remaining == 0 and combat_active:
-		combat_active = false
-		if GameManager:
-			GameManager.wave_cleared.emit(current_wave)
-		_broadcast_wave_cleared(current_wave)
-		_switch_to_explore_music()
-		_spawn_loot_chest()
-		# Decide between merchant-break (portal-gated) and timed auto-advance.
-		var is_merchant_wave: bool = (
-			(BossDatabase.boss_for_wave(current_wave) == "") and (current_wave % 3 == 0)
-		)
-		if is_merchant_wave:
-			_spawn_merchant_and_portal()
-		else:
-			var t := get_tree().create_timer(wave_break)
-			t.timeout.connect(_start_next_wave)
+	if combat_active and _live_enemy_count() == 0:
+		_end_wave()
+
+
+# Count enemies still alive and dangerous. The just-killed enemy already set
+# `dead = true` at the top of its _die() before emitting enemy_defeated, so it is
+# correctly excluded here. Puppet copies (multiplayer clients) never drive wave
+# state on the host, so they're skipped too.
+func _live_enemy_count() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(e):
+			continue
+		if e.get("dead") == true:
+			continue
+		if e.get("is_puppet") == true:
+			continue
+		n += 1
+	return n
+
+
+func _end_wave() -> void:
+	combat_active = false
+	if GameManager:
+		GameManager.wave_cleared.emit(current_wave)
+	_broadcast_wave_cleared(current_wave)
+	_switch_to_explore_music()
+	_spawn_loot_chest()
+	# Decide between merchant-break (portal-gated) and timed auto-advance.
+	var is_merchant_wave: bool = (
+		(BossDatabase.boss_for_wave(current_wave) == "") and (current_wave % 3 == 0)
+	)
+	if is_merchant_wave:
+		_spawn_merchant_and_portal()
+	else:
+		var t := get_tree().create_timer(wave_break)
+		t.timeout.connect(_start_next_wave)
 
 
 func _spawn_merchant_and_portal() -> void:

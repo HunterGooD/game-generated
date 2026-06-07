@@ -455,6 +455,15 @@ func _perform_aoe_attack() -> void:
 	var pulse := tel.create_tween().set_loops(5)
 	pulse.tween_property(tel, "scale", Vector2(1.0, 1.0), 0.09)
 	pulse.tween_property(tel, "scale", Vector2(0.8, 0.8), 0.09)
+	# Safety self-free owned by the telegraph itself. If we (the succubus) are
+	# killed during the wind-up, the _aoe_blast callback below is bound to us and
+	# is dropped when we're freed — without this the pink telegraph would linger
+	# on the ground forever. The tween lives on `tel` (parented to the scene), so
+	# it survives our death; if _aoe_blast does fire first it frees `tel` and this
+	# tween dies with it, so there's no double-free.
+	var tel_safety := tel.create_tween()
+	tel_safety.tween_interval(1.1)
+	tel_safety.tween_callback(tel.queue_free)
 	# Detonate after the wind-up.
 	var blast_timer := get_tree().create_timer(0.9)
 	blast_timer.timeout.connect(_aoe_blast.bind(target_pos, tel))

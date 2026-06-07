@@ -11,6 +11,7 @@ const SEGMENT_TEX: String = "res://assets/sprites/effects/lightning_bolt_segment
 var damage: int = 20
 var visual_only: bool = false
 var caster: Node = null
+var jump_bonus: int = 0
 
 
 func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
@@ -19,6 +20,8 @@ func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
 	if visual_only:
 		set_meta("visual_only", true)
 	caster = mods.get("caster", null)
+	# Forking Path modifier — each stack lets the bolt arc to one more target.
+	jump_bonus = int(mods.get("jump_bonus", 0))
 
 
 func _ready() -> void:
@@ -27,8 +30,8 @@ func _ready() -> void:
 		var t := get_tree().create_timer(0.5)
 		t.timeout.connect(queue_free)
 		return
-	# Bonus jumps from Static Charge.
-	var jumps: int = BASE_JUMPS
+	# Bonus jumps from Static Charge plus the Forking Path modifier.
+	var jumps: int = BASE_JUMPS + jump_bonus
 	if caster and caster.get("static_charge") != null:
 		jumps += int(caster.get("static_charge"))
 	var origin: Vector2 = global_position

@@ -6,6 +6,13 @@
 [sub_resource type="CircleShape2D" id="CircleShape2D_chest"]
 radius = 50.0
 
+[sub_resource type="Gradient" id="Gradient_o7ujs"]
+offsets = PackedFloat32Array(0, 0.96385545)
+colors = PackedColorArray(0.74509805, 0.25882354, 0, 0.8392157, 1, 1, 1, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_826cs"]
+gradient = SubResource("Gradient_o7ujs")
+
 [node name="LootChest" type="Area2D" unique_id=1802094895 node_paths=PackedStringArray("glow")]
 script = ExtResource("1_chest")
 sprite = NodePath("Sprite")
@@ -20,9 +27,11 @@ scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_chesttex")
 
 [node name="Glow" type="PointLight2D" parent="." unique_id=2044957154]
-color = Color(1, 0.45, 0.35, 1)
-energy = 1.4
-texture_scale = 2.0
+position = Vector2(-0.9999995, -3.4999995)
+scale = Vector2(1.6874999, 1.484375)
+color = Color(1, 0.13725491, 0, 1)
+energy = 2.4
+texture = SubResource("GradientTexture2D_826cs")
 
 [node name="Prompt" type="Label" parent="." unique_id=1509670867]
 offset_left = -80.0
