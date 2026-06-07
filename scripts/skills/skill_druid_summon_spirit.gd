@@ -52,10 +52,51 @@ func _ready() -> void:
 	tw.tween_property(ring, "modulate:a", 0.0, 0.5)
 	# Spawn the pets AFTER we're in the tree so they actually land in the scene.
 	# Skip on visual-only replicas — only the caster's machine owns pets.
-	if not visual_only and _pending_caster != null and is_instance_valid(_pending_caster):
-		_refresh_pets()
+	_do_summon()
 	var t := get_tree().create_timer(0.6)
 	t.timeout.connect(queue_free)
+
+
+# Solo: spawn locally. Multiplayer: host owns the pets (host spawns them; a
+# client requests them via the host). Local scene only plays the cast flash on
+# non-authoritative peers.
+func _do_summon() -> void:
+	if visual_only or _pending_caster == null or not is_instance_valid(_pending_caster):
+		return
+	if NetManager and NetManager.is_multiplayer:
+		var ns := _find_net_sync()
+		if ns == null:
+			return
+		if NetManager.is_host:
+			ns.call(
+				"host_spawn_summon",
+				"spirit",
+				_pending_pet_type,
+				NetManager.local_player_id,
+				global_position,
+				_pending_count,
+				damage,
+				0
+			)
+		else:
+			ns.call(
+				"request_summon",
+				"spirit",
+				_pending_pet_type,
+				global_position,
+				_pending_count,
+				damage,
+				0
+			)
+		return
+	_refresh_pets()
+
+
+func _find_net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
 
 
 func _refresh_pets() -> void:

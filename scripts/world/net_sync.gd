@@ -11,6 +11,8 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/entities/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/entities/boss.tscn")
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const WAVE_PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
+const NECRO_MINION_SCENE: PackedScene = preload("res://scenes/entities/necro_minion.tscn")
+const SPIRIT_PET_SCENE: PackedScene = preload("res://scenes/entities/spirit_pet.tscn")
 
 # Replicated VFX that must KEEP physics_process so they actually travel on the
 # remote peer's screen. Their damage areas are already disabled by
@@ -25,6 +27,10 @@ var game_world: Node = null
 var remote_players: Dictionary = {}  # player_id (int) -> RemotePlayer
 var pending_classes: Dictionary = {}  # player_id -> class_id
 var enemy_registry: Dictionary = {}  # network_id (int) -> Node (enemy or boss)
+# Host-authoritative summons. On the host: real minions/pets (run AI + combat).
+# On every other peer: visual puppets driven by host minion_state broadcasts.
+var minion_registry: Dictionary = {}  # network_id (int) -> Node (minion or pet)
+var next_minion_id: int = 1
 var broadcast_timer: float = 0.0
 var enemy_state_timer: float = 0.0
 var next_enemy_id: int = 1
@@ -107,12 +113,13 @@ func _process(delta: float) -> void:
 	if broadcast_timer <= 0.0:
 		broadcast_timer = POS_BROADCAST_INTERVAL
 		_broadcast_local_state()
-	# Host also broadcasts enemy state.
+	# Host also broadcasts enemy + summon state.
 	if NetManager.is_host:
 		enemy_state_timer -= delta
 		if enemy_state_timer <= 0.0:
 			enemy_state_timer = ENEMY_STATE_INTERVAL
 			_broadcast_enemy_state()
+			_broadcast_minion_state()
 
 
 func _broadcast_local_state() -> void:
@@ -261,6 +268,236 @@ func broadcast_enemy_death(id: int, pos: Vector2, gold_min: int, gold_max: int, 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Host-authoritative summons (pets / skeletons / knights).
+#
+# All summoned units live on the HOST, which owns enemy simulation — so they
+# actually tank, pull aggro and deal damage. Clients never spawn real units:
+# a client casting a summon sends `summon_request`; everyone (incl. the caster)
+# receives `minion_spawn` and renders a visual puppet. `kind` is one of
+# "skeleton" / "knight" / "spirit"; `pet` carries the spirit flavour (wolf/bear).
+
+# Client → host: ask the host to spawn our summon. Called by summon skills when
+# we're a non-host peer (the local copy plays only its cast flash).
+func request_summon(
+	kind: String, pet: String, pos: Vector2, count: int, dmg: int, armor: int
+) -> void:
+	if NetManager == null or not NetManager.is_multiplayer or NetManager.is_host:
+		return
+	(
+		NetManager
+		. send(
+			"summon_request",
+			{
+				"kind": kind,
+				"pet": pet,
+				"x": pos.x,
+				"y": pos.y,
+				"count": count,
+				"dmg": dmg,
+				"armor": armor,
+			}
+		)
+	)
+
+
+# Client → host: empower our host-side minions (Blood Pact).
+func request_blood_pact(duration: float, dmg_mult: float, speed_mult: float) -> void:
+	if NetManager == null or not NetManager.is_multiplayer or NetManager.is_host:
+		return
+	(
+		NetManager
+		. send(
+			"blood_pact",
+			{"duration": duration, "dmg_mult": dmg_mult, "speed_mult": speed_mult}
+		)
+	)
+
+
+# Host: spawn the authoritative summon(s) and replicate puppets to every peer.
+# owner_pid identifies which player owns them (for follow + re-cast refresh).
+func host_spawn_summon(
+	kind: String, pet: String, owner_pid: int, pos: Vector2, count: int, dmg: int, armor: int
+) -> void:
+	if NetManager == null or not NetManager.is_multiplayer or not NetManager.is_host:
+		return
+	if game_world == null:
+		return
+	_despawn_owner_minions(owner_pid, kind)
+	var owner_node: Node = _summon_owner_node(owner_pid)
+	var n: int = max(1, count)
+	for i in n:
+		var unit: Node2D = _make_summon_node(kind, pet, dmg, armor)
+		if unit == null:
+			continue
+		game_world.add_child(unit)
+		unit.global_position = _summon_spawn_pos(pos, i, n, kind)
+		unit.set("owner_caster", owner_node)
+		unit.set("owner_player_id", owner_pid)
+		var nid: int = next_minion_id
+		next_minion_id += 1
+		unit.set("network_id", nid)
+		minion_registry[nid] = unit
+		(
+			NetManager
+			. send(
+				"minion_spawn",
+				{
+					"id": nid,
+					"kind": kind,
+					"pet": pet,
+					"x": unit.global_position.x,
+					"y": unit.global_position.y,
+					"owner": owner_pid,
+					"dmg": dmg,
+					"armor": armor,
+				}
+			)
+		)
+
+
+func _make_summon_node(kind: String, pet: String, dmg: int, armor: int) -> Node2D:
+	if kind == "spirit":
+		var pet_node: Node2D = SPIRIT_PET_SCENE.instantiate()
+		if pet_node.has_method("configure"):
+			pet_node.call("configure", pet if pet != "" else "wolf", dmg)
+		return pet_node
+	var minion: Node2D = NECRO_MINION_SCENE.instantiate()
+	if minion.has_method("configure"):
+		minion.call("configure", kind, dmg)
+	if kind == "knight" and armor > 0 and minion.has_method("apply_knight_armor_bonus"):
+		minion.call("apply_knight_armor_bonus", armor)
+	return minion
+
+
+func _summon_spawn_pos(center: Vector2, idx: int, count: int, kind: String) -> Vector2:
+	if kind == "knight":
+		return center + Vector2(randf_range(-30, 30), randf_range(-30, 30))
+	var spread: float = 60.0 if kind == "spirit" else 48.0
+	var ang: float = (TAU / float(max(1, count))) * float(idx) + randf() * 0.3
+	return center + Vector2(cos(ang), sin(ang)) * spread
+
+
+func _summon_owner_node(owner_pid: int) -> Node:
+	if NetManager and owner_pid == NetManager.local_player_id:
+		return game_world.get_node_or_null("Player")
+	return remote_players.get(owner_pid, null)
+
+
+# Despawn an owner's existing summons before a re-cast (refresh semantics).
+# Skeletons and knights share the necro_minion scene but have separate caps, so
+# the kind is matched; "spirit" matches all of that owner's pets.
+func _despawn_owner_minions(owner_pid: int, kind: String) -> void:
+	for nid in minion_registry.keys().duplicate():
+		var unit = minion_registry.get(nid, null)
+		if not is_instance_valid(unit):
+			minion_registry.erase(nid)
+			continue
+		if int(unit.get("owner_player_id")) != owner_pid:
+			continue
+		var matches: bool = false
+		if kind == "spirit":
+			matches = unit.is_in_group("spirit_pet")
+		else:
+			matches = (
+				unit.is_in_group("necro_minion") and String(unit.get("minion_kind")) == kind
+			)
+		if matches:
+			minion_registry.erase(nid)
+			NetManager.send("minion_death", {"id": int(nid)})
+			unit.queue_free()
+
+
+func _broadcast_minion_state() -> void:
+	if minion_registry.is_empty():
+		return
+	var batch: Array = []
+	var to_remove: Array = []
+	for id in minion_registry.keys():
+		var node = minion_registry[id]
+		if not is_instance_valid(node):
+			to_remove.append(id)
+			continue
+		if node.get("dead") == true:
+			continue
+		var n2d := node as Node2D
+		var hp_val: int = int(node.get("hp")) if node.get("hp") != null else 0
+		batch.append({"id": int(id), "x": n2d.global_position.x, "y": n2d.global_position.y, "hp": hp_val})
+	for id in to_remove:
+		minion_registry.erase(id)
+	if not batch.is_empty():
+		NetManager.send("minion_state", {"minions": batch})
+
+
+# Host: a local authoritative minion died — drop peers' puppets.
+func broadcast_minion_death(network_id: int) -> void:
+	if NetManager == null or not NetManager.is_multiplayer or not NetManager.is_host:
+		return
+	minion_registry.erase(network_id)
+	NetManager.send("minion_death", {"id": int(network_id)})
+
+
+# Client: spawn a visual puppet mirroring the host's authoritative summon.
+func _spawn_puppet_minion(msg: Dictionary) -> void:
+	if game_world == null:
+		return
+	var id: int = int(msg.get("id", -1))
+	if id < 0 or minion_registry.has(id):
+		return
+	var kind: String = String(msg.get("kind", "skeleton"))
+	var pet: String = String(msg.get("pet", ""))
+	var dmg: int = int(msg.get("dmg", 10))
+	var armor: int = int(msg.get("armor", 0))
+	var unit: Node2D = _make_summon_node(kind, pet, dmg, armor)
+	if unit == null:
+		return
+	game_world.add_child(unit)
+	unit.global_position = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
+	unit.set("network_id", id)
+	unit.set("owner_player_id", int(msg.get("owner", -1)))
+	if unit.has_method("set_puppet"):
+		unit.call("set_puppet")
+	minion_registry[id] = unit
+
+
+func _apply_minion_state(msg: Dictionary) -> void:
+	var arr: Array = msg.get("minions", [])
+	for entry in arr:
+		var id: int = int(entry.get("id", -1))
+		var node = minion_registry.get(id, null)
+		if node == null or not is_instance_valid(node):
+			continue
+		if node.has_method("apply_remote_state"):
+			node.call("apply_remote_state", entry)
+
+
+func _apply_minion_death(msg: Dictionary) -> void:
+	var id: int = int(msg.get("id", -1))
+	var node = minion_registry.get(id, null)
+	minion_registry.erase(id)
+	if is_instance_valid(node):
+		if node.has_method("_die"):
+			node.call("_die")
+		else:
+			node.queue_free()
+
+
+# Host: empower a player's authoritative necro minions (Blood Pact from a peer).
+func host_apply_blood_pact(
+	owner_pid: int, duration: float, dmg_mult: float, speed_mult: float
+) -> void:
+	if NetManager == null or not NetManager.is_host:
+		return
+	for nid in minion_registry.keys():
+		var unit = minion_registry.get(nid, null)
+		if not is_instance_valid(unit):
+			continue
+		if int(unit.get("owner_player_id")) != owner_pid:
+			continue
+		if unit.is_in_group("necro_minion") and unit.has_method("apply_blood_pact"):
+			unit.call("apply_blood_pact", duration, dmg_mult, speed_mult)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Receive
 func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 	match type:
@@ -319,6 +556,32 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 				var node = enemy_registry.get(id, null)
 				if node and is_instance_valid(node) and node.has_method("take_damage"):
 					node.call("take_damage", damage, Vector2.ZERO)
+		"summon_request":
+			# Client asked us (host) to spawn its summon authoritatively.
+			if NetManager.is_host:
+				host_spawn_summon(
+					String(msg.get("kind", "skeleton")),
+					String(msg.get("pet", "")),
+					from_player,
+					Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0))),
+					int(msg.get("count", 1)),
+					int(msg.get("dmg", 10)),
+					int(msg.get("armor", 0))
+				)
+		"minion_spawn":
+			_spawn_puppet_minion(msg)
+		"minion_state":
+			_apply_minion_state(msg)
+		"minion_death":
+			_apply_minion_death(msg)
+		"blood_pact":
+			if NetManager.is_host:
+				host_apply_blood_pact(
+					from_player,
+					float(msg.get("duration", 10.0)),
+					float(msg.get("dmg_mult", 1.75)),
+					float(msg.get("speed_mult", 1.3))
+				)
 		"boss_spawn":
 			_spawn_puppet_boss(msg)
 		"boss_state":

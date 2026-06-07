@@ -98,11 +98,11 @@ func _ready() -> void:
 	_build_floor()
 	_build_walls()
 	_place_decorations()
-	_place_activities()
+#	_place_activities()
 
 	_setup_camera_limits()
-	# Atmosphere — ambient embers drifting across the screen continuously.
-	call_deferred("_build_ambient_particles")
+
+#	call_deferred("_build_ambient_particles")
 
 	# Start ambient + music.
 	if AudioManager:
@@ -316,7 +316,7 @@ func _place_decor(key: String, gx: int, gy: int, scale_mult: float) -> void:
 		s.scale = Vector2(sc, sc)
 	s.position = Vector2(gx * TILE_SIZE + TILE_SIZE / 2.0, gy * TILE_SIZE + TILE_SIZE / 2.0)
 	# Y-sort: depth by Y.
-	s.z_index = int(s.position.y / 4.0)
+	s.z_index = int(-1)
 	decor_layer.add_child(s)
 
 	# Torches and crystals get a glow.

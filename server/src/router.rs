@@ -44,7 +44,10 @@ pub fn route_message(
                 Vec::new()
             }
         }
-        ClientMessage::EnemyHit { .. } | ClientMessage::PortalActivate => {
+        ClientMessage::EnemyHit { .. }
+        | ClientMessage::PortalActivate
+        | ClientMessage::SummonRequest { .. }
+        | ClientMessage::BloodPact { .. } => {
             if host_id == from {
                 Vec::new()
             } else {

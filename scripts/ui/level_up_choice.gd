@@ -56,19 +56,27 @@ func _roll_offers() -> Array:
 				taken_ids[s["id"]] = true
 				break
 
-	# 2. Skill modifier.
-	var mod_pool: Array = RewardData.SKILL_MODIFIERS.duplicate()
+	var cls: String = String(GameManager.player_class) if GameManager else ""
+
+	# 2. Skill modifier — ONLY this class' modifiers (a barbarian must never be
+	# offered a Fire Wall tweak). If the class has no remaining modifier, fall
+	# back to a stat so the player still gets a real third choice.
+	var mod_pool: Array = RewardData.modifiers_for_class(cls)
 	mod_pool.shuffle()
+	var got_modifier: bool = false
 	for m in mod_pool:
 		if not taken_ids.has(m["id"]):
 			picks.append(_with_kind(m, "modifier"))
 			taken_ids[m["id"]] = true
+			got_modifier = true
 			break
+	if not got_modifier:
+		_append_stat(picks, taken_ids)
 
-	# 3. ~25% chance unique, otherwise another modifier.
+	# 3. ~25% chance a class unique, otherwise another class modifier, else stat.
 	var third: Dictionary = {}
 	if randf() < 0.25 and not _all_uniques_taken():
-		var unique_pool: Array = RewardData.UNIQUES.duplicate()
+		var unique_pool: Array = RewardData.uniques_for_class(cls)
 		unique_pool.shuffle()
 		for u in unique_pool:
 			if not _already_owns_unique(u) and not taken_ids.has(u["id"]):
@@ -76,17 +84,30 @@ func _roll_offers() -> Array:
 				taken_ids[u["id"]] = true
 				break
 	if third.is_empty():
-		var mod_pool2: Array = RewardData.SKILL_MODIFIERS.duplicate()
+		var mod_pool2: Array = RewardData.modifiers_for_class(cls)
 		mod_pool2.shuffle()
 		for m in mod_pool2:
 			if not taken_ids.has(m["id"]):
 				third = _with_kind(m, "modifier")
 				taken_ids[m["id"]] = true
 				break
-	if not third.is_empty():
+	if third.is_empty():
+		_append_stat(picks, taken_ids)
+	else:
 		picks.append(third)
 
 	return picks
+
+
+# Append the first untaken stat reward (class-agnostic fallback choice).
+func _append_stat(picks: Array, taken_ids: Dictionary) -> void:
+	var stat_pool: Array = RewardData.STAT_REWARDS.duplicate()
+	stat_pool.shuffle()
+	for s in stat_pool:
+		if not taken_ids.has(s["id"]):
+			picks.append(_with_kind(s, "stat"))
+			taken_ids[s["id"]] = true
+			return
 
 
 func _with_kind(d: Dictionary, kind: String) -> Dictionary:
@@ -115,7 +136,10 @@ func _all_uniques_taken() -> bool:
 	var transforms: Array = (
 		ss.get("active_transforms") if ss.get("active_transforms") != null else []
 	)
-	return transforms.size() >= RewardData.UNIQUES.size()
+	# Compare against THIS class' transform uniques, not the whole catalog —
+	# otherwise the gate (built from a mixed-class pool) never trips.
+	var cls: String = String(GameManager.player_class) if GameManager else ""
+	return transforms.size() >= RewardData.uniques_for_class(cls).size()
 
 
 func _already_owns_unique(u: Dictionary) -> bool:

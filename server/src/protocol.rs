@@ -171,6 +171,40 @@ pub enum ClientMessage {
     PauseRequest { paused: bool },
     #[serde(rename = "item_gift")]
     ItemGift { to: u8, item: Value },
+    // Host-authoritative summons (pets / skeletons). A client asks the host to
+    // spawn its summon; the host owns the unit's AI/combat and replicates it.
+    #[serde(rename = "summon_request")]
+    SummonRequest {
+        kind: String,
+        pet: String,
+        x: f64,
+        y: f64,
+        count: i64,
+        dmg: i64,
+        armor: i64,
+    },
+    #[serde(rename = "minion_spawn")]
+    MinionSpawn {
+        id: i64,
+        kind: String,
+        pet: String,
+        x: f64,
+        y: f64,
+        owner: u8,
+        dmg: i64,
+        armor: i64,
+    },
+    #[serde(rename = "minion_state")]
+    MinionState { minions: Vec<Value> },
+    #[serde(rename = "minion_death")]
+    MinionDeath { id: i64 },
+    // Client → host: empower the requesting player's host-side minions.
+    #[serde(rename = "blood_pact")]
+    BloodPact {
+        duration: f64,
+        dmg_mult: f64,
+        speed_mult: f64,
+    },
 }
 
 impl ClientMessage {
@@ -204,6 +238,11 @@ impl ClientMessage {
             Self::Revive { .. } => "revive",
             Self::PauseRequest { .. } => "pause_request",
             Self::ItemGift { .. } => "item_gift",
+            Self::SummonRequest { .. } => "summon_request",
+            Self::MinionSpawn { .. } => "minion_spawn",
+            Self::MinionState { .. } => "minion_state",
+            Self::MinionDeath { .. } => "minion_death",
+            Self::BloodPact { .. } => "blood_pact",
         }
     }
 
@@ -270,6 +309,11 @@ mod tests {
             r#"{"t":"revive","target":1}"#,
             r#"{"t":"pause_request","paused":true}"#,
             r#"{"t":"item_gift","to":1,"item":{"id":"x"}}"#,
+            r#"{"t":"summon_request","kind":"spirit","pet":"wolf","x":1.0,"y":2.0,"count":1,"dmg":14,"armor":0}"#,
+            r#"{"t":"minion_spawn","id":1,"kind":"skeleton","pet":"","x":1.0,"y":2.0,"owner":1,"dmg":7,"armor":0}"#,
+            r#"{"t":"minion_state","minions":[]}"#,
+            r#"{"t":"minion_death","id":1}"#,
+            r#"{"t":"blood_pact","duration":10.0,"dmg_mult":1.75,"speed_mult":1.3}"#,
         ];
         for sample in samples {
             let parsed = parse_client_message(sample);

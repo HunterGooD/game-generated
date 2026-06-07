@@ -41,10 +41,43 @@ func _ready() -> void:
 	var tw := ring.create_tween().set_parallel(true)
 	tw.tween_property(ring, "scale", Vector2(2.4, 2.4), 0.6)
 	tw.tween_property(ring, "modulate:a", 0.0, 0.6)
-	if not visual_only and is_instance_valid(_pending_caster):
-		_refresh_knight()
+	_do_summon()
 	var t := get_tree().create_timer(0.7)
 	t.timeout.connect(queue_free)
+
+
+# Solo: spawn locally. Multiplayer: host owns the summon (host spawns it; a
+# client requests it via the host). Local scene only plays the cast flash on
+# non-authoritative peers.
+func _do_summon() -> void:
+	if visual_only or not is_instance_valid(_pending_caster):
+		return
+	if NetManager and NetManager.is_multiplayer:
+		var ns := _find_net_sync()
+		if ns == null:
+			return
+		if NetManager.is_host:
+			ns.call(
+				"host_spawn_summon",
+				"knight",
+				"",
+				NetManager.local_player_id,
+				global_position,
+				1,
+				damage,
+				_pending_armor_bonus
+			)
+		else:
+			ns.call("request_summon", "knight", "", global_position, 1, damage, _pending_armor_bonus)
+		return
+	_refresh_knight()
+
+
+func _find_net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
 
 
 func _refresh_knight() -> void:

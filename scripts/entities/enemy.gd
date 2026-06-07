@@ -364,7 +364,9 @@ func _restore_idle_sprite() -> void:
 
 
 func _apply_melee_damage() -> void:
-	if not is_instance_valid(player):
+	# The swing tween can land this callback a frame or two after we've started
+	# dying — bail so we don't poke a hitbox whose monitoring is being torn down.
+	if dead or not is_instance_valid(player):
 		return
 	var dist: float = global_position.distance_to(player.global_position)
 	if dist <= attack_range + 20.0:
@@ -376,19 +378,23 @@ func _apply_melee_damage() -> void:
 
 
 func _activate_melee_hitbox() -> void:
-	if hitbox == null or _melee_hitbox_active:
+	if hitbox == null or _melee_hitbox_active or dead:
 		return
 
 	_melee_hitbox_active = true
 	hitbox.payload = _build_melee_damage_payload()
 	hitbox.enable_collision()
 
-	for area in hitbox.get_overlapping_areas():
-		if area is HurtBoxComponent:
-			var hurt_box := area as HurtBoxComponent
-			if hurt_box.receive_hit(hitbox):
-				_end_melee_hitbox_window()
-				return
+	# get_overlapping_areas() errors out if monitoring is off (the hitbox can be
+	# mid-teardown when the enemy dies during the swing). Guard the instant-
+	# overlap sweep; the area_entered signal still covers newly-entering targets.
+	if hitbox.monitoring:
+		for area in hitbox.get_overlapping_areas():
+			if area is HurtBoxComponent:
+				var hurt_box := area as HurtBoxComponent
+				if hurt_box.receive_hit(hitbox):
+					_end_melee_hitbox_window()
+					return
 
 	var t := get_tree().create_timer(0.08)
 	t.timeout.connect(_end_melee_hitbox_window)

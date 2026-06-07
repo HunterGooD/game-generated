@@ -45,10 +45,43 @@ func _ready() -> void:
 	var tw := ring.create_tween().set_parallel(true)
 	tw.tween_property(ring, "scale", Vector2(1.8, 1.8), 0.5)
 	tw.tween_property(ring, "modulate:a", 0.0, 0.5)
-	if not visual_only and is_instance_valid(_pending_caster):
-		_refresh_minions()
+	_do_summon()
 	var t := get_tree().create_timer(0.6)
 	t.timeout.connect(queue_free)
+
+
+# Solo: spawn locally. Multiplayer: the host owns all summons — host spawns
+# authoritative units, a client asks the host via request_summon. The local
+# scene only ever plays the cast flash on non-authoritative peers.
+func _do_summon() -> void:
+	if visual_only or not is_instance_valid(_pending_caster):
+		return
+	if NetManager and NetManager.is_multiplayer:
+		var ns := _find_net_sync()
+		if ns == null:
+			return
+		if NetManager.is_host:
+			ns.call(
+				"host_spawn_summon",
+				"skeleton",
+				"",
+				NetManager.local_player_id,
+				global_position,
+				_pending_count,
+				damage,
+				0
+			)
+		else:
+			ns.call("request_summon", "skeleton", "", global_position, _pending_count, damage, 0)
+		return
+	_refresh_minions()
+
+
+func _find_net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
 
 
 func _refresh_minions() -> void:

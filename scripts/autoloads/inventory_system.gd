@@ -97,6 +97,13 @@ func _auto_salvage_one_common() -> void:
 func equip_item(item: ItemInstance, target_slot: int = -1) -> bool:
 	if item == null:
 		return false
+	# Class lock: a class-locked unique can only be worn by its class. This is
+	# the authoritative gate — every equip path goes through equip_item, so a
+	# wrong-class unique can never activate its transform (the character sheet
+	# also blocks it earlier for immediate UI feedback).
+	var lock: String = item.get_class_lock()
+	if lock != "" and GameManager and lock != String(GameManager.player_class):
+		return false
 	var slot: int = target_slot if target_slot >= 0 else item.get_slot()
 	if slot < 0:
 		return false

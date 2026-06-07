@@ -460,6 +460,18 @@ const TRANSFORM_OVERRIDES: Dictionary = {
 	"druid_dire_wolf": "druid_dire_wolf_form",
 }
 
+# Which skill slot each slot-swap transform replaces. These transforms can be
+# granted two ways: a level-up unique (apply_transform → transforms[slot]) OR an
+# equipped unique ITEM (sets only InventorySystem.has_unique). get_transform()
+# reads both, so equipping e.g. Bone Spear actually swaps the slot's skill —
+# without this, equipped slot-swap uniques did nothing.
+const _ITEM_TRANSFORM_SLOT: Dictionary = {
+	"druid_hurricane": 0,
+	"druid_dire_wolf": 1,
+	"necro_bone_spear": 0,
+	"necro_curse_field": 1,
+}
+
 # Druid form -> slot 0/1 swap. Slots 2 & 3 (stone armor, summon) stay fixed.
 # Slot 4 (eagle form) is reserved separately as the druid's ultimate.
 const DRUID_FORM_SLOTS: Dictionary = {
@@ -487,6 +499,15 @@ func _ready() -> void:
 	_refresh_skill_ids()
 	if GameManager:
 		GameManager.class_selected.connect(_on_class_selected)
+	# Repaint slot icons when gear changes — an equipped slot-swap unique
+	# (e.g. Bone Spear) replaces a slot's skill, so its HUD icon must update.
+	if InventorySystem and InventorySystem.has_signal("equipment_changed"):
+		if not InventorySystem.equipment_changed.is_connected(_on_equipment_changed):
+			InventorySystem.equipment_changed.connect(_on_equipment_changed)
+
+
+func _on_equipment_changed() -> void:
+	skill_ids_changed.emit()
 
 
 func _on_class_selected(_class_id: String) -> void:
@@ -649,7 +670,23 @@ func get_modifier(slot: int, modifier_id: String) -> int:
 func get_transform(slot: int) -> String:
 	if slot < 0 or slot >= transforms.size():
 		return ""
-	return transforms[slot]
+	# Level-up-applied transform wins; otherwise honor a slot-swap transform
+	# granted by an EQUIPPED unique item.
+	if transforms[slot] != "":
+		return transforms[slot]
+	return _equipped_item_transform_for_slot(slot)
+
+
+# Returns the slot-swap transform id granted by an equipped unique item for this
+# slot, or "" if none. (Item uniques only set the has_unique flag; this is what
+# turns that flag into an actual slot swap.)
+func _equipped_item_transform_for_slot(slot: int) -> String:
+	if InventorySystem == null or not InventorySystem.has_method("has_unique"):
+		return ""
+	for tid in _ITEM_TRANSFORM_SLOT:
+		if int(_ITEM_TRANSFORM_SLOT[tid]) == slot and InventorySystem.call("has_unique", String(tid)):
+			return String(tid)
+	return ""
 
 
 func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:

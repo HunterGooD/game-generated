@@ -450,6 +450,80 @@ const CLASS_SLOT_ICONS := {
 }
 
 
+# Each modifier / slot-transform unique belongs to exactly one class — it tweaks
+# that class' skills. The class is encoded in the entry's id prefix (modifiers,
+# storm uniques), its transform family (slot uniques), or `basic_for` (basic-
+# attack uniques). Offering an entry to any other class is a bug, so the level-up
+# overlay filters by class via class_for_entry().
+const _ID_CLASS_PREFIXES := {
+	"fw_": "mage",
+	"ib_": "mage",
+	"cl_": "mage",
+	"mt_": "mage",
+	"wolf_": "druid",
+	"bear_": "druid",
+	"stone_armor_": "druid",
+	"spirit_": "druid",
+	"eagle_": "druid",
+	"necro_": "necromancer",
+	"hexen_": "hexen",
+	"storm_": "stormcaller",
+}
+
+
+# Returns the class that can use this modifier/unique, or "" if class-agnostic.
+static func class_for_entry(entry: Dictionary) -> String:
+	# Basic-attack uniques carry an explicit owner class.
+	var basic_for: String = String(entry.get("basic_for", ""))
+	if basic_for != "":
+		return basic_for
+	# Slot-transform uniques: class is encoded in the transform id family.
+	var transform: String = String(entry.get("transform", ""))
+	if transform != "":
+		if transform.begins_with("druid_"):
+			return "druid"
+		if transform.begins_with("necro_"):
+			return "necromancer"
+		if transform.begins_with("hexen_"):
+			return "hexen"
+		if transform.begins_with("storm_"):
+			return "stormcaller"
+		if transform == "stone_armor_grinder":
+			return "druid"
+		if transform in ["ice_wall", "frost_nova", "death_beam", "meteor_shower"]:
+			return "mage"
+	# Modifiers (and storm uniques): class encoded in the id prefix.
+	var id: String = String(entry.get("id", ""))
+	for prefix in _ID_CLASS_PREFIXES:
+		if id.begins_with(String(prefix)):
+			return String(_ID_CLASS_PREFIXES[prefix])
+	return ""
+
+
+# Skill modifiers usable by `cls`.
+static func modifiers_for_class(cls: String) -> Array:
+	var out: Array = []
+	for m in SKILL_MODIFIERS:
+		if class_for_entry(m) == cls:
+			out.append(m)
+	return out
+
+
+# Slot-transform uniques usable by `cls` in the level-up overlay. Basic-attack
+# uniques (slot -1, no `transform`) are EXCLUDED: they aren't applied through
+# apply_transform — they live in the equipped-item system and are read by
+# player.gd via InventorySystem.has_unique(). Offering them here did nothing.
+static func uniques_for_class(cls: String) -> Array:
+	var out: Array = []
+	for u in UNIQUES:
+		if class_for_entry(u) != cls:
+			continue
+		if String(u.get("transform", "")) == "":
+			continue
+		out.append(u)
+	return out
+
+
 static func find_modifier(id: String) -> Dictionary:
 	for m in SKILL_MODIFIERS:
 		if String(m["id"]) == id:

@@ -5,10 +5,10 @@
 [ext_resource type="Texture2D" uid="uid://danhmo83uq1ar" path="res://assets/sprites/characters/archmage/archmage_walk.png" id="3_walk"]
 [ext_resource type="Texture2D" uid="uid://b72i7v3i4fbgw" path="res://assets/sprites/characters/archmage/archmage_attack.png" id="4_attack"]
 [ext_resource type="Script" uid="uid://csycp7y8ybtx4" path="res://scripts/skills/skill_system.gd" id="5_skillsys"]
-[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="6_stats"]
-[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="7_health"]
-[ext_resource type="Script" path="res://scripts/components/status_effect_receiver_component.gd" id="8_status"]
-[ext_resource type="Script" path="res://scripts/components/hurt_box_component.gd" id="9_hurt"]
+[ext_resource type="Script" uid="uid://cy02c87b4aw6x" path="res://scripts/components/stats_component.gd" id="6_stats"]
+[ext_resource type="Script" uid="uid://cnulrqcho6hjp" path="res://scripts/components/health_component.gd" id="7_health"]
+[ext_resource type="Script" uid="uid://ckqc7c757hif5" path="res://scripts/components/status_effect_receiver_component.gd" id="8_status"]
+[ext_resource type="Script" uid="uid://ijwatwtbedvr" path="res://scripts/components/hurt_box_component.gd" id="9_hurt"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_mage"]
 animations = [{
@@ -38,8 +38,8 @@ animations = [{
 }]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
-radius = 14.0
-height = 38.0
+radius = 20.0
+height = 64.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_hurt"]
 radius = 18.0
@@ -77,7 +77,7 @@ sprite_frames = SubResource("SpriteFrames_mage")
 animation = &"idle"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1549573317]
-position = Vector2(0, 6)
+position = Vector2(-2, -9)
 shape = SubResource("CapsuleShape2D_body")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=15092033 node_paths=PackedStringArray("health_component", "status_effect_receiver", "damage_receiver")]

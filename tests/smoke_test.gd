@@ -20,6 +20,8 @@ func _ready() -> void:
 	print("=== SMOKE TEST ===")
 	_check_all_scenes_load()
 	_check_skill_catalog()
+	_check_reward_class_mapping()
+	_check_unique_item_transforms()
 	print("=== RESULT: %d checks, %d failures ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -84,6 +86,63 @@ func _check_path(skill: String, field: String, e: Dictionary) -> void:
 		return
 	if not ResourceLoader.exists(p):
 		_fail("skill '%s' %s path missing: %s" % [skill, field, p])
+
+
+# Every skill modifier and transform unique must resolve to exactly one known
+# class — an orphan (unmapped) entry would be offered to the WRONG class (or no
+# class) in the level-up overlay. This guards future content additions.
+func _check_reward_class_mapping() -> void:
+	var classes := {
+		"mage": true,
+		"barbarian": true,
+		"rogue": true,
+		"druid": true,
+		"necromancer": true,
+		"hexen": true,
+		"stormcaller": true,
+	}
+	for m in RewardData.SKILL_MODIFIERS:
+		_ok()
+		var c: String = RewardData.class_for_entry(m)
+		if c == "" or not classes.has(c):
+			_fail("modifier '%s' maps to unknown class '%s'" % [str(m.get("id", "?")), c])
+	for u in RewardData.UNIQUES:
+		# Only transform uniques are class-filtered; basic uniques use basic_for.
+		if String(u.get("transform", "")) == "" and String(u.get("basic_for", "")) == "":
+			continue
+		_ok()
+		var cu: String = RewardData.class_for_entry(u)
+		if cu == "" or not classes.has(cu):
+			_fail("unique '%s' maps to unknown class '%s'" % [str(u.get("id", "?")), cu])
+	# Per-class summary so the offered pools are visible at a glance.
+	for cls in classes.keys():
+		var nmods: int = RewardData.modifiers_for_class(cls).size()
+		var nuniq: int = RewardData.uniques_for_class(cls).size()
+		print("  class %s: %d modifiers, %d transform-uniques" % [cls, nmods, nuniq])
+
+
+# Every unique item must actually DO something when equipped. A unique's
+# `transform` is consumed one of two ways: a slot-swap (in
+# SkillSystem.TRANSFORM_OVERRIDES, which needs a slot mapping in
+# _ITEM_TRANSFORM_SLOT) or a has_unique() behaviour flag read by a skill. This
+# guards the bug where slot-swap item uniques set the flag but never swapped.
+func _check_unique_item_transforms() -> void:
+	var overrides: Dictionary = SkillSystem.TRANSFORM_OVERRIDES
+	var slot_map: Dictionary = SkillSystem._ITEM_TRANSFORM_SLOT
+	for u in ItemDatabase.UNIQUE_ITEMS:
+		var tid: String = String(u.get("transform", ""))
+		if tid == "":
+			continue
+		# Slot-swap transforms must have a slot mapping, or equipping does nothing.
+		if overrides.has(tid):
+			_ok()
+			if not slot_map.has(tid):
+				_fail(
+					(
+						"unique item '%s' transform '%s' is a slot-swap but has no _ITEM_TRANSFORM_SLOT mapping — equipping it does nothing"
+						% [str(u.get("id", "?")), tid]
+					)
+				)
 
 
 # Recursive .tscn walk. Returns absolute res:// paths.

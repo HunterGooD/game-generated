@@ -35,6 +35,15 @@ func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
 	if ss and ss.has_method("get_modifier"):
 		var stacks: int = int(ss.call("get_modifier", 2, "necro_pact_power"))
 		pact_power += 0.25 * float(stacks)
+	# Multiplayer: a non-host caster's minions live on the host — ask the host to
+	# empower them. Solo and host apply directly to their local minions.
+	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns:
+			ns.call(
+				"request_blood_pact", BUFF_DURATION, pact_power, SPEED_MULT
+			)
+		return
 	# Empower every minion owned by THIS necromancer.
 	var tree := get_tree()
 	if tree == null:
@@ -46,6 +55,13 @@ func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
 			continue
 		if n.has_method("apply_blood_pact"):
 			n.call("apply_blood_pact", BUFF_DURATION, pact_power, SPEED_MULT)
+
+
+func _find_net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
 
 
 func _ready() -> void:

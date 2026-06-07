@@ -22,6 +22,26 @@ var owner_caster: Node = null
 var buff_t: float = 0.0
 var dmg_mult: float = 1.0
 var spd_mult: float = 1.0
+# Co-op networking. Authoritative minions live on the host; every other peer
+# holds a visual puppet driven by host-broadcast state (no AI, no damage).
+var network_id: int = -1
+var owner_player_id: int = -1
+var is_puppet: bool = false
+var _net_target_pos: Vector2 = Vector2.ZERO
+
+
+func set_puppet() -> void:
+	is_puppet = true
+	_net_target_pos = global_position
+	# A puppet shouldn't block movement or be hit — the host owns its life.
+	set_deferred("collision_layer", 0)
+	set_deferred("collision_mask", 0)
+
+
+func apply_remote_state(d: Dictionary) -> void:
+	_net_target_pos = Vector2(float(d.get("x", global_position.x)), float(d.get("y", global_position.y)))
+	if d.has("hp"):
+		hp = int(d.get("hp"))
 
 
 func configure(kind: String, caster_dmg: int) -> void:
@@ -94,6 +114,9 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		velocity = Vector2.ZERO
 		return
+	if is_puppet:
+		_puppet_process(delta)
+		return
 	if attack_cd > 0.0:
 		attack_cd -= delta
 	if buff_t > 0.0:
@@ -150,6 +173,21 @@ func _follow_owner(delta: float) -> void:
 	move_and_slide()
 
 
+# Puppet: smoothly chase the host-provided position and animate.
+func _puppet_process(delta: float) -> void:
+	var to_t: Vector2 = _net_target_pos - global_position
+	if to_t.length() > 2.0:
+		global_position = global_position.lerp(_net_target_pos, clamp(12.0 * delta, 0.0, 1.0))
+		if sprite and abs(to_t.x) > 1.0:
+			sprite.flip_h = to_t.x < 0.0
+		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
+			if sprite.animation != "walk":
+				sprite.play("walk")
+	elif sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("idle"):
+		if sprite.animation != "idle":
+			sprite.play("idle")
+
+
 func _find_nearest_enemy() -> Node2D:
 	var tree := get_tree()
 	if tree == null:
@@ -194,6 +232,9 @@ func apply_blood_pact(duration: float, dmg_multiplier: float, speed_multiplier: 
 func take_damage(amount: int, _src: Vector2 = Vector2.ZERO) -> void:
 	if dead:
 		return
+	# Puppets never take authoritative damage — the host drives hp/death.
+	if is_puppet:
+		return
 	hp -= amount
 	if sprite:
 		var tw := create_tween()
@@ -207,6 +248,11 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	# Host: tell peers to drop their puppet of this minion.
+	if not is_puppet and network_id >= 0:
+		var ns := _net_sync()
+		if ns and ns.has_method("broadcast_minion_death"):
+			ns.call("broadcast_minion_death", network_id)
 	if sprite:
 		var tw := sprite.create_tween().set_parallel(true)
 		tw.tween_property(sprite, "modulate:a", 0.0, 0.5)
@@ -230,3 +276,10 @@ func _safety_free() -> void:
 		return
 	if is_instance_valid(self):
 		queue_free()
+
+
+func _net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
