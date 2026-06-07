@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://cor07pannwv4j"]
+
+[ext_resource type="Script" uid="uid://bb400ptae3eks" path="res://scripts/pickups/gold_drop.gd" id="1_gd"]
+[ext_resource type="Texture2D" uid="uid://c34hmnmsuxlko" path="res://assets/sprites/pickups/gold.webp" id="2_kko0w"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_gd"]
+radius = 18.0
+
+[node name="GoldDrop" type="Area2D" unique_id=623665847 node_paths=PackedStringArray("sprite","label")]
+collision_layer = 32
+collision_mask = 2
+script = ExtResource("1_gd")
+sprite = NodePath("Sprite")
+label = NodePath("Label")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1794774691]
+modulate = Color(1.2, 1, 0.6, 1)
+z_index = 90
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("2_kko0w")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=678892643]
+shape = SubResource("CircleShape2D_gd")
+
+[node name="Label" type="Label" parent="." unique_id=884115714]
+offset_left = -30.0
+offset_top = -46.0
+offset_right = 30.0
+offset_bottom = -26.0
+theme_override_colors/font_color = Color(1, 0.92, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+text = "+1"
+horizontal_alignment = 1

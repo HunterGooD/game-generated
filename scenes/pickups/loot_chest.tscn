@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://cdyttvkm2qb2u"]
+
+[ext_resource type="Script" uid="uid://dw62g53rj3c1a" path="res://scripts/pickups/loot_chest.gd" id="1_chest"]
+[ext_resource type="Texture2D" uid="uid://dyfnuib3oqxkb" path="res://assets/sprites/items/loot_chest_closed.png" id="2_chesttex"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_chest"]
+radius = 50.0
+
+[node name="LootChest" type="Area2D" unique_id=1802094895 node_paths=PackedStringArray("glow")]
+script = ExtResource("1_chest")
+sprite = NodePath("Sprite")
+prompt = NodePath("Prompt")
+glow = NodePath("Glow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1398911567]
+shape = SubResource("CircleShape2D_chest")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1470281947]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("2_chesttex")
+
+[node name="Glow" type="PointLight2D" parent="." unique_id=2044957154]
+color = Color(1, 0.45, 0.35, 1)
+energy = 1.4
+texture_scale = 2.0
+
+[node name="Prompt" type="Label" parent="." unique_id=1509670867]
+offset_left = -80.0
+offset_top = -120.0
+offset_right = 80.0
+offset_bottom = -90.0
+theme_override_colors/font_color = Color(1, 0.85, 0.5, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "[E] Open"
+horizontal_alignment = 1

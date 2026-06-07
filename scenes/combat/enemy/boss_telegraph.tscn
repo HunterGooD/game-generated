@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://bbosstelegraphscn"]
+
+[ext_resource type="Script" path="res://scripts/combat/enemy/boss_telegraph.gd" id="1_tel"]
+
+[node name="BossTelegraph" type="Node2D" node_paths=PackedStringArray("sprite")]
+script = ExtResource("1_tel")
+sprite = NodePath("Sprite")
+
+[node name="Sprite" type="Sprite2D" parent="."]

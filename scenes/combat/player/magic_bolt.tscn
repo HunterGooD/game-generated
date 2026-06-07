@@ -1,0 +1,31 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8plyrarmagicbolt"]
+
+[ext_resource type="Script" path="res://scripts/combat/player/magic_bolt.gd" id="1_bolt"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/magic_bolt.png" id="2_tex"]
+[ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="3_hit"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_bolt"]
+radius = 10.0
+
+[node name="MagicBolt" type="Area2D" node_paths=PackedStringArray("sprite", "hit_box")]
+collision_layer = 4
+collision_mask = 17
+script = ExtResource("1_bolt")
+sprite = NodePath("Sprite")
+hit_box = NodePath("HitBox")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+scale = Vector2(0.32, 0.32)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_bolt")
+
+[node name="HitBox" type="Area2D" parent="." node_paths=PackedStringArray("collision_shape")]
+collision_layer = 4
+collision_mask = 16
+script = ExtResource("3_hit")
+collision_shape = NodePath("CollisionShape2D")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitBox"]
+shape = SubResource("CircleShape2D_bolt")

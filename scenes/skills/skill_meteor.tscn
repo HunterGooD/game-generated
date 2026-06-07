@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8plyrarmeteorsk"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_meteor.gd" id="1_me"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/meteor_telegraph.png" id="2_tel"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/meteor_rock.png" id="3_rock"]
+
+[node name="Meteor" type="Node2D" node_paths=PackedStringArray("telegraph","rock")]
+script = ExtResource("1_me")
+telegraph = NodePath("Telegraph")
+rock = NodePath("Rock")
+
+[node name="Telegraph" type="Sprite2D" parent="."]
+texture = ExtResource("2_tel")
+scale = Vector2(1.4, 1.4)
+modulate = Color(1, 0.4, 0.4, 0.85)
+z_index = 50
+
+[node name="Rock" type="Sprite2D" parent="."]
+texture = ExtResource("3_rock")
+scale = Vector2(0.7, 0.7)
+z_index = 200

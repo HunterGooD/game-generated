@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://b_trade_panel"]
+
+[ext_resource type="Script" path="res://scripts/ui/trade_panel.gd" id="1_tp"]
+
+[node name="TradePanel" type="CanvasLayer"]
+script = ExtResource("1_tp")
+layer = 75

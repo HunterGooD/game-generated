@@ -1,0 +1,35 @@
+[gd_scene load_steps=3 format=3 uid="uid://bmerchantscn"]
+
+[ext_resource type="Script" path="res://scripts/pickups/merchant.gd" id="1_merch"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_merch"]
+radius = 75.0
+
+[node name="Merchant" type="Area2D" node_paths=PackedStringArray("sprite","prompt","glow")]
+script = ExtResource("1_merch")
+sprite = NodePath("Sprite")
+prompt = NodePath("Prompt")
+glow = NodePath("Glow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_merch")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+scale = Vector2(0.55, 0.55)
+
+[node name="Glow" type="PointLight2D" parent="."]
+energy = 1.2
+color = Color(1.0, 0.7, 0.3, 1)
+texture_scale = 2.4
+
+[node name="Prompt" type="Label" parent="."]
+offset_left = -100.0
+offset_top = -150.0
+offset_right = 100.0
+offset_bottom = -120.0
+text = "[E] Trade"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4

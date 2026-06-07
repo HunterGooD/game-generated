@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8plyrarbeacon"]
+
+[ext_resource type="Script" path="res://scripts/world/activity_beacon.gd" id="1_beacon"]
+
+[node name="ActivityBeacon" type="Node2D" node_paths=PackedStringArray("icon_sprite","label")]
+script = ExtResource("1_beacon")
+icon_sprite = NodePath("Icon")
+label = NodePath("Label")
+
+[node name="Icon" type="Sprite2D" parent="."]
+
+[node name="Label" type="Label" parent="."]
+offset_left = -80.0
+offset_top = 56.0
+offset_right = 80.0
+offset_bottom = 84.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = ""
+theme_override_colors/font_color = Color(1, 0.92, 0.65, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18

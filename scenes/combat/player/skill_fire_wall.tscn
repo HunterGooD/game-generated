@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8plyrarfirewall"]
+
+[ext_resource type="Script" path="res://scripts/combat/player/skill_fire_wall.gd" id="1_fw"]
+[ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="2_hit"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fw"]
+size = Vector2(240, 56)
+
+[node name="FireWall" type="Node2D" node_paths=PackedStringArray("hurt_area", "hit_box")]
+script = ExtResource("1_fw")
+hurt_area = NodePath("HurtArea")
+hit_box = NodePath("HitBox")
+
+[node name="HurtArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 16
+
+[node name="HurtShape" type="CollisionShape2D" parent="HurtArea"]
+shape = SubResource("RectangleShape2D_fw")
+
+[node name="HitBox" type="Area2D" parent="."]
+script = ExtResource("2_hit")

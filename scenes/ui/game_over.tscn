@@ -1,0 +1,98 @@
+[gd_scene load_steps=3 format=3 uid="uid://b8plyrargameover"]
+
+[ext_resource type="Script" path="res://scripts/ui/game_over.gd" id="1_go"]
+[ext_resource type="Theme" path="res://assets/ui/theme.tres" id="2_theme"]
+
+[node name="GameOver" type="CanvasLayer" node_paths=PackedStringArray("title_label","stat_grid","btn_menu","btn_retry")]
+layer = 35
+script = ExtResource("1_go")
+title_label = NodePath("Root/Center/Panel/Margin/VBox/Title")
+stat_grid = NodePath("Root/Center/Panel/Margin/VBox/Stats")
+btn_menu = NodePath("Root/Center/Panel/Margin/VBox/Buttons/BtnMenu")
+btn_retry = NodePath("Root/Center/Panel/Margin/VBox/Buttons/BtnRetry")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("2_theme")
+
+[node name="Dim" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.03, 0.0, 0.01, 0.88)
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="Root/Center"]
+layout_mode = 2
+custom_minimum_size = Vector2(640, 600)
+theme_type_variation = &"DialogPanel"
+
+[node name="Margin" type="MarginContainer" parent="Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_bottom = 36
+
+[node name="VBox" type="VBoxContainer" parent="Root/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Root/Center/Panel/Margin/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "YOU PERISHED"
+theme_override_colors/font_color = Color(1.0, 0.25, 0.25, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/font_size = 64
+
+[node name="Subtitle" type="Label" parent="Root/Center/Panel/Margin/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "The ruins claim another soul."
+theme_override_colors/font_color = Color(0.85, 0.55, 0.45, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 20
+
+[node name="Spacer1" type="Control" parent="Root/Center/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="Stats" type="GridContainer" parent="Root/Center/Panel/Margin/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 36
+theme_override_constants/v_separation = 6
+
+[node name="Spacer2" type="Control" parent="Root/Center/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="Root/Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="BtnMenu" type="Button" parent="Root/Center/Panel/Margin/VBox/Buttons"]
+layout_mode = 2
+custom_minimum_size = Vector2(260, 68)
+text = "Return to Sanctuary"
+theme_override_font_sizes/font_size = 18
+
+[node name="BtnRetry" type="Button" parent="Root/Center/Panel/Margin/VBox/Buttons"]
+layout_mode = 2
+custom_minimum_size = Vector2(260, 68)
+text = "Try Again"
+theme_override_font_sizes/font_size = 18

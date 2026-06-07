@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3 uid="uid://bbossprojscn"]
+
+[ext_resource type="Script" path="res://scripts/combat/enemy/boss_projectile.gd" id="1_bp"]
+[ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="2_hit"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_bp"]
+radius = 16.0
+
+[node name="BossProjectile" type="Area2D" node_paths=PackedStringArray("sprite", "hit_box")]
+script = ExtResource("1_bp")
+sprite = NodePath("Sprite")
+hit_box = NodePath("HitBox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_bp")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+
+[node name="HitBox" type="Area2D" parent="." node_paths=PackedStringArray("collision_shape")]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("2_hit")
+collision_shape = NodePath("CollisionShape2D")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitBox"]
+shape = SubResource("CircleShape2D_bp")

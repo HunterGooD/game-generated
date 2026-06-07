@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  echoes-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echoes-server
+    ports:
+      - "7777:7777"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "7777"
+      MAX_ROOMS: "1000"
+      ROOM_TTL_SECS: "3600"
+      CODE_LENGTH: "6"
+    restart: unless-stopped
+
+  echoes-server-slim:
+    profiles: ["slim"]
+    build:
+      context: .
+      dockerfile: Dockerfile.slim
+    container_name: echoes-server-slim
+    ports:
+      - "7778:7777"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "7777"
+      MAX_ROOMS: "1000"
+      ROOM_TTL_SECS: "3600"
+      CODE_LENGTH: "6"
+    restart: unless-stopped

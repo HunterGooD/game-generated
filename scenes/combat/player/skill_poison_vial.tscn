@@ -1,0 +1,27 @@
+[gd_scene load_steps=5 format=3 uid="uid://b8plyrarpoison"]
+
+[ext_resource type="Script" path="res://scripts/combat/player/skill_poison_vial.gd" id="1_pv"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/poison_cloud.png" id="2_pc"]
+[ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="3_hit"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pv"]
+radius = 70.0
+
+[node name="PoisonVial" type="Area2D" node_paths=PackedStringArray("sprite", "hit_box")]
+collision_layer = 0
+collision_mask = 16
+script = ExtResource("1_pv")
+sprite = NodePath("Sprite")
+hit_box = NodePath("HitBox")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_pc")
+scale = Vector2(1.4, 1.4)
+modulate = Color(0.7, 1.4, 0.5, 0.95)
+z_index = 60
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_pv")
+
+[node name="HitBox" type="Area2D" parent="."]
+script = ExtResource("3_hit")

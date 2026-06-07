@@ -1,0 +1,52 @@
+[gd_scene format=3 uid="uid://bbossscene"]
+
+[ext_resource type="Script" uid="uid://dju2o0ebjhl4q" path="res://scripts/entities/boss.gd" id="1_boss"]
+[ext_resource type="Texture2D" uid="uid://bffr6vxay476t" path="res://assets/sprites/characters/boss_crimson_matron_idle.png" id="2_neq0i"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="3_stats"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="4_health"]
+[ext_resource type="Script" path="res://scripts/components/status_effect_receiver_component.gd" id="5_status"]
+[ext_resource type="Script" path="res://scripts/components/hurt_box_component.gd" id="6_hurt"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_boss"]
+radius = 55.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_dlmty"]
+radius = 80.0
+height = 358.0
+
+[node name="Boss" type="CharacterBody2D" unique_id=469729472 node_paths=PackedStringArray("sprite", "hurtbox", "stats_component", "health_component", "status_effect_receiver")]
+script = ExtResource("1_boss")
+sprite = NodePath("Sprite")
+hurtbox = NodePath("Hurtbox")
+stats_component = NodePath("Components/StatsComponent")
+health_component = NodePath("Components/HealthComponent")
+status_effect_receiver = NodePath("Components/StatusEffectReceiverComponent")
+
+[node name="Components" type="Node" parent="." unique_id=1233055981]
+
+[node name="StatsComponent" type="Node" parent="Components" unique_id=744130049]
+script = ExtResource("3_stats")
+
+[node name="HealthComponent" type="Node" parent="Components" unique_id=1224610753 node_paths=PackedStringArray("main_stats")]
+script = ExtResource("4_health")
+main_stats = NodePath("../StatsComponent")
+
+[node name="StatusEffectReceiverComponent" type="Node" parent="Components" unique_id=1199180846 node_paths=PackedStringArray("main_stats", "health_component")]
+script = ExtResource("5_status")
+main_stats = NodePath("../StatsComponent")
+health_component = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=834235333]
+position = Vector2(0, 20)
+shape = SubResource("CircleShape2D_boss")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=186843266]
+texture = ExtResource("2_neq0i")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1600456351 node_paths=PackedStringArray("health_component","status_effect_receiver")]
+script = ExtResource("6_hurt")
+health_component = NodePath("../Components/HealthComponent")
+status_effect_receiver = NodePath("../Components/StatusEffectReceiverComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=780283871]
+shape = SubResource("CapsuleShape2D_dlmty")

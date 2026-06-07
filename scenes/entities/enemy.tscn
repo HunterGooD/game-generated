@@ -1,0 +1,86 @@
+[gd_scene format=3 uid="uid://b8plyrarenemy"]
+
+[ext_resource type="Script" uid="uid://cy1utaglc3yay" path="res://scripts/entities/enemy.gd" id="1_enemy"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/components/status_effect_receiver_component.gd" id="4_status"]
+[ext_resource type="Script" path="res://scripts/components/hurt_box_component.gd" id="5_hurt"]
+[ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="6_hit"]
+[ext_resource type="Script" path="res://scripts/components/enemy_ai_component.gd" id="7_ai"]
+[ext_resource type="Script" path="res://scripts/components/reward_drop_component.gd" id="8_reward"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 18.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurt"]
+radius = 36.05551
+
+[node name="Enemy" type="CharacterBody2D" unique_id=1626940914 node_paths=PackedStringArray("sprite", "hp_bar", "collision_shape", "hitbox", "hurtbox", "stats_component", "health_component", "status_effect_receiver", "ai_component", "reward_drop")]
+collision_layer = 12
+script = ExtResource("1_enemy")
+sprite = NodePath("Visual")
+hp_bar = NodePath("HPBar")
+collision_shape = NodePath("CollisionShape2D")
+hitbox = NodePath("Hitbox")
+hurtbox = NodePath("Hurtbox")
+stats_component = NodePath("Components/StatsComponent")
+health_component = NodePath("Components/HealthComponent")
+status_effect_receiver = NodePath("Components/StatusEffectReceiverComponent")
+ai_component = NodePath("Components/EnemyAIComponent")
+reward_drop = NodePath("Components/RewardDropComponent")
+
+[node name="Components" type="Node" parent="." unique_id=1942220001]
+
+[node name="StatsComponent" type="Node" parent="Components" unique_id=1649912301]
+script = ExtResource("2_stats")
+
+[node name="HealthComponent" type="Node" parent="Components" unique_id=1883048827 node_paths=PackedStringArray("main_stats")]
+script = ExtResource("3_health")
+main_stats = NodePath("../StatsComponent")
+
+[node name="StatusEffectReceiverComponent" type="Node" parent="Components" unique_id=1884220891 node_paths=PackedStringArray("main_stats", "health_component")]
+script = ExtResource("4_status")
+main_stats = NodePath("../StatsComponent")
+health_component = NodePath("../HealthComponent")
+
+[node name="EnemyAIComponent" type="Node" parent="Components" unique_id=1884220892]
+script = ExtResource("7_ai")
+
+[node name="RewardDropComponent" type="Node" parent="Components" unique_id=1884220893]
+script = ExtResource("8_reward")
+
+[node name="Visual" type="Sprite2D" parent="." unique_id=1644953918]
+position = Vector2(0, -10)
+scale = Vector2(0.34, 0.34)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=577172495]
+position = Vector2(0, 4)
+shape = SubResource("CircleShape2D_body")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1655220917 node_paths=PackedStringArray("health_component","status_effect_receiver")]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hurt")
+health_component = NodePath("../Components/HealthComponent")
+status_effect_receiver = NodePath("../Components/StatusEffectReceiverComponent")
+
+[node name="HurtboxShape" type="CollisionShape2D" parent="Hurtbox" unique_id=2051006427]
+shape = SubResource("CircleShape2D_hurt")
+
+[node name="Hitbox" type="Area2D" parent="." unique_id=1291237557 node_paths=PackedStringArray("collision_shape")]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("6_hit")
+collision_shape = NodePath("HitboxShape")
+
+[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox" unique_id=381021797]
+shape = SubResource("CircleShape2D_hurt")
+
+[node name="HPBar" type="ProgressBar" parent="." unique_id=146920950]
+offset_left = -28.0
+offset_top = -50.0
+offset_right = 28.0
+offset_bottom = -42.0
+max_value = 30.0
+value = 30.0
+show_percentage = false

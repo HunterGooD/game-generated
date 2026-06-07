@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://b_necro_minion"]
+
+[ext_resource type="Script" path="res://scripts/entities/necro_minion.gd" id="1_nm"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_nm"]
+radius = 20.0
+
+[node name="NecroMinion" type="CharacterBody2D"]
+script = ExtResource("1_nm")
+motion_mode = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_nm")

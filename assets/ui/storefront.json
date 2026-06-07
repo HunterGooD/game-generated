@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "generated_at": "2026-05-27T15:06:57.139Z",
+  "tagline": "Cast elemental magic, hunt unique artifacts, and unravel the ancient ruins one dungeon at a time.",
+  "description": "## Echoes of the Forgotten\n\nYou are the last Archmage of a fallen order. The ruins below the city brim with relics that whisper to no one but you — and the things that nest there feed on the same magic.\n\nDescend into procedurally arranged dungeons. Each room holds events in its four corners: golden treasure chests, blessing altars, the wheel of unknown rarities, and ritual challenges that risk lives for legendary loot.\n\nRoll your stats every level. Reshape your four spells with unique artifacts that **transform** them — a fire wall becomes a wall of ice that freezes anything brushing past it. Pick your ultimate from a roster of five and chain it with the right gear set.\n\nEvery run is a fresh deck of choices. Beat the boss at the bottom of the ruins or lose everything and dive again.",
+  "theme": {
+    "color_theme": "midnight",
+    "font_family": "classic",
+    "border_radius": "medium"
+  },
+  "category_slug": "rpg",
+  "tag_slugs": [
+    "roguelike",
+    "loot-drops",
+    "fantasy",
+    "top-down",
+    "boss-fights",
+    "upgrades-progression"
+  ]
+}

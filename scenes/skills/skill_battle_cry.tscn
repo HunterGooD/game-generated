@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://b8plyrarbattlecry"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_battle_cry.gd" id="1_bc"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/rage_aura.png" id="2_tex"]
+
+[node name="BattleCry" type="Node2D" node_paths=PackedStringArray("sprite")]
+script = ExtResource("1_bc")
+sprite = NodePath("Sprite")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+scale = Vector2(0.6, 0.6)
+modulate = Color(1, 0.3, 0.3, 0.9)
+z_index = 60

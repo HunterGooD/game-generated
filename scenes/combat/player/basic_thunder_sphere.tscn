@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://b_basic_thunder_sphere"]
+
+[ext_resource type="Script" path="res://scripts/combat/player/basic_thunder_sphere.gd" id="1_ts"]
+
+[node name="BasicThunderSphere" type="Area2D"]
+script = ExtResource("1_ts")
+collision_layer = 4
+collision_mask = 17
