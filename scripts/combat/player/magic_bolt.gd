@@ -119,6 +119,11 @@ func _build_damage_payload() -> DamageInstance:
 
 
 func _resolve_local_player() -> Node:
+	# Guard with is_inside_tree() first: calling get_tree() on a node that
+	# hasn't been added to the SceneTree yet (e.g. during setup() before
+	# add_child) emits "Parameter data.tree is null" before returning null.
+	if not is_inside_tree():
+		return null
 	var tree := get_tree()
 	if tree == null:
 		return null

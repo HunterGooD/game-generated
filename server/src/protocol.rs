@@ -161,6 +161,12 @@ pub enum ClientMessage {
     DruidForm { form: String, dur: f64 },
     #[serde(rename = "player_dead")]
     PlayerDead,
+    #[serde(rename = "player_downed")]
+    PlayerDowned,
+    #[serde(rename = "player_revived")]
+    PlayerRevived { hp: i64 },
+    #[serde(rename = "revive")]
+    Revive { target: u8 },
     #[serde(rename = "pause_request")]
     PauseRequest { paused: bool },
     #[serde(rename = "item_gift")]
@@ -193,6 +199,9 @@ impl ClientMessage {
             Self::RpHp { .. } => "rp_hp",
             Self::DruidForm { .. } => "druid_form",
             Self::PlayerDead => "player_dead",
+            Self::PlayerDowned => "player_downed",
+            Self::PlayerRevived { .. } => "player_revived",
+            Self::Revive { .. } => "revive",
             Self::PauseRequest { .. } => "pause_request",
             Self::ItemGift { .. } => "item_gift",
         }
@@ -256,6 +265,9 @@ mod tests {
             r#"{"t":"rp_hp","target":1,"hp":80}"#,
             r#"{"t":"druid_form","form":"wolf","dur":20.0}"#,
             r#"{"t":"player_dead"}"#,
+            r#"{"t":"player_downed"}"#,
+            r#"{"t":"player_revived","hp":80}"#,
+            r#"{"t":"revive","target":1}"#,
             r#"{"t":"pause_request","paused":true}"#,
             r#"{"t":"item_gift","to":1,"item":{"id":"x"}}"#,
         ];

@@ -31,8 +31,10 @@ func find_nearest_target(from_pos: Vector2) -> Node2D:
 
 
 # Every target within `radius` of `center`. Used by AOE attacks, which hit
-# stealthed/low-hp targets too — so this only filters remote puppets and
-# (optionally) airborne targets, not the full valid-target predicate.
+# stealthed/low-hp targets too — so this only filters (optionally) airborne
+# targets, not the full valid-target predicate. Remote-player puppets ARE
+# included: enemy AOE only runs host-side, and the host owns remote players'
+# damage via receive_damage_payload (which broadcasts the resulting hp).
 func gather_targets_in_radius(center: Vector2, radius: float, ignore_airborne: bool = true) -> Array:
 	var result: Array = []
 	var tree := get_tree()
@@ -42,7 +44,8 @@ func gather_targets_in_radius(center: Vector2, radius: float, ignore_airborne: b
 		for n in tree.get_nodes_in_group(grp):
 			if not is_instance_valid(n):
 				continue
-			if n.is_in_group("remote_player"):
+			# Don't AOE a teammate who is already downed/dead.
+			if n.get("is_downed") == true or n.get("is_dead") == true:
 				continue
 			if ignore_airborne and n.is_in_group("airborne"):
 				continue

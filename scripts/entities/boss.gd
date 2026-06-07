@@ -615,8 +615,10 @@ func _play_phase_transition() -> void:
 		if not is_instance_valid(p):
 			continue
 		var to_p: Vector2 = ((p as Node2D).global_position - global_position).normalized()
-		if p.has("velocity"):
-			(p as Node2D).set("velocity", to_p * 600.0)
+		# Node has no has(); knock back only true physics bodies that own a
+		# `velocity` field. Remote-player puppets aren't CharacterBody2D.
+		if p is CharacterBody2D:
+			(p as CharacterBody2D).velocity = to_p * 600.0
 
 
 func _die() -> void:

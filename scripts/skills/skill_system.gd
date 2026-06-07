@@ -685,7 +685,10 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	# Each class' slot 0..3 gets +30% per stack.
 	var stack_bonus: float = 0.0
 	var stack_ids := ["fw_damage", "ib_damage", "cl_damage", "mt_damage"]
-	stack_bonus = 0.3 * float(get_modifier(slot, stack_ids[slot]))
+	# Only slots 0..3 carry a stacking +damage modifier; slot 4 (the class
+	# ultimate) has none, so guard the lookup to avoid an out-of-bounds read.
+	if slot >= 0 and slot < stack_ids.size():
+		stack_bonus = 0.3 * float(get_modifier(slot, stack_ids[slot]))
 	# Buff multiplier (from Battle Cry etc.).
 	var buff_mult: float = _player_buff_dmg(caster)
 	var scaled_damage: int = int(

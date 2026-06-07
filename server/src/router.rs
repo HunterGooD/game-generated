@@ -31,6 +31,19 @@ pub fn route_message(
                 Vec::new()
             }
         }
+        // Revive is addressed to the downed player who owns their own life
+        // state; deliver only to that target (they then broadcast revived).
+        ClientMessage::Revive { target } => {
+            let t = *target;
+            if recipients.contains(&t) && t != from {
+                vec![RoutedMessage {
+                    target: t,
+                    payload: with_from(msg.clone(), from),
+                }]
+            } else {
+                Vec::new()
+            }
+        }
         ClientMessage::EnemyHit { .. } | ClientMessage::PortalActivate => {
             if host_id == from {
                 Vec::new()
