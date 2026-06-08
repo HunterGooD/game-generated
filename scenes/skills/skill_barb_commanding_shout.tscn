@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://barbskill06"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_barb_commanding_shout.gd" id="1_barb_commanding_shout"]
-
-[node name="CommandingShout" type="Node2D"]
-script = ExtResource("1_barb_commanding_shout")

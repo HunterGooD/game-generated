@@ -24,6 +24,20 @@ static func from_data(d: Dictionary) -> SkillEffect:
 			return SkillEffectCasterCall.from_data(d)
 		"group_call":
 			return SkillEffectGroupCall.from_data(d)
+		"area_damage":
+			return SkillEffectAreaDamage.from_data(d)
+		"summon":
+			return SkillEffectSummon.from_data(d)
+		"group_heal":
+			return SkillEffectGroupHeal.from_data(d)
+		"group_shield":
+			return SkillEffectGroupShield.from_data(d)
+		"transform":
+			return SkillEffectTransform.from_data(d)
+		"dash":
+			return SkillEffectDash.from_data(d)
+		"projectile":
+			return SkillEffectProjectile.from_data(d)
 		"vfx":
 			return SkillEffectVfx.from_data(d)
 		_:

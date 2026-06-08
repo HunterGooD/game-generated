@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://stormasc02"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_storm_thunder_lunge.gd" id="1_storm_thunder_lunge"]
-
-[node name="ThunderLunge" type="Node2D"]
-script = ExtResource("1_storm_thunder_lunge")

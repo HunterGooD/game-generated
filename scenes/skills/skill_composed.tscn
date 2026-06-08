@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://skillcomposed01"]
+[gd_scene format=3 uid="uid://dru76o20sn8ns"]
 
 [ext_resource type="Script" path="res://scripts/skills/skill_composed.gd" id="1_skill_composed"]
 

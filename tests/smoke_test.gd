@@ -99,6 +99,28 @@ func _check_composed_skills() -> void:
 				var g := effect as SkillEffectGroupCall
 				if g.group == "" or g.method == "":
 					_fail("skill '%s' group_call effect missing group/method" % str(key))
+			elif effect is SkillEffectAreaDamage and (effect as SkillEffectAreaDamage).radius <= 0.0:
+				_fail("skill '%s' area_damage effect has non-positive radius" % str(key))
+			elif effect is SkillEffectSummon:
+				var s := effect as SkillEffectSummon
+				if s.kind == "" or s.scene_path == "":
+					_fail("skill '%s' summon effect missing kind/scene_path" % str(key))
+				elif not ResourceLoader.exists(s.scene_path):
+					_fail("skill '%s' summon scene missing: %s" % [str(key), s.scene_path])
+			elif effect is SkillEffectGroupHeal and (effect as SkillEffectGroupHeal).group == "":
+				_fail("skill '%s' group_heal effect has empty group" % str(key))
+			elif effect is SkillEffectGroupShield and (effect as SkillEffectGroupShield).groups.is_empty():
+				_fail("skill '%s' group_shield effect has no groups" % str(key))
+			elif effect is SkillEffectTransform and (effect as SkillEffectTransform).form == "":
+				_fail("skill '%s' transform effect has empty form" % str(key))
+			elif effect is SkillEffectDash and (effect as SkillEffectDash).max_distance <= 0.0:
+				_fail("skill '%s' dash effect has non-positive max_distance" % str(key))
+			elif effect is SkillEffectProjectile:
+				var pr := effect as SkillEffectProjectile
+				if pr.scene_path == "":
+					_fail("skill '%s' projectile effect has empty scene_path" % str(key))
+				elif not ResourceLoader.exists(pr.scene_path):
+					_fail("skill '%s' projectile scene missing: %s" % [str(key), pr.scene_path])
 	print("Composed skills: %d" % composed)
 
 

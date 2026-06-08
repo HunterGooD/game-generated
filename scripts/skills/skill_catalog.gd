@@ -216,27 +216,49 @@ const _RAW := {
 		"spawn": "at_target", "behavior": "ground",
 	},
 	"fan_of_knives": {
-		"name": "Fan of Knives", "scene": "res://scenes/skills/skill_fan_of_knives.tscn",
+		"name": "Fan of Knives", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_rogue_knives.png",
 		"cooldown": 10.0, "mana_cost": 30.0, "damage_mult": 1.3,
 		"sfx": "res://assets/audio/sfx/player/player_spell_fan_knives.mp3",
 		"spawn": "at_caster", "behavior": "melee_arc",
 		"mod_wiring": {"count_bonus": {"modifier": "rogue_knives_count", "mul": 2}},
+		"effects": [
+			{
+				"type": "projectile", "scene_path": "res://scenes/combat/player/thrown_dagger.tscn",
+				"count": 8, "count_modifier": "count_bonus", "spawn_offset": 28.0,
+				"unique_meta": "venomweave"
+			},
+			{"type": "vfx", "sparks_color": Color(1.0, 0.8, 0.6, 1), "sparks_count": 8},
+		],
 	},
 	# DRUID
 	"druid_wolf_form": {
-		"name": "Wolf Form", "scene": "res://scenes/skills/skill_druid_wolf_form.tscn",
+		"name": "Wolf Form", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_wolf_form.png",
 		"cooldown": 16.0, "mana_cost": 20.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_druid_transform_wolf.mp3",
 		"spawn": "at_caster", "behavior": "transform",
+		"effects": [
+			{
+				"type": "transform", "form": "wolf", "base_duration": 20.0,
+				"per_stack": 4.0, "duration_modifier": "wolf_duration", "modifier_slot": 0
+			},
+			{"type": "vfx", "sparks_color": Color(1.0, 0.55, 0.4, 1), "sparks_count": 14},
+		],
 	},
 	"druid_bear_form": {
-		"name": "Bear Form", "scene": "res://scenes/skills/skill_druid_bear_form.tscn",
+		"name": "Bear Form", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_bear_form.png",
 		"cooldown": 16.0, "mana_cost": 20.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_druid_transform_bear.mp3",
 		"spawn": "at_caster", "behavior": "transform",
+		"effects": [
+			{
+				"type": "transform", "form": "bear", "base_duration": 20.0,
+				"per_stack": 4.0, "duration_modifier": "bear_duration", "modifier_slot": 1
+			},
+			{"type": "vfx", "sparks_color": Color(0.85, 0.7, 0.4, 1), "sparks_count": 14},
+		],
 	},
 	"druid_bite": {
 		"name": "Savage Bite", "scene": "res://scenes/skills/skill_druid_bite.tscn",
@@ -527,11 +549,21 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "ground",
 	},
 	"barb_commanding_shout": {
-		"name": "Commanding Shout", "scene": "res://scenes/skills/skill_barb_commanding_shout.tscn",
+		"name": "Commanding Shout", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_barb_cry.png",
 		"cooldown": 16.0, "mana_cost": 26.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_battlecry.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{
+				"type": "vfx", "explosion_scale": 1.2,
+				"explosion_color": Color(0.5, 0.8, 1.0, 1), "shake_strength": 3.0, "shake_time": 0.18
+			},
+			{
+				"type": "group_shield", "groups": ["player", "remote_player"],
+				"radius": 260.0, "shield_frac": 0.18
+			},
+		],
 	},
 	"barb_war_ground": {
 		"name": "War Ground", "scene": "res://scenes/skills/skill_barb_war_ground.tscn",
@@ -670,18 +702,32 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "buff",
 	},
 	"storm_thunder_lunge": {
-		"name": "Thunder Lunge", "scene": "res://scenes/skills/skill_storm_thunder_lunge.tscn",
+		"name": "Thunder Lunge", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_storm_step.png",
 		"cooldown": 5.0, "mana_cost": 14.0, "damage_mult": 1.4,
 		"sfx": "res://assets/audio/sfx/player/player_storm_step_dash.mp3",
 		"spawn": "with_caster", "behavior": "dash",
+		"effects": [
+			{
+				"type": "dash", "max_distance": 320.0, "width": 64.0, "duration": 0.15,
+				"path_damage": true, "mark_element": "storm",
+				"sparks_color": Color(0.7, 0.85, 1.0, 1), "sparks_count": 10
+			},
+		],
 	},
 	"storm_body_discharge": {
-		"name": "Body Discharge", "scene": "res://scenes/skills/skill_storm_body_discharge.tscn",
+		"name": "Body Discharge", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_storm_static_discharge.png",
 		"cooldown": 16.0, "mana_cost": 22.0, "damage_mult": 1.6,
 		"sfx": "res://assets/audio/sfx/player/player_storm_static_discharge.mp3",
 		"spawn": "at_caster", "behavior": "aoe",
+		"effects": [
+			{
+				"type": "vfx", "explosion_scale": 1.2,
+				"explosion_color": Color(0.7, 0.85, 1.0, 1), "shake_strength": 5.0, "shake_time": 0.2
+			},
+			{"type": "area_damage", "radius": 130.0, "damage_mult": 1.25, "mark_element": "storm"},
+		],
 	},
 	"storm_charged_slash": {
 		"name": "Charged Slash", "scene": "res://scenes/skills/skill_storm_charged_slash.tscn",
@@ -705,11 +751,18 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "chain",
 	},
 	"storm_controlled_discharge": {
-		"name": "Controlled Discharge", "scene": "res://scenes/skills/skill_storm_controlled_discharge.tscn",
+		"name": "Controlled Discharge", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_storm_static_discharge.png",
 		"cooldown": 16.0, "mana_cost": 22.0, "damage_mult": 1.6,
 		"sfx": "res://assets/audio/sfx/player/player_storm_static_discharge.mp3",
 		"spawn": "at_target", "behavior": "aoe",
+		"effects": [
+			{"type": "vfx", "explosion_scale": 1.1, "explosion_color": Color(0.6, 0.8, 1.0, 1)},
+			{
+				"type": "area_damage", "radius": 140.0, "mark_element": "storm",
+				"slow_duration": 1.5, "slow_mult": 0.6
+			},
+		],
 	},
 	"storm_pillar": {
 		"name": "Storm Pillar", "scene": "res://scenes/skills/skill_storm_pillar.tscn",
@@ -848,11 +901,18 @@ const _RAW := {
 		],
 	},
 	"necro_skeletal_legion": {
-		"name": "Skeletal Legion", "scene": "res://scenes/skills/skill_necro_skeletal_legion.tscn",
+		"name": "Skeletal Legion", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_necro_raise_skeleton.png",
 		"cooldown": 8.0, "mana_cost": 22.0, "damage_mult": 0.8,
 		"sfx": "res://assets/audio/sfx/player/player_necro_raise_skeleton.mp3",
 		"spawn": "at_target", "behavior": "summon",
+		"effects": [
+			{"type": "vfx", "sparks_color": Color(0.7, 0.5, 1.0, 1), "sparks_count": 14},
+			{
+				"type": "summon", "kind": "skeleton", "count": 3,
+				"scene_path": "res://scenes/entities/necro_minion.tscn"
+			},
+		],
 	},
 	"necro_grave_champion": {
 		"name": "Grave Champion", "scene": "res://scenes/skills/skill_necro_grave_champion.tscn",
@@ -862,11 +922,19 @@ const _RAW := {
 		"spawn": "at_target", "behavior": "summon",
 	},
 	"necro_rally_pulse": {
-		"name": "Rally Pulse", "scene": "res://scenes/skills/skill_necro_rally_pulse.tscn",
+		"name": "Rally Pulse", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_necro_death_pulse.png",
 		"cooldown": 10.0, "mana_cost": 28.0, "damage_mult": 1.6,
 		"sfx": "res://assets/audio/sfx/player/player_necro_death_pulse.mp3",
 		"spawn": "at_caster", "behavior": "aoe",
+		"effects": [
+			{"type": "vfx", "explosion_scale": 1.4, "explosion_color": Color(0.6, 0.4, 0.9, 1)},
+			{"type": "area_damage", "radius": 200.0},
+			{
+				"type": "group_heal", "group": "necro_minion",
+				"radius": 200.0, "heal_frac": 0.25
+			},
+		],
 	},
 	"necro_bone_citadel": {
 		"name": "Bone Citadel", "scene": "res://scenes/skills/skill_necro_bone_citadel.tscn",
@@ -890,11 +958,18 @@ const _RAW := {
 		"spawn": "at_target", "behavior": "summon",
 	},
 	"necro_bone_nova": {
-		"name": "Bone Nova", "scene": "res://scenes/skills/skill_necro_bone_nova.tscn",
+		"name": "Bone Nova", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_necro_death_pulse.png",
 		"cooldown": 10.0, "mana_cost": 28.0, "damage_mult": 1.6,
 		"sfx": "res://assets/audio/sfx/player/player_necro_death_pulse.mp3",
 		"spawn": "at_caster", "behavior": "aoe",
+		"effects": [
+			{
+				"type": "vfx", "explosion_scale": 1.6,
+				"explosion_color": Color(0.85, 0.8, 0.7, 1), "shake_strength": 5.0, "shake_time": 0.2
+			},
+			{"type": "area_damage", "radius": 230.0},
+		],
 	},
 	"necro_second_funeral": {
 		"name": "Second Funeral", "scene": "res://scenes/skills/skill_necro_second_funeral.tscn",
@@ -947,11 +1022,18 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "buff",
 	},
 	"druid_pack_spirit": {
-		"name": "Pack Spirit", "scene": "res://scenes/skills/skill_druid_pack_spirit.tscn",
+		"name": "Pack Spirit", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_summon_spirit.png",
 		"cooldown": 22.0, "mana_cost": 38.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_druid_summon_spirit.mp3",
 		"spawn": "at_caster", "behavior": "summon",
+		"effects": [
+			{"type": "vfx", "sparks_color": Color(0.6, 1.0, 0.6, 1), "sparks_count": 12},
+			{
+				"type": "summon", "kind": "spirit", "subtype": "wolf", "count": 1,
+				"scene_path": "res://scenes/entities/spirit_pet.tscn"
+			},
+		],
 	},
 	"druid_living_grove": {
 		"name": "Living Grove", "scene": "res://scenes/skills/skill_druid_living_grove.tscn",
