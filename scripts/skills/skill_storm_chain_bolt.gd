@@ -14,14 +14,15 @@ var caster: Node = null
 var jump_bonus: int = 0
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	visual_only = bool(mods.get("visual_only", false))
+	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
-	caster = mods.get("caster", null)
+	caster = ctx.caster
 	# Forking Path modifier — each stack lets the bolt arc to one more target.
-	jump_bonus = int(mods.get("jump_bonus", 0))
+	jump_bonus = int(ctx.get_mod("jump_bonus", 0))
 
 
 func _ready() -> void:

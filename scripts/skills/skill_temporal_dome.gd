@@ -18,9 +18,9 @@ var _borrow_t: float = 0.0
 var _ring: Node2D = null
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	visual_only = bool(mods.get("visual_only", false))
-	caster = mods.get("caster", null)
+func setup_context(ctx: SkillContext) -> void:
+	visual_only = ctx.is_visual_only
+	caster = ctx.caster
 	if visual_only:
 		set_meta("visual_only", true)
 

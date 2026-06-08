@@ -79,6 +79,9 @@ var vuln_amp: float = 0.0
 # Taunt: forces this enemy to chase a specific node while active.
 var taunt_target: Node2D = null
 var taunt_t: float = 0.0
+# Floating debuff icons above the enemy (built lazily when first afflicted).
+var _status_strip: StatusIcons = null
+var _status_ui_t: float = 0.0
 # Poison: stacking DoT (Venomancer). At POISON_MAX it mutates to Necrotic Poison
 # (also armor-breaks). Each stack adds damage; refreshing extends the duration.
 var poison_stacks: int = 0
@@ -306,6 +309,12 @@ func _physics_process(delta: float) -> void:
 			slow_mult = 1.0
 			modulate = Color(1, 1, 1, 1)
 	_tick_status(delta)
+	# Refresh the floating debuff icons a few times a second (host/solo only —
+	# puppets carry no authoritative status to show).
+	_status_ui_t -= delta
+	if _status_ui_t <= 0.0:
+		_status_ui_t = 0.2
+		_update_status_ui()
 	# Brood mother — periodically spawn 2 hatchlings while alive.
 	if is_brood_mother and not is_puppet:
 		hatchling_spawn_t -= delta
@@ -842,6 +851,53 @@ func add_curse_stack() -> int:
 	return curse_stacks
 
 
+# Active debuffs for the floating status row above the enemy. Each entry:
+# {id, label, color, progress(0..1 remaining)}. Reference durations approximate the
+# dial; small squares, no labels by default.
+# Lazily build / refresh the floating debuff strip above the enemy.
+func _update_status_ui() -> void:
+	var list: Array = get_active_statuses()
+	if _status_strip == null:
+		if list.is_empty():
+			return
+		_status_strip = StatusIcons.new()
+		_status_strip.icon_size = 16.0
+		_status_strip.gap = 2.0
+		_status_strip.show_labels = true
+		_status_strip.centered = true
+		_status_strip.z_index = 80
+		_status_strip.position = Vector2(0, -58)
+		add_child(_status_strip)
+	_status_strip.visible = not list.is_empty()
+	if not list.is_empty():
+		_status_strip.update_statuses(list)
+
+
+func get_active_statuses() -> Array:
+	var out: Array = []
+	if burn_t > 0.0:
+		out.append({"id": "burn", "label": "B", "color": Color(1.0, 0.5, 0.15), "progress": clampf(burn_t / 4.0, 0.0, 1.0)})
+	if frozen_t > 0.0:
+		out.append({"id": "frozen", "label": "F", "color": Color(0.5, 0.8, 1.0), "progress": clampf(frozen_t / 1.0, 0.0, 1.0)})
+	elif chill_t > 0.0:
+		out.append({"id": "chill", "label": "C", "color": Color(0.6, 0.85, 1.0), "progress": clampf(chill_t / 3.0, 0.0, 1.0)})
+	elif slow_t > 0.0:
+		out.append({"id": "slow", "label": "S", "color": Color(0.5, 0.65, 1.0), "progress": clampf(slow_t / 3.0, 0.0, 1.0)})
+	if bleed_t > 0.0:
+		out.append({"id": "bleed", "label": "L", "color": Color(0.75, 0.05, 0.08), "progress": clampf(bleed_t / 4.0, 0.0, 1.0)})
+	if poison_t > 0.0:
+		out.append({"id": "poison", "label": "P", "color": Color(0.4, 0.8, 0.2), "progress": clampf(poison_t / 5.0, 0.0, 1.0)})
+	if vuln_t > 0.0:
+		out.append({"id": "vuln", "label": "V", "color": Color(0.75, 0.4, 0.9), "progress": clampf(vuln_t / 8.0, 0.0, 1.0)})
+	if fractured_t > 0.0:
+		out.append({"id": "fracture", "label": "X", "color": Color(0.9, 0.6, 1.0), "progress": clampf(fractured_t / 5.0, 0.0, 1.0)})
+	if curse_t > 0.0:
+		out.append({"id": "curse", "label": "K", "color": Color(0.55, 0.2, 0.6), "progress": clampf(curse_t / 6.0, 0.0, 1.0)})
+	if taunt_t > 0.0:
+		out.append({"id": "taunt", "label": "T", "color": Color(0.95, 0.85, 0.3), "progress": clampf(taunt_t / 1.0, 0.0, 1.0)})
+	return out
+
+
 func _tick_status(delta: float) -> void:
 	if frozen_t > 0.0:
 		frozen_t -= delta
@@ -1094,6 +1150,8 @@ func _die() -> void:
 		hitbox.set_deferred("monitorable", false)
 	if hp_bar:
 		hp_bar.visible = false
+	if _status_strip:
+		_status_strip.visible = false
 
 	# Big death VFX.
 	if VfxManager:

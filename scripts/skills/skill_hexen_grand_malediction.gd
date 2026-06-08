@@ -10,9 +10,10 @@ var damage: int = 26
 var visual_only: bool = false
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	visual_only = bool(mods.get("visual_only", false))
+	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 

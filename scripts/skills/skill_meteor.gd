@@ -15,13 +15,14 @@ var scale_mult: float = 1.0
 
 
 func setup(dmg: int) -> void:
-	setup_with_mods(Vector2.ZERO, dmg, {})
+	setup_context(SkillContext.from_mods(Vector2.ZERO, dmg, {}))
 
 
-func setup_with_mods(dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	radius_mult = 1.0 + float(mods.get("radius_bonus", 0.0))
-	scale_mult = float(mods.get("scale", 1.0))
+	radius_mult = 1.0 + float(ctx.get_mod("radius_bonus", 0.0))
+	scale_mult = float(ctx.get_mod("scale", 1.0))
 	scale = Vector2(scale_mult, scale_mult)
 
 

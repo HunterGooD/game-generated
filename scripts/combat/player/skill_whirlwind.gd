@@ -17,9 +17,10 @@ var _spin_tween: Tween = null
 var caster_ref: Node = null
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	caster_ref = mods.get("caster", null) if mods != null else null
+	caster_ref = ctx.caster
 
 
 func _ready() -> void:

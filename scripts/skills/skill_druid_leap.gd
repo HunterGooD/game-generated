@@ -13,11 +13,13 @@ var visual_only: bool = false
 var _caster: Node = null
 
 
-func setup_with_mods(dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	damage = dmg
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
-	visual_only = bool(mods.get("visual_only", false))
-	_caster = mods.get("caster", null)
+	visual_only = ctx.is_visual_only
+	_caster = ctx.caster
 	if visual_only:
 		set_meta("visual_only", true)
 	var caster = _caster

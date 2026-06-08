@@ -7,8 +7,8 @@ extends Node2D
 const DURATION: float = 20.0
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	var caster = mods.get("caster", null)
+func setup_context(ctx: SkillContext) -> void:
+	var caster = ctx.caster
 	if caster and caster.has_method("apply_buff"):
 		caster.call("apply_buff", DURATION, 1.4, 1.1)
 	if VfxManager and caster is Node2D:

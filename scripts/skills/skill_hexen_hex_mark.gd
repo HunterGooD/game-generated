@@ -22,17 +22,18 @@ var tick_t: float = 0.0
 var life_t: float = DURATION
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	visual_only = bool(mods.get("visual_only", false))
+	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 	# Eternal Mark unique modifies behavior.
-	var caster = mods.get("caster", null)
+	var caster = ctx.caster
 	if caster and InventorySystem and InventorySystem.has_method("has_unique"):
 		eternal = bool(InventorySystem.call("has_unique", "hexen_eternal_mark"))
 	# Lingering Hex modifier — each stack ticks longer before detonating.
-	life_t = DURATION + float(mods.get("duration_bonus", 0.0))
+	life_t = DURATION + float(ctx.get_mod("duration_bonus", 0.0))
 
 
 func _ready() -> void:

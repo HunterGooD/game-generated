@@ -30,7 +30,9 @@ func setup(dir: Vector2, dmg: int, owner_tag_in: String) -> void:
 # this the visual-only copy on remote peers crashed with an arg-count mismatch.
 # Tag "remote" keeps the LOCAL player's unique checks (e.g. Voidstaff pierce tint)
 # from bleeding onto another player's replicated bolt.
-func setup_with_mods(dir: Vector2, dmg: int, _mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	setup(dir, dmg, "remote")
 
 

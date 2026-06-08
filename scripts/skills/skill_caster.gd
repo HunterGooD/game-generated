@@ -45,12 +45,12 @@ static func spawn(
 			spawn_pos = caster.global_position
 	(node as Node2D).position = spawn_pos
 
-	if node.has_method("setup_with_mods"):
-		node.call("setup_with_mods", dir, scaled_damage, mods)
-	elif node.has_method("setup_meteor"):
-		node.call("setup_meteor", scaled_damage, mods)
-	elif node.has_method("setup"):
-		node.call("setup", dir, scaled_damage)
+	# Bundle the cast into a typed SkillContext and dispatch. The dispatcher
+	# prefers setup_context() but falls back to the legacy setup_with_mods/
+	# setup_meteor/setup for scenes not yet migrated, so behaviour is unchanged.
+	var ctx := SkillContext.from_mods(dir, scaled_damage, mods, mouse_world)
+	ctx.definition = def
+	SkillContext.apply(node, ctx)
 
 	var tree := caster.get_tree()
 	if tree == null or tree.current_scene == null:

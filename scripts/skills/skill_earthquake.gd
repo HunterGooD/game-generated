@@ -13,15 +13,16 @@ var num_waves: int = BASE_WAVES
 var ring_gap: float = BASE_RING_GAP
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
 	# Aftershocks modifier — each stack adds a shockwave ring.
-	num_waves = BASE_WAVES + int(mods.get("wave_bonus", 0))
+	num_waves = BASE_WAVES + int(ctx.get_mod("wave_bonus", 0))
 
 
 func _ready() -> void:
 	# Quakegrasp Gauntlets unique — extra waves, 25% faster (stacks with the
-	# Aftershocks modifier set in setup_with_mods).
+	# Aftershocks modifier set in setup_context).
 	if InventorySystem and InventorySystem.has_unique("quakegrasp_gauntlets"):
 		num_waves += 2
 		ring_gap = BASE_RING_GAP * 0.75

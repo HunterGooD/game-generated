@@ -17,7 +17,9 @@ func setup(dir: Vector2, dmg: int) -> void:
 	damage = dmg
 
 
-func setup_with_mods(dir: Vector2, dmg: int, _mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	setup(dir, dmg)
 
 

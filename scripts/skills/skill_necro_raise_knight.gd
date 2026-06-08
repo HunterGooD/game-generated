@@ -12,12 +12,13 @@ var _pending_armor_bonus: int = 0
 var _spawn_pos: Vector2 = Vector2.ZERO
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	visual_only = bool(mods.get("visual_only", false))
+	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
-	var caster = mods.get("caster", null)
+	var caster = ctx.caster
 	if visual_only or caster == null:
 		return
 	_pending_caster = caster

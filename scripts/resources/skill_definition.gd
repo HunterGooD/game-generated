@@ -3,7 +3,7 @@ extends Resource
 
 # Typed descriptor for one castable skill. Replaces the old inline SKILL_CATALOG
 # dictionary entries (untyped magic-string fields). Behaviour itself still lives
-# in the per-skill scene script (setup_with_mods); this resource carries the
+# in the per-skill scene script (setup_context); this resource carries the
 # metadata plus the data-driven modifier wiring, so adding/tuning a skill is now
 # a single-place change in SkillCatalog instead of edits across a dict + a switch.
 
@@ -26,7 +26,7 @@ extends Resource
 # it does NOT drive runtime yet.
 @export var behavior: String = ""
 # Data-driven modifier wiring (replaces the per-skill cases of _build_mods_for).
-# Each entry maps a mods[key] the scene reads in setup_with_mods to a value:
+# Each entry maps a mods[key] the scene reads via ctx.mods in setup_context to a value:
 #   value = const + mul * get_modifier(slot, modifier)
 # Optional flag `as_bool` yields (get_modifier(slot, modifier) > 0). int-ness is
 # preserved when both const and mul are ints. See SkillSystem._build_mods.
@@ -34,6 +34,10 @@ extends Resource
 # Reserved growth point: per-skill tuning numbers the scene could read instead of
 # hardcoded consts. Empty today.
 @export var params: Dictionary = {}
+# Composable behaviour blocks (SkillEffect). When non-empty the skill can use the
+# generic `skill_composed.tscn` runner instead of a bespoke scene script — the
+# data-driven authoring path for new/simple skills. Empty for bespoke skills.
+@export var effects: Array[SkillEffect] = []
 
 var _scene_cache: PackedScene = null
 
@@ -53,6 +57,7 @@ static func make(skill_id: String, data: Dictionary) -> SkillDefinition:
 	d.behavior = String(data.get("behavior", ""))
 	d.mod_wiring = data.get("mod_wiring", {})
 	d.params = data.get("params", {})
+	d.effects = SkillEffect.list_from(data.get("effects", []))
 	return d
 
 

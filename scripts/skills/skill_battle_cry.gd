@@ -11,11 +11,11 @@ var dmg_mult: float = 1.6
 var spd_mult: float = 1.3
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	radius = float(mods.get("radius", 240.0))
-	duration = float(mods.get("duration", 5.0))
-	dmg_mult = float(mods.get("dmg_mult", 1.6))
-	spd_mult = float(mods.get("spd_mult", 1.3))
+func setup_context(ctx: SkillContext) -> void:
+	radius = float(ctx.get_mod("radius", 240.0))
+	duration = float(ctx.get_mod("duration", 5.0))
+	dmg_mult = float(ctx.get_mod("dmg_mult", 1.6))
+	spd_mult = float(ctx.get_mod("spd_mult", 1.3))
 
 
 func _ready() -> void:

@@ -10,8 +10,8 @@ var visual_only: bool = false
 var _life: float = LIFETIME
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	visual_only = bool(mods.get("visual_only", false))
+func setup_context(ctx: SkillContext) -> void:
+	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 

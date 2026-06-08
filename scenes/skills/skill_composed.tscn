@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://skillcomposed01"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_composed.gd" id="1_skill_composed"]
+
+[node name="ComposedSkill" type="Node2D"]
+script = ExtResource("1_skill_composed")

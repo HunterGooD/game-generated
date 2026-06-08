@@ -833,11 +833,19 @@ const _RAW := {
 	},
 	# ── NECROMANCER ASCENSIONS ──
 	"necro_crown_of_dead": {
-		"name": "Crown of the Dead", "scene": "res://scenes/skills/skill_necro_crown_of_dead.tscn",
+		"name": "Crown of the Dead", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_necro_blood_pact.png",
 		"cooldown": 80.0, "mana_cost": 75.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_necro_blood_pact.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "apply_buff", "args": [18.0, 1.25, 1.1]},
+			{
+				"type": "group_call", "group": "necro_minion",
+				"method": "apply_blood_pact", "args": [18.0, 1.35, 1.2]
+			},
+			{"type": "vfx", "sparks_color": Color(0.6, 0.4, 0.9, 1), "sparks_count": 18},
+		],
 	},
 	"necro_skeletal_legion": {
 		"name": "Skeletal Legion", "scene": "res://scenes/skills/skill_necro_skeletal_legion.tscn",
@@ -918,11 +926,18 @@ const _RAW := {
 	},
 	# ── DRUID ASCENSIONS ──
 	"druid_apex_form": {
-		"name": "Apex Form", "scene": "res://scenes/skills/skill_druid_apex_form.tscn",
+		"name": "Apex Form", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_eagle_form.png",
 		"cooldown": 80.0, "mana_cost": 70.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_druid_transform_bear.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "apply_buff", "args": [18.0, 1.4, 1.2]},
+			{
+				"type": "vfx", "sparks_color": Color(0.9, 0.7, 0.3, 1), "sparks_count": 20,
+				"flash_color": Color(0.7, 0.5, 0.2, 0.18), "flash_time": 0.2
+			},
+		],
 	},
 	"druid_hide_of_beast": {
 		"name": "Hide of the Beast", "scene": "res://scenes/skills/skill_druid_hide_of_beast.tscn",

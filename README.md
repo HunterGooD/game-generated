@@ -139,6 +139,54 @@ Shadewitch, The Lich Empress.
 
 ---
 
+## Статусы, баффы и щиты
+
+Боевые эффекты — общая, переиспользуемая система: скиллы возвышений (спек-путей)
+накладывают их через единые методы, а не хардкодят логику. Все дебаффы на врагах
+**host-authoritative** (тикают на хосте/в соло; на клиенте-puppet'е не считаются).
+
+**Дебаффы (на враге)** — `enemy.gd`:
+
+| Статус | Метод | Эффект |
+|---|---|---|
+| Slow | `apply_slow(t, mult)` | замедление move speed |
+| Burn 🔥 | `apply_burn(t, dps)` | огненный DoT, метит стихию «fire» |
+| Chill / Freeze ❄ | `apply_chill(t, stacks)` | стак-замедление; на 4 стаках — заморозка |
+| Bleed 🩸 | `apply_bleed(t, dps)` | физический DoT |
+| Poison ☠ | `apply_poison(stacks, t, dps)` | стак-DoT до 10 → Necrotic (+уязвимость) |
+| Vulnerable / Armor Break | `apply_vulnerable(t, amp)` | +% входящего урона |
+| Taunt | `apply_taunt(node, t)` | форс-цель (враг бьёт указанный объект) |
+| Elemental Fracture | `mark_element("fire/frost/storm")` | 3 стихии за 5с → «расколот»: +урон + взрыв при смерти |
+| Curse | `add_curse_stack()` | счётчик проклятий (Hexen-комбо) |
+
+**Баффы / защита (на игроке)** — `player.gd`: `apply_buff` (урон+скорость),
+`apply_stealth` (невидимость), `apply_aura` (пати-аура: урон+DR), `apply_evasion`
+(шанс уклонения), Flameblade / Frenzy / Backstab-окна, `grant_funeral` (анти-смерть).
+
+**Щиты — работают ✅** (две независимые механики):
+- **Shield-пул** `shield_hp` — `add_shield(amount, cap)`; поглощает урон **до HP** в
+  `receive_damage_payload` (Battlemage burn-shield, Chronomancer Stasis Star, пати-
+  щиты Warchief/Conductor/Gravebinder и т.д.).
+- **Stone Armor charges** `stone_armor_charges` — гасит **по одному удару целиком** за
+  заряд (друидовский Stone Armor, Frost Guard, Hide of the Beast).
+
+### Отображение статусов (HUD + над врагами)
+
+Активные статусы рисуются рядами **квадратиков** с эффектом **циферблата** —
+радиальная заливка «отматывает» оставшееся время (полный → пустой по часовой).
+
+- Шейдер: [`assets/shaders/status_dial.gdshader`](assets/shaders/status_dial.gdshader)
+  (`progress` = остаток времени; `tint`/`use_icon` — заглушка-квадрат или будущая
+  картинка). Виджет-ряд: [`scripts/ui/status_icons.gd`](scripts/ui/status_icons.gd).
+- **Игрок:** ряд под маной (буффы/щиты с буквенными метками). **Враги:** маленький
+  ряд над врагом (его дебаффы). Источник данных — `get_active_statuses()` на игроке
+  и враге.
+- *Сейчас* квадрат — заглушка (цвет статуса + буква). *Позже*: вместо квадрата —
+  картинка статуса, а шейдер-циферблат полупрозрачным слоем сверху — менять можно
+  без правок раскладки (`use_icon` + Texture).
+
+---
+
 ## Прогрессия
 
 **В забеге (есть):** level-up → выбор из стат-награды / skill-модификатора /

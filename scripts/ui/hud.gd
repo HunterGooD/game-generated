@@ -30,6 +30,8 @@ var skill_slots: Array = []
 # by the SkillSystem's separate ascension cooldown. Hidden until a path is chosen.
 var ult_slot: Dictionary = {}
 var skill_system_ref: Node = null
+var player_ref: Node = null
+var status_row: StatusIcons = null
 var pause_menu_open: bool = false
 
 # Boss bar — built on demand.
@@ -70,7 +72,25 @@ func _ready() -> void:
 	_build_wave_counter()
 	_build_low_hp_overlay()
 	_build_static_charge_counter()
+	_build_status_row()
 	call_deferred("_find_skill_system")
+
+
+# Player buff/shield status row — added under the mana bar in the top-left stats
+# panel. Squares are placeholders (status_dial.gdshader) with a clock-dial timer;
+# art can replace each square later without changing the layout.
+func _build_status_row() -> void:
+	if mp_bar == null:
+		return
+	var stats: Node = mp_bar.get_parent().get_parent()  # Stats VBoxContainer
+	if stats == null:
+		return
+	status_row = StatusIcons.new()
+	status_row.icon_size = 26.0
+	status_row.show_labels = true
+	status_row.centered = false
+	status_row.custom_minimum_size = Vector2(0, 30)
+	stats.add_child(status_row)
 
 
 # Persistent wave counter pinned top-center, separate from the transient banner.
@@ -238,6 +258,7 @@ func _find_skill_system() -> void:
 	if players.is_empty():
 		return
 	var player: Node = players[0]
+	player_ref = player
 	skill_system_ref = player.get_node_or_null("SkillSystem")
 	if skill_system_ref:
 		_refresh_hotbar_icons()
@@ -625,6 +646,8 @@ func _process(_delta: float) -> void:
 	_update_low_hp_overlay()
 	_update_static_charge_counter()
 	_update_downed_banner()
+	if status_row and player_ref and is_instance_valid(player_ref) and player_ref.has_method("get_active_statuses"):
+		status_row.update_statuses(player_ref.call("get_active_statuses"))
 	if GameManager and mp_bar:
 		mp_bar.value = GameManager.player_mana
 		if mp_label:

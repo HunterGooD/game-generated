@@ -82,6 +82,7 @@ var invuln_t: float = 0.0
 var buff_damage_mult: float = 1.0
 var buff_speed_mult: float = 1.0
 var buff_t: float = 0.0
+var buff_max: float = 1.0  # original duration, for the HUD status dial
 
 # ── Generic shield pool ───────────────────────────────────────────────────────
 # Absorbs incoming damage before HP. Used by Battlemage (Flameblade burn-shield),
@@ -771,6 +772,7 @@ func _spawn_dash_damage(start: Vector2, end: Vector2, damage: int) -> void:
 # BUFFS
 func apply_buff(duration: float, dmg_mult: float, spd_mult: float) -> void:
 	buff_t = max(buff_t, duration)
+	buff_max = max(buff_max, buff_t)
 	buff_damage_mult = max(buff_damage_mult, dmg_mult)
 	buff_speed_mult = max(buff_speed_mult, spd_mult)
 	# Tint sprite red briefly.
@@ -789,6 +791,42 @@ func get_buff_damage_mult() -> float:
 	# The single outgoing-damage chokepoint for skills (skill_system) and basics:
 	# active buff × ally aura × spec-path passives (Berserker Pain Engine).
 	return buff_damage_mult * aura_dmg_mult * _spec_outgoing_mult()
+
+
+# Active buffs/defensive statuses for the HUD status row. Each entry:
+# {id, label, color, progress(0..1 remaining)}. Reference durations approximate the
+# dial when an exact "max" isn't tracked — good enough for a placeholder display.
+func get_active_statuses() -> Array:
+	var out: Array = []
+	var max_hp: float = float(GameManager.player_max_hp) if GameManager else 100.0
+	if shield_hp > 0.0:
+		out.append({
+			"id": "shield", "label": "SHD", "color": Color(0.45, 0.8, 1.0),
+			"progress": clampf(shield_hp / maxf(1.0, max_hp * 0.3), 0.0, 1.0),
+		})
+	if stone_armor_charges > 0:
+		out.append({
+			"id": "stone", "label": str(stone_armor_charges), "color": Color(0.8, 0.72, 0.5),
+			"progress": 1.0,
+		})
+	if buff_t > 0.0:
+		out.append({
+			"id": "buff", "label": "PWR", "color": Color(1.0, 0.55, 0.4),
+			"progress": clampf(buff_t / maxf(0.5, buff_max), 0.0, 1.0),
+		})
+	if frenzy_t > 0.0:
+		out.append({"id": "frenzy", "label": "RAG", "color": Color(0.9, 0.15, 0.18), "progress": clampf(frenzy_t / 15.0, 0.0, 1.0)})
+	if flameblade_t > 0.0:
+		out.append({"id": "flame", "label": "FLM", "color": Color(1.0, 0.5, 0.2), "progress": clampf(flameblade_t / 20.0, 0.0, 1.0)})
+	if stealth_t > 0.0:
+		out.append({"id": "stealth", "label": "STL", "color": Color(0.6, 0.6, 0.7), "progress": clampf(stealth_t / 1.5, 0.0, 1.0)})
+	if evasion_t > 0.0:
+		out.append({"id": "evasion", "label": "EVA", "color": Color(0.55, 0.85, 1.0), "progress": clampf(evasion_t / 4.0, 0.0, 1.0)})
+	if backstab_t > 0.0:
+		out.append({"id": "backstab", "label": "BCK", "color": Color(0.8, 0.2, 0.3), "progress": clampf(backstab_t / 2.0, 0.0, 1.0)})
+	if funeral_t > 0.0:
+		out.append({"id": "funeral", "label": "FNL", "color": Color(0.6, 0.5, 0.85), "progress": clampf(funeral_t / 8.0, 0.0, 1.0)})
+	return out
 
 
 # Spec-path outgoing-damage multipliers that scale ALL damage (not just melee).
@@ -1336,8 +1374,7 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 			var whip: Node2D = w_sc.instantiate()
 			get_tree().current_scene.add_child(whip)
 			whip.global_position = origin
-			if whip.has_method("setup_with_mods"):
-				whip.call("setup_with_mods", dir, int(round(float(dmg) * 0.6)), {"caster": self})
+			SkillContext.apply(whip, SkillContext.from_mods(dir, int(round(float(dmg) * 0.6)), {"caster": self}))
 			return w_path
 		"basic_storm_voltaic_tonfa":
 			var v_path := "res://scenes/combat/player/melee_swing.tscn"

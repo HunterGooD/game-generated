@@ -8,8 +8,8 @@ extends Node2D
 const FRENZY_DURATION: float = 15.0
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	var caster = mods.get("caster", null)
+func setup_context(ctx: SkillContext) -> void:
+	var caster = ctx.caster
 	if caster and caster.has_method("start_frenzy"):
 		caster.call("start_frenzy", FRENZY_DURATION)
 	if VfxManager:

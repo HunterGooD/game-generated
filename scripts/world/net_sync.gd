@@ -689,10 +689,13 @@ func _replicate_skill_cast(msg: Dictionary) -> void:
 	node.set_meta("visual_only", true)
 	var dmg: int = int(msg.get("d", 0))
 	var dir: Vector2 = Vector2(float(msg.get("dx", 1.0)), float(msg.get("dy", 0.0)))
-	if node.has_method("setup_with_mods"):
-		node.call("setup_with_mods", dir, dmg, {"visual_only": true})
-	elif node.has_method("setup"):
-		node.call("setup", dir, dmg)
+	# Visual-only context for the replicated copy: no caster, no damage applied.
+	# Dispatches to setup_context() if the scene is migrated, else legacy setup.
+	var ctx := SkillContext.from_mods(dir, dmg, {"visual_only": true}, (node as Node2D).position)
+	# Resolve the definition from the skill id so composed skills can run their
+	# effects on the remote (caster-targeted effects no-op on the null caster).
+	ctx.definition = SkillCatalog.get_def(String(msg.get("sid", "")))
+	SkillContext.apply(node, ctx)
 	game_world.add_child(node)
 	# Disable damage-area collision so the visual copy can't double-damage
 	# enemies. For tick-based area skills (caltrops, poison_vial, fire_wall)

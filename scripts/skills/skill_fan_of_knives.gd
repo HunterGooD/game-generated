@@ -10,10 +10,11 @@ var caster_ref: Node = null
 var count_bonus: int = 0
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
-	caster_ref = mods.get("caster", null) if mods != null else null
-	count_bonus = int(mods.get("count_bonus", 0)) if mods != null else 0
+	caster_ref = ctx.caster
+	count_bonus = int(ctx.get_mod("count_bonus", 0))
 
 
 func _ready() -> void:
@@ -24,10 +25,7 @@ func _ready() -> void:
 		var dir: Vector2 = Vector2.RIGHT.rotated(angle)
 		var d := DAGGER_SCENE.instantiate()
 		d.position = global_position + dir * 28.0
-		if d.has_method("setup_with_mods"):
-			d.call("setup_with_mods", dir, damage, {"caster": caster_ref})
-		elif d.has_method("setup"):
-			d.call("setup", dir, damage)
+		SkillContext.apply(d, SkillContext.from_mods(dir, damage, {"caster": caster_ref}))
 		if venomweave and d.has_method("set_meta"):
 			d.set_meta("venomweave", true)
 		get_tree().current_scene.add_child(d)

@@ -16,12 +16,14 @@ var _caster: Node = null
 
 
 func setup(dir: Vector2, dmg: int) -> void:
-	setup_with_mods(dir, dmg, {})
+	setup_context(SkillContext.from_mods(dir, dmg, {}))
 
 
-func setup_with_mods(dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
-	_caster = mods.get("caster", null) if mods != null else null
+	_caster = ctx.caster
 	if GameManager:
 		var res: Array = GameManager.compute_attack_damage(dmg)
 		damage = int(res[0])

@@ -20,6 +20,7 @@ func _ready() -> void:
 	print("=== SMOKE TEST ===")
 	_check_all_scenes_load()
 	_check_skill_catalog()
+	_check_composed_skills()
 	_check_reward_class_mapping()
 	_check_unique_item_transforms()
 	print("=== RESULT: %d checks, %d failures ===" % [_checks, _failures])
@@ -74,6 +75,31 @@ func _check_skill_catalog() -> void:
 		_ok()
 		if def.damage_mult < 0.0:
 			_fail("skill '%s' has negative damage_mult" % str(key))
+
+
+# Validate data-driven (composed) skills: any skill carrying `effects` must have
+# every block resolve to a non-null SkillEffect with its required field set, so an
+# authoring typo in the catalog (bad effect type / missing method) fails here
+# instead of casting a silent no-op at play time.
+func _check_composed_skills() -> void:
+	var composed: int = 0
+	for key in SkillCatalog.all_ids():
+		var def: SkillDefinition = SkillCatalog.get_def(String(key))
+		if def == null or def.effects.is_empty():
+			continue
+		composed += 1
+		for effect in def.effects:
+			_ok()
+			if effect == null:
+				_fail("skill '%s' has an unresolved (null) effect" % str(key))
+				continue
+			if effect is SkillEffectCasterCall and (effect as SkillEffectCasterCall).method == "":
+				_fail("skill '%s' caster_call effect has empty method" % str(key))
+			elif effect is SkillEffectGroupCall:
+				var g := effect as SkillEffectGroupCall
+				if g.group == "" or g.method == "":
+					_fail("skill '%s' group_call effect missing group/method" % str(key))
+	print("Composed skills: %d" % composed)
 
 
 func _check_def_path(skill: String, field: String, p: String) -> void:

@@ -22,20 +22,22 @@ var caster_ref: Node = null
 
 
 func setup(dir: Vector2, dmg: int) -> void:
-	setup_with_mods(dir, dmg, {})
+	setup_context(SkillContext.from_mods(dir, dmg, {}))
 
 
-func setup_with_mods(dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	damage = dmg
-	caster_ref = mods.get("caster", null) if mods != null else null
+	caster_ref = ctx.caster
 	rotation = direction.angle() + PI / 2.0
-	var dur_stacks: int = int(mods.get("duration_stacks", 0))
-	var rad_stacks: int = int(mods.get("radius_stacks", 0))
+	var dur_stacks: int = int(ctx.get_mod("duration_stacks", 0))
+	var rad_stacks: int = int(ctx.get_mod("radius_stacks", 0))
 	life = LIFETIME + 1.5 * float(dur_stacks)
 	tick_interval = max(0.15, DAMAGE_TICK_INTERVAL - 0.08 * float(dur_stacks))
 	width_mult = 1.0 + 0.35 * float(rad_stacks)
-	is_ice = String(mods.get("transform", "")) == "ice_wall"
+	is_ice = ctx.transform == "ice_wall"
 
 
 func _ready() -> void:

@@ -12,8 +12,8 @@ const DMG_MULT: float = 1.35
 const SPD_MULT: float = 1.1
 
 
-func setup_with_mods(_dir: Vector2, _dmg: int, mods: Dictionary) -> void:
-	var caster = mods.get("caster", null)
+func setup_context(ctx: SkillContext) -> void:
+	var caster = ctx.caster
 	if caster and caster.has_method("apply_buff"):
 		caster.call("apply_buff", BUFF_DURATION, DMG_MULT, SPD_MULT)
 	# Open the Flameblade window — empowers melee, ignites foes, and turns hits on

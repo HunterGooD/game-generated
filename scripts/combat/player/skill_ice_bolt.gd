@@ -22,16 +22,18 @@ var _caster: Node = null
 
 
 func setup(dir: Vector2, dmg: int) -> void:
-	setup_with_mods(dir, dmg, {})
+	setup_context(SkillContext.from_mods(dir, dmg, {}))
 
 
-func setup_with_mods(dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dir := ctx.direction
+	var dmg := ctx.damage
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	damage = dmg
 	rotation = direction.angle()
-	_caster = mods.get("caster", null)
-	pierce = bool(mods.get("pierce", false))
-	var slow_stacks: int = int(mods.get("slow_stacks", 0))
+	_caster = ctx.caster
+	pierce = bool(ctx.get_mod("pierce", false))
+	var slow_stacks: int = int(ctx.get_mod("slow_stacks", 0))
 	slow_duration = SLOW_DURATION + 1.5 * float(slow_stacks)
 	slow_mult = max(0.2, SLOW_MULT - 0.08 * float(slow_stacks))
 	if hit_box:
@@ -165,8 +167,8 @@ func _die() -> void:
 
 
 func _build_damage_payload() -> DamageInstance:
-	# Prefer the caster passed in via mods. Only scan the tree as a fallback,
-	# and only when we're actually inside it (setup_with_mods runs before the
+	# Prefer the caster passed in via ctx. Only scan the tree as a fallback,
+	# and only when we're actually inside it (setup_context runs before the
 	# projectile is added to the scene, so get_tree() would be null otherwise).
 	var attacker: Node = _caster
 	if attacker == null and is_inside_tree():

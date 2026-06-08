@@ -12,13 +12,15 @@ var jumps_bonus: int = 0
 
 
 func setup(target: Vector2, dmg: int) -> void:
-	setup_with_mods(target, dmg, {})
+	setup_context(SkillContext.from_mods(target, dmg, {}))
 
 
-func setup_with_mods(target: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var target := ctx.direction
+	var dmg := ctx.damage
 	target_world = target
 	damage = dmg
-	jumps_bonus = int(mods.get("jumps_bonus", 0))
+	jumps_bonus = int(ctx.get_mod("jumps_bonus", 0))
 
 
 func _ready() -> void:

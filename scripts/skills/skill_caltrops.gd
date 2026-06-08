@@ -15,10 +15,11 @@ var extra_lifetime: float = 0.0
 @onready var grid_root: Node2D = self
 
 
-func setup_with_mods(_dir: Vector2, dmg: int, mods: Dictionary) -> void:
+func setup_context(ctx: SkillContext) -> void:
+	var dmg := ctx.damage
 	damage = dmg
 	# Lasting Barbs modifier — each stack keeps the spikes on the ground longer.
-	extra_lifetime = float(mods.get("duration_bonus", 0.0)) if mods != null else 0.0
+	extra_lifetime = float(ctx.get_mod("duration_bonus", 0.0))
 
 
 func _ready() -> void:
