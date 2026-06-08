@@ -62,7 +62,10 @@ func _on_area_entered(area: Area2D) -> void:
 	var p = area.get_parent()
 	if p and p.is_in_group("player"):
 		collected = true
-		if GameManager:
+		# Co-op grants party XP authoritatively at the enemy-death event (see
+		# enemy._die / net_sync._apply_enemy_death) so all players stay in sync —
+		# the drop is cosmetic there. Solo still grants XP on pickup.
+		if GameManager and not (NetManager and NetManager.is_multiplayer):
 			GameManager.add_xp(amount)
 		if AudioManager:
 			AudioManager.play_sfx_path("res://assets/audio/sfx/pickup/pickup_xp_pickup.mp3", -10.0)

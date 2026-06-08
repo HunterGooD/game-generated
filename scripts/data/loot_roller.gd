@@ -120,6 +120,12 @@ static func _roll_base(rarity: String, ilvl: int, class_id: String) -> ItemInsta
 
 static func _roll_affixes(count: int, ilvl: int, rarity: String) -> Array:
 	var pool: Array = ItemDatabase.AFFIX_POOL.duplicate()
+	# In co-op the XP-gain affix does nothing — party XP is shared and granted
+	# flat at the kill (see enemy._die / net_sync), ignoring per-player multipliers.
+	# Drop it from the pool so it never rolls in co-op; this also makes solo vs
+	# co-op gear meaningfully different (XP-gain is a singleplayer-only perk).
+	if NetManager and NetManager.is_multiplayer:
+		pool = pool.filter(func(a): return String(a.get("id", "")) != "xp_gain")
 	pool.shuffle()
 	var out: Array = []
 	for i in min(count, pool.size()):

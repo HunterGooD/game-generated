@@ -20,10 +20,26 @@ var lobby_intent: String = ""
 var server_host: String = "127.0.0.1"
 var server_port: int = 7777
 
+# App/protocol version. The host sends it on /lobby/create; joiners send it as
+# ?v= on the ws URL. The relay rejects a join whose version != the room's host
+# version (error code "version_mismatch") so old clients can't connect to a room
+# hosted by a newer build. BUMP THIS whenever the netcode/protocol changes.
+const APP_VERSION: String = "0.0.01-alpha.2"
+
 var _ws: WebSocketPeer = null
 var _ping_timer: float = 0.0
 var _was_open: bool = false
 const PING_INTERVAL: float = 5.0
+
+
+func _ready() -> void:
+	# The transport pump (_process → _ws.poll) MUST keep running even when the
+	# local tree is paused by a UI overlay (character sheet / merchant / level-up /
+	# game over). Otherwise a paused peer stops sending AND receiving: the host
+	# stalls all clients' enemy/state broadcasts, and a paused client freezes its
+	# puppet enemies and drops rp_hp/damage updates → co-op desync. NetSync is
+	# already PROCESS_MODE_ALWAYS; this is the matching half that was missed.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
 func get_server_ws_url() -> String:
@@ -56,14 +72,16 @@ func create_room(player_count: int = 2) -> void:
 		get_server_http_url() + "/lobby/create",
 		["Content-Type: application/json"],
 		HTTPClient.METHOD_POST,
-		JSON.stringify({"max_players": max_players})
+		JSON.stringify({"max_players": max_players, "version": APP_VERSION})
 	)
 
 
 func connect_to_room(code: String) -> void:
 	room_code = code
 	_ws = WebSocketPeer.new()
-	var err: int = _ws.connect_to_url(get_server_ws_url() + "/ws/room/" + code)
+	var err: int = _ws.connect_to_url(
+		get_server_ws_url() + "/ws/room/" + code + "?v=" + APP_VERSION.uri_encode()
+	)
 	if err != OK:
 		connection_failed.emit("WebSocket connect failed: " + str(err))
 
@@ -122,6 +140,11 @@ func _process(delta: float) -> void:
 				"player_disconnected":
 					var dc_id: int = int(msg.get("player_id", -1))
 					player_disconnected.emit(dc_id)
+				"error":
+					# Relay rejected us (room_not_found / room_full / version_mismatch).
+					var reason: String = String(msg.get("error", "connection rejected"))
+					connection_failed.emit(reason)
+					disconnect_from_room()
 				"pong":
 					pass
 				_:

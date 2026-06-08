@@ -220,8 +220,22 @@ const BASE_ITEMS: Array = [
 		"title": "Crystal Staff",
 		"icon": "res://assets/sprites/items/weapon_mage_staff.png",
 		"class_lock": "mage",
-		"weapon_hands": 2,
-		"weapon_damage_mult": 1.7
+		"weapon_hands": 1,
+		"weapon_damage_mult": 1.3
+	},
+	{
+		# Caster off-hand catalyst — lands in the OFF hand so a mage wields two
+		# slots (e.g. staff + tome). TODO(art): dedicated off-hand sprite; reuses
+		# the wand icon as a placeholder for now. A "totem" variant can be added
+		# the same way later.
+		"id": "mage_spell_tome",
+		"kind": "weapon",
+		"slot": SLOT_WEAPON_OFF,
+		"title": "Spell Tome",
+		"icon": "res://assets/sprites/items/weapon_mage_wand.png",
+		"class_lock": "mage",
+		"weapon_hands": 1,
+		"weapon_damage_mult": 0.7
 	},
 ]
 

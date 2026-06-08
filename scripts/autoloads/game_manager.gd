@@ -10,6 +10,8 @@ signal player_died
 signal player_downed_changed(is_downed: bool)
 signal player_revived
 signal player_levelled_up(new_level: int)
+signal spec_path_offered
+signal spec_path_chosen(path_id: String)
 signal gold_changed(new_gold: int)
 signal enemy_defeated
 signal wave_started(wave: int)
@@ -309,6 +311,9 @@ var player_class: String = ""
 var player_level: int = 1
 var player_xp: int = 0
 var player_xp_to_next: int = 50
+# Spec path (V1): chosen once at SpecPaths.SPEC_PATH_LEVEL, reshapes role for the run.
+var player_spec_path: String = ""
+var _spec_path_offered: bool = false
 var player_max_hp: int = 100
 var player_hp: int = 100
 var player_max_mana: int = 100
@@ -361,6 +366,8 @@ func reset_run() -> void:
 	player_level = 1
 	player_xp = 0
 	player_xp_to_next = 50
+	player_spec_path = ""
+	_spec_path_offered = false
 	player_max_hp = int(base.get("max_hp", 100))
 	player_hp = player_max_hp
 	player_max_mana = int(base.get("max_mana", 100))
@@ -401,11 +408,13 @@ func add_gold_with_bonus(amount: int) -> void:
 	add_gold(int(round(float(amount) * mult)))
 
 
-func add_xp(amount: int) -> void:
+func add_xp(amount: int, apply_mult: bool = true) -> void:
 	if amount <= 0:
 		return
-	# Equipment XP-gain bonus.
-	if InventorySystem and InventorySystem.has_method("get_xp_gain_mult"):
+	# Equipment XP-gain bonus. Skipped for shared co-op party XP (apply_mult=false)
+	# so every peer grants the SAME flat amount — otherwise different per-player
+	# XP-gain gear would desync levels and break the synchronized level-up.
+	if apply_mult and InventorySystem and InventorySystem.has_method("get_xp_gain_mult"):
 		amount = int(round(float(amount) * float(InventorySystem.call("get_xp_gain_mult"))))
 	player_xp += amount
 	xp_gained.emit(amount)
@@ -427,7 +436,50 @@ func add_xp(amount: int) -> void:
 		player_dexterity += int(growth.get("dexterity", 0))
 		player_intelligence += int(growth.get("intelligence", 0))
 		player_levelled_up.emit(player_level)
+	# Spec path offer — once, when the player reaches the milestone level and their
+	# class actually has paths defined. game_world shows the choice overlay after
+	# any level-up overlays clear.
+	if (
+		not _spec_path_offered
+		and player_spec_path == ""
+		and player_level >= SpecPaths.SPEC_PATH_LEVEL
+		and SpecPaths.paths_for(player_class).size() > 0
+	):
+		_spec_path_offered = true
+		spec_path_offered.emit()
 	player_stats_changed.emit()
+
+
+# Apply a chosen spec path's flat stat profile (V1). Per-player in co-op — each
+# player picks their own role. Idempotent guard: only the first valid choice sticks.
+func choose_spec_path(path_id: String) -> void:
+	if player_spec_path != "":
+		return
+	var stats: Dictionary
+	if path_id == SpecPaths.MORTAL_ID:
+		# Decline ascension — no R/passive/transforms, just the base-stat bump.
+		stats = SpecPaths.MORTAL_STATS
+	else:
+		var p: Dictionary = SpecPaths.find(player_class, path_id)
+		if p.is_empty():
+			return
+		stats = p.get("stats", {})
+	player_spec_path = path_id
+	_apply_stat_dict(stats)
+	player_stats_changed.emit()
+	# The player listens for this to bind the path's R ability / basic / transforms.
+	spec_path_chosen.emit(path_id)
+
+
+func _apply_stat_dict(s: Dictionary) -> void:
+	player_max_hp += int(s.get("max_hp", 0))
+	player_hp = player_max_hp
+	player_max_mana += int(s.get("max_mana", 0))
+	player_mana = float(player_max_mana)
+	player_damage += int(s.get("damage", 0))
+	player_move_speed += float(s.get("move_speed", 0.0))
+	player_crit_chance += float(s.get("crit_chance", 0.0))
+	player_crit_damage += float(s.get("crit_damage", 0.0))
 
 
 func damage_player(amount: int) -> void:

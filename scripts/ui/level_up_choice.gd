@@ -21,6 +21,12 @@ var chosen_id: String = ""
 func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Pause for the upgrade choice. In CO-OP this is safe (unlike character sheet /
+	# merchant, which stay unpaused) because XP is shared — enemy._die and
+	# net_sync grant identical party XP, so ALL players level up on the same kill
+	# and open this overlay together → the pause is synchronized. The host's pause
+	# also freezes the authoritative enemy sim for everyone, and the transport
+	# (NetManager) is PROCESS_MODE_ALWAYS so it never stalls.
 	get_tree().paused = true
 	current_offers = _roll_offers()
 	_build_cards()

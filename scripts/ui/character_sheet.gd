@@ -213,7 +213,10 @@ func show_with_tab(tab: String) -> void:
 func show_sheet() -> void:
 	open = true
 	visible = true
-	get_tree().paused = true
+	# Co-op: don't pause the shared world for one player (would freeze/desync the
+	# other players). Solo pauses for convenience.
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = true
 	_populate()
 	_switch_tab(active_tab)
 
@@ -221,7 +224,8 @@ func show_sheet() -> void:
 func close() -> void:
 	open = false
 	visible = false
-	get_tree().paused = false
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = false
 	if TooltipManager:
 		TooltipManager.hide_tooltip()
 
@@ -634,7 +638,9 @@ func _on_inv_click(event: InputEvent, item: ItemInstance) -> void:
 		return
 	var mb := event as InputEventMouseButton
 	if mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_LEFT:
-		# Equip.
+		# Equip. Left-click auto-routes (first free hand); right-click forces a
+		# one-handed weapon into the OFF hand so the player can choose the slot
+		# without drag-and-drop. Non-weapons ignore the distinction.
 		if InventorySystem:
 			# Class lock check.
 			var lock: String = item.get_class_lock()
@@ -644,7 +650,15 @@ func _on_inv_click(event: InputEvent, item: ItemInstance) -> void:
 						"res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -18.0
 					)
 				return
-			InventorySystem.equip_item(item)
+			var force_off: bool = (
+				mb.button_index == MOUSE_BUTTON_RIGHT
+				and item.is_weapon()
+				and not item.is_two_handed()
+			)
+			if force_off:
+				InventorySystem.equip_item(item, ItemDatabase.SLOT_WEAPON_OFF)
+			else:
+				InventorySystem.equip_item(item)
 	# 'S' on the cell is keyboard-only; handled in _unhandled_input by selected_item.
 
 

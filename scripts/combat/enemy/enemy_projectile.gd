@@ -11,6 +11,8 @@ const LIFETIME: float = 2.0
 var direction: Vector2 = Vector2.RIGHT
 var damage: int = 6
 var travelled: float = 0.0
+# Scaled down by a Chronomancer Temporal Dome the bolt is flying through.
+var speed_mult: float = 1.0
 
 
 func setup(dir: Vector2, dmg: int) -> void:
@@ -22,6 +24,7 @@ func setup(dir: Vector2, dmg: int) -> void:
 
 
 func _ready() -> void:
+	add_to_group("enemy_projectile")
 	collision_layer = 0
 	collision_mask = 2  # bit 2 — player hurtbox
 	area_entered.connect(_on_area_entered)
@@ -39,9 +42,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var step: Vector2 = direction * SPEED * delta
+	var step: Vector2 = direction * SPEED * speed_mult * delta
 	position += step
 	travelled += step.length()
+	# Dome only slows while the bolt is inside it — reset each frame; the dome
+	# re-applies its multiplier in _process.
+	speed_mult = 1.0
 	if travelled > 1200.0:
 		_die()
 

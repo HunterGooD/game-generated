@@ -56,6 +56,8 @@ func _ready() -> void:
 		_draw_bolt_segment(prev_pos, enemy.global_position)
 		if enemy.has_method("take_damage"):
 			enemy.take_damage(dmg_now, prev_pos)
+		if enemy.has_method("mark_element"):
+			enemy.call("mark_element", "storm")
 		if VfxManager:
 			VfxManager.spawn_hit_sparks(enemy.global_position, Color(0.85, 0.95, 1.4, 1.0), 8)
 		prev_pos = enemy.global_position

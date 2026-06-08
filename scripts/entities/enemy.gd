@@ -50,6 +50,35 @@ var attack_lockout: float = 0.0
 var slow_t: float = 0.0
 var slow_mult: float = 1.0
 var dead: bool = false
+
+# ── Elemental status (shared by the Mage ascensions) ──────────────────────────
+# Burn: a damage-over-time that also tags the "fire" element for Fracture.
+var burn_t: float = 0.0
+var burn_dps: float = 0.0
+var _burn_tick_t: float = 0.0
+# Chill: stacking slow that hard-freezes at CHILL_FREEZE_STACKS; tags "frost".
+var chill_stacks: int = 0
+var chill_t: float = 0.0
+var frozen_t: float = 0.0
+# Tri-Element Fracture (Elementalist): time-remaining per element seen recently.
+# When fire+frost+storm overlap the enemy is "fractured" for FRACTURE_WINDOW.
+var _elem_seen: Dictionary = {}  # element -> seconds remaining
+var fractured_t: float = 0.0
+const CHILL_FREEZE_STACKS: int = 4
+const ELEM_WINDOW: float = 5.0
+const FRACTURE_WINDOW: float = 5.0
+
+# ── Physical status (shared by the Barbarian / Rogue ascensions) ──────────────
+# Bleed: a physical damage-over-time (no elemental tag).
+var bleed_t: float = 0.0
+var bleed_dps: float = 0.0
+var _bleed_tick_t: float = 0.0
+# Vulnerable / Armor Break: scales incoming damage up for a while.
+var vuln_t: float = 0.0
+var vuln_amp: float = 0.0
+# Taunt: forces this enemy to chase a specific node while active.
+var taunt_target: Node2D = null
+var taunt_t: float = 0.0
 var hp_bar_shown: bool = false
 var retarget_t: float = 0.0
 
@@ -230,6 +259,21 @@ func _find_player() -> void:
 	# Acquisition + co-op/visibility filtering lives in EnemyAIComponent.
 	if ai_component == null:
 		return
+	# Drop a cached target that has gone downed/dead — find_nearest_target already
+	# filters those out, but it only REPLACES `player` when it finds another valid
+	# target. If the downed ally is the only one nearby it returns null and we'd
+	# otherwise keep swinging at the corpse. Clearing here makes the enemy idle /
+	# wander instead.
+	if (
+		player != null
+		and is_instance_valid(player)
+		and (player.get("is_downed") == true or player.get("is_dead") == true)
+	):
+		player = null
+	# Taunt overrides target acquisition while it lasts.
+	if taunt_t > 0.0 and is_instance_valid(taunt_target):
+		player = taunt_target
+		return
 	var best: Node2D = ai_component.find_nearest_target(global_position)
 	if best != null:
 		player = best
@@ -252,6 +296,7 @@ func _physics_process(delta: float) -> void:
 		if slow_t <= 0.0:
 			slow_mult = 1.0
 			modulate = Color(1, 1, 1, 1)
+	_tick_status(delta)
 	# Brood mother — periodically spawn 2 hatchlings while alive.
 	if is_brood_mother and not is_puppet:
 		hatchling_spawn_t -= delta
@@ -569,6 +614,9 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var amp: float = float(get_meta("curse_amp", 0.0))
 		if amp > 0.0:
 			amount = int(round(float(amount) * (1.0 + amp)))
+	# Vulnerable / Armor Break amplifies all incoming damage.
+	if vuln_t > 0.0 and vuln_amp > 0.0:
+		amount = int(round(float(amount) * (1.0 + vuln_amp)))
 	# Soul Tether mirror — broadcast a fraction of this hit to other linked
 	# enemies. has_meta() guard avoids the get_meta-missing-key spam when no
 	# Hexen tether is active.
@@ -659,6 +707,185 @@ func apply_slow(duration: float, mult: float) -> void:
 	slow_mult = min(slow_mult, mult)
 	if sprite:
 		sprite.modulate = Color(0.7, 0.85, 1.4, 1)
+
+
+# ── Elemental status API ──────────────────────────────────────────────────────
+# Burn: stacking-refresh DoT. Also tags the fire element (Fracture).
+func apply_burn(duration: float, dps: float) -> void:
+	if dead:
+		return
+	burn_t = max(burn_t, duration)
+	burn_dps = max(burn_dps, dps)
+	mark_element("fire")
+
+
+# Chill: each application adds a slow stack; at CHILL_FREEZE_STACKS the enemy
+# freezes solid briefly. Tags the frost element (Fracture).
+func apply_chill(duration: float, stacks: int = 1) -> void:
+	if dead:
+		return
+	chill_t = max(chill_t, duration)
+	chill_stacks = mini(chill_stacks + stacks, CHILL_FREEZE_STACKS)
+	var mult: float = max(0.35, 1.0 - 0.16 * float(chill_stacks))
+	apply_slow(duration, mult)
+	if chill_stacks >= CHILL_FREEZE_STACKS:
+		frozen_t = max(frozen_t, 1.0)
+	mark_element("frost")
+
+
+# Record that `element` ("fire"/"frost"/"storm") just hit this enemy. Once all
+# three are present within ELEM_WINDOW the enemy becomes Fractured.
+func mark_element(element: String) -> void:
+	if dead:
+		return
+	_elem_seen[element] = ELEM_WINDOW
+	if _elem_seen.size() >= 3:
+		fractured_t = FRACTURE_WINDOW
+		_elem_seen.clear()
+		if VfxManager:
+			VfxManager.spawn_hit_sparks(global_position, Color(0.9, 0.7, 1.0, 1), 12)
+
+
+func is_burning() -> bool:
+	return burn_t > 0.0
+
+
+func is_chilled() -> bool:
+	return chill_t > 0.0 or frozen_t > 0.0
+
+
+func is_frozen() -> bool:
+	return frozen_t > 0.0
+
+
+func is_fractured() -> bool:
+	return fractured_t > 0.0
+
+
+# Consume the Fracture (Elementalist): returns true once, granting the +damage /
+# death-explosion payoff, then clears the state so it isn't double-spent.
+func consume_fracture() -> bool:
+	if fractured_t <= 0.0:
+		return false
+	fractured_t = 0.0
+	return true
+
+
+# Bleed: physical DoT (Barbarian Bleed / Rogue Razor Trap).
+func apply_bleed(duration: float, dps: float) -> void:
+	if dead:
+		return
+	bleed_t = max(bleed_t, duration)
+	bleed_dps = max(bleed_dps, dps)
+
+
+func is_bleeding() -> bool:
+	return bleed_t > 0.0
+
+
+# Vulnerable / Armor Break: incoming damage scaled by (1 + amp) while active.
+func apply_vulnerable(duration: float, amp: float) -> void:
+	if dead:
+		return
+	vuln_t = max(vuln_t, duration)
+	vuln_amp = max(vuln_amp, amp)
+
+
+func is_vulnerable() -> bool:
+	return vuln_t > 0.0
+
+
+# Taunt: chase `node` until the timer runs out (Warchief Banner / Trickster Decoy).
+func apply_taunt(node: Node2D, duration: float) -> void:
+	if dead or node == null:
+		return
+	taunt_target = node
+	taunt_t = max(taunt_t, duration)
+
+
+func _tick_status(delta: float) -> void:
+	if frozen_t > 0.0:
+		frozen_t -= delta
+		slow_mult = min(slow_mult, 0.05)
+	if chill_t > 0.0:
+		chill_t -= delta
+		if chill_t <= 0.0:
+			chill_stacks = 0
+	if fractured_t > 0.0:
+		fractured_t -= delta
+	for el in _elem_seen.keys():
+		var left: float = float(_elem_seen[el]) - delta
+		if left <= 0.0:
+			_elem_seen.erase(el)
+		else:
+			_elem_seen[el] = left
+	if burn_t > 0.0:
+		burn_t -= delta
+		_burn_tick_t -= delta
+		if _burn_tick_t <= 0.0:
+			_burn_tick_t = 0.5
+			_apply_burn_tick()
+	if bleed_t > 0.0:
+		bleed_t -= delta
+		_bleed_tick_t -= delta
+		if _bleed_tick_t <= 0.0:
+			_bleed_tick_t = 0.5
+			_apply_bleed_tick()
+	if vuln_t > 0.0:
+		vuln_t -= delta
+		if vuln_t <= 0.0:
+			vuln_amp = 0.0
+	if taunt_t > 0.0:
+		taunt_t -= delta
+		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
+			taunt_target = null
+
+
+# Burn DoT damage. Host-authoritative (puppets never reach here). Routes through
+# the normal damage path so HP/HUD/death all behave; tagged as a DoT so it can't
+# crit or knock back.
+func _apply_burn_tick() -> void:
+	if dead or burn_dps <= 0.0:
+		return
+	var tick: int = max(1, int(round(burn_dps * 0.5)))
+	receive_damage_payload(
+		DamageInstance.new(float(tick), null, self, [&"burn"], [], false, Vector2.ZERO)
+	)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(1.0, 0.5, 0.15, 1), 3)
+
+
+func _apply_bleed_tick() -> void:
+	if dead or bleed_dps <= 0.0:
+		return
+	var tick: int = max(1, int(round(bleed_dps * 0.5)))
+	receive_damage_payload(
+		DamageInstance.new(float(tick), null, self, [&"bleed"], [], false, Vector2.ZERO)
+	)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.7, 0.05, 0.08, 1), 3)
+
+
+# Small elemental detonation when a Fractured enemy dies — splashes foes within
+# FRACTURE_BURST_RADIUS for a fraction of this enemy's max HP.
+func _fracture_explosion() -> void:
+	const FRACTURE_BURST_RADIUS: float = 120.0
+	var splash: int = max(4, int(round(float(max_hp) * 0.25)))
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.85, 0.6, 1.0, 1), 18)
+		VfxManager.screen_shake(2.0, 0.1)
+	var tree := get_tree()
+	if tree == null:
+		return
+	for other in tree.get_nodes_in_group("enemy"):
+		if other == self or not is_instance_valid(other):
+			continue
+		if not (other is Node2D) or bool(other.get("dead")):
+			continue
+		if global_position.distance_to((other as Node2D).global_position) > FRACTURE_BURST_RADIUS:
+			continue
+		if other.has_method("take_damage"):
+			other.call("take_damage", splash, global_position)
 
 
 func apply_remote_state(state: Dictionary) -> void:
@@ -786,6 +1013,10 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	# Elementalist Fracture payoff: a fractured enemy detonates in a small
+	# elemental burst, splashing nearby foes (host-side / solo only).
+	if fractured_t > 0.0 and not is_puppet:
+		_fracture_explosion()
 	# Brood Mother bursts into a small swarm on death.
 	if is_brood_mother:
 		_spawn_hatchlings(6)
@@ -826,10 +1057,16 @@ func _die() -> void:
 				gold_drop_max,
 				xp_value
 			)
-		# Also drop locally (host is also a player).
+		# Shared party XP: the host grants this kill's XP authoritatively; clients
+		# grant the SAME amount when they receive enemy_death (net_sync). XP drops
+		# are cosmetic in co-op (see xp_drop.gd), so this is the single source —
+		# everyone ends on the same level and levels up in sync.
+		if GameManager:
+			GameManager.add_xp(xp_value, false)  # flat: same amount on every peer
+		# Also drop locally (host is also a player) — gold + cosmetic XP visual.
 		_drop_loot()
 	else:
-		# Solo or weird state — local drops as usual.
+		# Solo or weird state — local drops as usual (xp_drop grants XP in solo).
 		_drop_loot()
 
 	# Notify GameManager (so spawner can track waves).

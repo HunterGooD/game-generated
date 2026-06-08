@@ -54,36 +54,34 @@ func _check_all_scenes_load() -> void:
 # and core numeric fields must be present. This is the index that drives skill
 # casting, so a typo'd path is a silent dead skill.
 func _check_skill_catalog() -> void:
-	var catalog: Variant = SkillSystem.SKILL_CATALOG
-	if not (catalog is Dictionary):
-		_fail("SkillSystem.SKILL_CATALOG is not a Dictionary")
-		return
-	var dict: Dictionary = catalog
-	print("Skills in catalog: %d" % dict.size())
-	for key in dict.keys():
-		var entry: Variant = dict[key]
-		if not (entry is Dictionary):
-			_fail("skill '%s' entry is not a Dictionary" % str(key))
+	var ids: Array = SkillCatalog.all_ids()
+	print("Skills in catalog: %d" % ids.size())
+	for key in ids:
+		var def: SkillDefinition = SkillCatalog.get_def(String(key))
+		if def == null:
+			_fail("skill '%s' has no SkillDefinition" % str(key))
 			continue
-		var e: Dictionary = entry
-		_check_path(str(key), "scene", e)
-		_check_path(str(key), "icon", e)
-		_check_path(str(key), "sfx", e)
-		for req in ["cooldown", "mana_cost", "damage_mult"]:
-			_ok()
-			if not e.has(req):
-				_fail("skill '%s' missing field '%s'" % [str(key), req])
+		_check_def_path(str(key), "scene", def.scene_path)
+		_check_def_path(str(key), "icon", def.icon_path)
+		_check_def_path(str(key), "sfx", def.sfx_path)
+		# Core numeric fields are typed on SkillDefinition — sanity-check ranges.
+		_ok()
+		if def.cooldown < 0.0:
+			_fail("skill '%s' has negative cooldown" % str(key))
+		_ok()
+		if def.mana_cost < 0.0:
+			_fail("skill '%s' has negative mana_cost" % str(key))
+		_ok()
+		if def.damage_mult < 0.0:
+			_fail("skill '%s' has negative damage_mult" % str(key))
 
 
-func _check_path(skill: String, field: String, e: Dictionary) -> void:
-	if not e.has(field):
-		return  # icon/sfx are optional on some entries; scene checked below
-	var p: String = str(e[field])
+func _check_def_path(skill: String, field: String, p: String) -> void:
 	_ok()
 	if p == "":
 		if field == "scene":
 			_fail("skill '%s' has empty scene path" % skill)
-		return
+		return  # icon/sfx may legitimately be empty on some entries
 	if not ResourceLoader.exists(p):
 		_fail("skill '%s' %s path missing: %s" % [skill, field, p])
 
@@ -123,12 +121,13 @@ func _check_reward_class_mapping() -> void:
 
 # Every unique item must actually DO something when equipped. A unique's
 # `transform` is consumed one of two ways: a slot-swap (in
-# SkillSystem.TRANSFORM_OVERRIDES, which needs a slot mapping in
-# _ITEM_TRANSFORM_SLOT) or a has_unique() behaviour flag read by a skill. This
-# guards the bug where slot-swap item uniques set the flag but never swapped.
+# SkillCatalog.TRANSFORM_OVERRIDES, which needs a slot mapping in
+# SkillCatalog.ITEM_TRANSFORM_SLOT) or a has_unique() behaviour flag read by a
+# skill. This guards the bug where slot-swap item uniques set the flag but never
+# swapped.
 func _check_unique_item_transforms() -> void:
-	var overrides: Dictionary = SkillSystem.TRANSFORM_OVERRIDES
-	var slot_map: Dictionary = SkillSystem._ITEM_TRANSFORM_SLOT
+	var overrides: Dictionary = SkillCatalog.TRANSFORM_OVERRIDES
+	var slot_map: Dictionary = SkillCatalog.ITEM_TRANSFORM_SLOT
 	for u in ItemDatabase.UNIQUE_ITEMS:
 		var tid: String = String(u.get("transform", ""))
 		if tid == "":

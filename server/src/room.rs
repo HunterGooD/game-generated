@@ -15,16 +15,19 @@ pub struct Room {
     pub code: String,
     pub max_players: u8,
     pub host_id: u8,
+    // App/protocol version the host created the room with. Joiners must match.
+    pub version: String,
     peers: HashMap<u8, PeerTx>,
     pub empty_since: Option<Instant>,
 }
 
 impl Room {
-    pub fn new(code: String, max_players: u8) -> Self {
+    pub fn new(code: String, max_players: u8, version: String) -> Self {
         Self {
             code,
             max_players,
             host_id: 0,
+            version,
             peers: HashMap::new(),
             empty_since: Some(Instant::now()),
         }
@@ -100,7 +103,7 @@ mod tests {
 
     #[test]
     fn allocate_reuses_gaps() {
-        let mut room = Room::new("ABC123".to_string(), 4);
+        let mut room = Room::new("ABC123".to_string(), 4, String::new());
         let (tx0, _rx0) = mpsc::unbounded_channel();
         let (tx1, _rx1) = mpsc::unbounded_channel();
         room.add_peer(0, tx0);

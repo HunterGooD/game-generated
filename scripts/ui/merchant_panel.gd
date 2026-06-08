@@ -27,7 +27,10 @@ var current_wave: int = 1
 func _ready() -> void:
 	layer = 70
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	get_tree().paused = true
+	# Co-op: don't pause the shared world while one player shops (the merchant
+	# break is enemy-free anyway). Solo pauses for convenience.
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = true
 	_build_ui()
 	_refresh()
 	if InventorySystem:
@@ -420,7 +423,8 @@ func _open_trade() -> void:
 
 
 func _close() -> void:
-	get_tree().paused = false
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = false
 	emit_signal("closed")
 	queue_free()
 

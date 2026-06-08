@@ -27,6 +27,12 @@ var basic_attack_cd: float = 0.0
 var basic_attack_interval: float = 0.32
 var basic_attack_mana_cost: float = 0.0
 var basic_attack_kind: String = "bolt"
+# Exposed so the enemy AI (enemy_ai_component._is_valid_target /
+# gather_targets_in_radius) drops this player as a target once downed/dead —
+# otherwise enemies keep swinging at the local player's corpse. remote_player
+# already exposes these; the local player did not.
+var is_downed: bool = false
+var is_dead: bool = false
 
 # Co-op revive — hold "interact" near a downed ally to bring them back.
 const REVIVE_RANGE: float = 80.0
@@ -77,6 +83,39 @@ var buff_damage_mult: float = 1.0
 var buff_speed_mult: float = 1.0
 var buff_t: float = 0.0
 
+# ── Generic shield pool ───────────────────────────────────────────────────────
+# Absorbs incoming damage before HP. Used by Battlemage (Flameblade burn-shield),
+# Frost Guard reuses stone_armor_charges instead, Chronomancer Stasis Star, etc.
+var shield_hp: float = 0.0
+
+# ── Spec-path (ascension) runtime ─────────────────────────────────────────────
+# Battlemage: Arcane Flameblade window + stacking melee passive.
+var flameblade_t: float = 0.0
+var battlemage_stacks: int = 0
+const BATTLEMAGE_STACK_MAX: int = 5
+# Elementalist: orbs banked by casting elemental skills, fired by Elemental Orbit.
+var elem_orbs: Array[String] = []
+const ELEM_ORB_MAX: int = 3
+# Chronomancer: Borrowed Second — banked by applying shields/slows; at the cap the
+# next skill is free (0 mana, half cooldown).
+var borrowed_stacks: int = 0
+const BORROWED_STACK_MAX: int = 6
+# Refreshed each frame an ally stands inside a Temporal Dome — empowers casting
+# (faster cooldowns), mana regen and move speed while > 0.
+var dome_t: float = 0.0
+
+# ── Barbarian ascension runtime ───────────────────────────────────────────────
+# Ally aura (Warchief Banner / War Ground): outgoing-damage mult + damage
+# reduction, refreshed each frame inside the zone.
+var aura_dmg_mult: float = 1.0
+var aura_dr: float = 0.0
+var aura_t: float = 0.0
+# Berserker Blood Frenzy window: faster attacks, lifesteal, +self damage taken.
+var frenzy_t: float = 0.0
+# Titanbreaker Seismic Momentum stacks (gained per enemy control).
+var seismic_stacks: int = 0
+const SEISMIC_STACK_MAX: int = 5
+
 # Stealth state (Smoke Bomb).
 var stealth_t: float = 0.0
 var stealth_crit_charge: bool = false
@@ -113,7 +152,11 @@ func _ready() -> void:
 		GameManager.player_died.connect(_on_game_manager_player_died)
 		GameManager.player_downed_changed.connect(_on_downed_changed)
 		GameManager.player_revived.connect(_on_revived)
+		GameManager.spec_path_chosen.connect(_on_spec_path_chosen)
 		_on_player_stats_changed()
+	# Berserker Blood Frenzy extends on kills near the player.
+	if GameEvents:
+		GameEvents.enemy_died.connect(_on_enemy_died_frenzy)
 
 
 func _setup_components() -> void:
@@ -141,6 +184,7 @@ func _on_player_stats_changed() -> void:
 
 
 func _on_game_manager_player_died() -> void:
+	is_dead = true
 	if GameEvents == null:
 		return
 	var event := ActorDeathEvent.new()
@@ -157,22 +201,44 @@ func _on_game_manager_player_died() -> void:
 
 # Downed / revived local feedback. `player_downed_changed(false)` also fires on
 # full death, but the game-over screen takes over there so the reset is benign.
-func _on_downed_changed(is_downed: bool) -> void:
+func _on_downed_changed(downed: bool) -> void:
+	is_downed = downed
 	if sprite:
-		if is_downed:
+		if downed:
 			sprite.modulate = Color(0.55, 0.55, 0.65, 0.92)
 			sprite.rotation = deg_to_rad(80.0)  # keel over
 		else:
 			sprite.modulate = Color(1, 1, 1, 1)
 			sprite.rotation = 0.0
 	# Tell the party our puppet should show the downed pose.
-	if is_downed and NetManager and NetManager.is_multiplayer:
+	if downed and NetManager and NetManager.is_multiplayer:
 		var ns := _find_net_sync()
 		if ns and ns.has_method("broadcast_player_downed"):
 			ns.call("broadcast_player_downed")
 
 
+func _on_spec_path_chosen(path_id: String) -> void:
+	# Bind the chosen path's R ability to our SkillSystem (empty ability = stat-only
+	# path; the cast just no-ops).
+	if skill_system == null or GameManager == null:
+		return
+	var p: Dictionary = SpecPaths.find(String(GameManager.player_class), path_id)
+	var ability: String = String(p.get("ability", ""))
+	if ability != "" and skill_system.has_method("set_ascension"):
+		skill_system.call("set_ascension", ability)
+	# Path may replace the basic attack (Battlemage → melee fire blade) and swap
+	# skill slots (transforms). Re-derive the basic attack, and apply any slot
+	# transforms the path defines.
+	_refresh_basic_attack()
+	var transforms: Dictionary = p.get("transforms", {})
+	for slot_key in transforms:
+		if skill_system.has_method("apply_transform"):
+			skill_system.call("apply_transform", int(slot_key), String(transforms[slot_key]))
+
+
 func _on_revived() -> void:
+	is_downed = false
+	is_dead = false
 	if sprite:
 		sprite.modulate = Color(1, 1, 1, 1)
 		sprite.rotation = 0.0
@@ -233,27 +299,43 @@ func _apply_class() -> void:
 		return
 	var data: Dictionary = GameManager.get_class_data()
 	move_speed = GameManager.player_move_speed
-	basic_attack_kind = String(data.get("basic_attack", "bolt"))
 	dash_kind = String(data.get("dash_kind", "mage"))
-	match basic_attack_kind:
-		"melee":
-			basic_attack_interval = 0.45
+	_refresh_basic_attack()
+	_sync_component_stats_from_game_manager()
+	_apply_sprite_frames(data)
+
+
+# Resolve the effective basic-attack kind: a chosen spec path can override the
+# class default (e.g. Battlemage → "melee"). Re-derived from the path each call so
+# the override survives later stats refreshes.
+func _refresh_basic_attack() -> void:
+	if GameManager == null:
+		return
+	var kind: String = String(GameManager.get_class_data().get("basic_attack", "bolt"))
+	if String(GameManager.player_spec_path) != "":
+		var p: Dictionary = SpecPaths.find(
+			String(GameManager.player_class), String(GameManager.player_spec_path)
+		)
+		var ov: String = String(p.get("basic_attack", ""))
+		if ov != "":
+			kind = ov
+	_configure_basic_attack(kind)
+
+
+func _configure_basic_attack(kind: String) -> void:
+	basic_attack_kind = kind
+	match kind:
+		"melee", "claw":
+			# Melee / druid human claw / Battlemage fire blade — short range.
+			basic_attack_interval = 0.45 if kind == "melee" else 0.40
 			basic_attack_mana_cost = 0.0
 		"dagger":
 			basic_attack_interval = 0.40
 			basic_attack_mana_cost = 0.0
-		"claw":
-			# Druid human-form short-range claw swipe.
-			basic_attack_interval = 0.40
-			basic_attack_mana_cost = 0.0
 		_:
 			# Ranged bolt-kind basics (mage, necromancer, hexen, stormcaller).
-			# Bumped from 0.32 to 0.55 — they were firing 3+ bolts/sec which
-			# made ranged classes dominate.
 			basic_attack_interval = 0.55
 			basic_attack_mana_cost = 4.0
-	_sync_component_stats_from_game_manager()
-	_apply_sprite_frames(data)
 
 
 func _sync_component_stats_from_game_manager() -> void:
@@ -353,6 +435,13 @@ func _normalize_player_sprite_scale(sample_tex: Texture2D) -> void:
 func _physics_process(delta: float) -> void:
 	if GameManager:
 		move_speed = GameManager.get_effective_move_speed()
+	# Temporal Dome benefit: +20% move speed and faster cooldown regen while the
+	# dome keeps refreshing dome_t (see skill_temporal_dome._process).
+	if dome_t > 0.0:
+		dome_t -= delta
+		move_speed *= 1.2
+		if skill_system and skill_system.has_method("reduce_all_cooldowns"):
+			skill_system.call("reduce_all_cooldowns", delta * 0.35)
 	# Druid form timer — auto-revert to human when expired.
 	if druid_form != "human":
 		druid_form_t -= delta
@@ -364,6 +453,16 @@ func _physics_process(delta: float) -> void:
 		buff_t -= delta
 		if buff_t <= 0.0:
 			_remove_buff()
+	if flameblade_t > 0.0:
+		flameblade_t -= delta
+	if aura_t > 0.0:
+		aura_t -= delta
+		if aura_t <= 0.0:
+			aura_dmg_mult = 1.0
+			aura_dr = 0.0
+	if frenzy_t > 0.0:
+		frenzy_t -= delta
+		move_speed *= 1.25  # Blood Frenzy haste
 	if stealth_t > 0.0:
 		stealth_t -= delta
 		if stealth_t <= 0.0:
@@ -417,7 +516,8 @@ func _physics_process(delta: float) -> void:
 			or (GameManager and GameManager.spend_mana(basic_attack_mana_cost))
 		):
 			_perform_basic_attack()
-			basic_attack_cd = basic_attack_interval
+			# Blood Frenzy: +35% attack speed → shorter interval.
+			basic_attack_cd = basic_attack_interval / (1.35 if frenzy_t > 0.0 else 1.0)
 
 	# Skills.
 	if not is_dashing:
@@ -429,6 +529,9 @@ func _physics_process(delta: float) -> void:
 			skill_system.try_cast(2, self, get_global_mouse_position())
 		if Input.is_action_just_pressed("skill_4"):
 			skill_system.try_cast(3, self, get_global_mouse_position())
+		# Ascension ability (R) — granted by the chosen spec path at level 7.
+		if Input.is_action_just_pressed("skill_ascension"):
+			skill_system.cast_ascension(self, get_global_mouse_position())
 		# Druid ultimate (Q) — Eagle Form. Only meaningful for druid since
 		# only their skill_ids array reaches length 5.
 		if (
@@ -439,7 +542,7 @@ func _physics_process(delta: float) -> void:
 			skill_system.try_cast(4, self, get_global_mouse_position())
 
 	if GameManager:
-		GameManager.regen_mana(8.0 * delta)
+		GameManager.regen_mana(8.0 * delta * (1.05 if dome_t > 0.0 else 1.0))
 
 	# Frostwalker unique — drop a small slow patch behind the player.
 	if velocity.length() > 30.0 and InventorySystem and InventorySystem.has_unique("frostwalker"):
@@ -659,7 +762,231 @@ func _remove_buff() -> void:
 
 
 func get_buff_damage_mult() -> float:
-	return buff_damage_mult
+	# The single outgoing-damage chokepoint for skills (skill_system) and basics:
+	# active buff × ally aura × spec-path passives (Berserker Pain Engine).
+	return buff_damage_mult * aura_dmg_mult * _spec_outgoing_mult()
+
+
+# Spec-path outgoing-damage multipliers that scale ALL damage (not just melee).
+func _spec_outgoing_mult() -> float:
+	var m: float = 1.0
+	if GameManager and String(GameManager.player_spec_path) == "berserker":
+		m *= _pain_engine_mult()
+	return m
+
+
+# Berserker Pain Engine: the lower the HP, the harder the hits.
+func _pain_engine_mult() -> float:
+	if GameManager == null:
+		return 1.0
+	var frac: float = float(GameManager.player_hp) / float(maxi(1, GameManager.player_max_hp))
+	if frac < 0.20:
+		return 1.45
+	if frac < 0.40:
+		return 1.25
+	if frac < 0.70:
+		return 1.10
+	return 1.0
+
+
+# ── Barbarian ascension API ───────────────────────────────────────────────────
+func apply_aura(dmg_mult: float, dr: float, duration: float) -> void:
+	aura_dmg_mult = max(aura_dmg_mult, dmg_mult)
+	aura_dr = max(aura_dr, dr)
+	aura_t = max(aura_t, duration)
+
+
+func start_frenzy(duration: float) -> void:
+	frenzy_t = max(frenzy_t, duration)
+
+
+func is_frenzied() -> bool:
+	return frenzy_t > 0.0
+
+
+func extend_frenzy(amount: float) -> void:
+	if frenzy_t > 0.0:
+		frenzy_t += amount
+
+
+func _on_enemy_died_frenzy(event) -> void:
+	if frenzy_t <= 0.0:
+		return
+	# Only nearby kills extend the frenzy (keeps co-op kills across the map out).
+	var actor = event.get("actor") if event else null
+	if actor is Node2D and global_position.distance_to((actor as Node2D).global_position) > 360.0:
+		return
+	extend_frenzy(0.5)
+
+
+func add_seismic_stack() -> void:
+	if GameManager == null or String(GameManager.player_spec_path) != "titanbreaker":
+		return
+	seismic_stacks = mini(seismic_stacks + 1, SEISMIC_STACK_MAX)
+
+
+# Returns the Earthquake/Fault-Zone size bonus from Seismic Momentum, consuming
+# the stacks when the cap is reached (1.0 = no bonus, 1.3 = +30%).
+func consume_seismic_quake_bonus() -> float:
+	if seismic_stacks >= SEISMIC_STACK_MAX:
+		seismic_stacks = 0
+		return 1.3
+	return 1.0
+
+
+# Heal that honors Pain Engine's reduced healing below 20% HP. Used by lifesteal.
+func heal_amount(amount: int) -> void:
+	if GameManager == null or amount <= 0:
+		return
+	var a: int = amount
+	if String(GameManager.player_spec_path) == "berserker":
+		var frac: float = float(GameManager.player_hp) / float(maxi(1, GameManager.player_max_hp))
+		if frac < 0.20:
+			a = int(round(float(a) * 0.7))
+	GameManager.heal_player(a)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SHIELD POOL
+func add_shield(amount: float, cap: float = -1.0) -> void:
+	if amount <= 0.0:
+		return
+	shield_hp += amount
+	if cap >= 0.0:
+		shield_hp = min(shield_hp, cap)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.6, 0.85, 1.0, 1), 5)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ASCENSION RUNTIME — fired by SkillSystem after a successful cast.
+func on_skill_cast(skill_id: String, _behavior: String) -> void:
+	if GameManager == null:
+		return
+	match String(GameManager.player_spec_path):
+		"battlemage":
+			add_battlemage_stack()
+		"elementalist":
+			add_elem_orb(_skill_element(skill_id))
+
+
+func _skill_element(skill_id: String) -> String:
+	var s := skill_id.to_lower()
+	if s.contains("ice") or s.contains("frost"):
+		return "frost"
+	if s.contains("chain") or s.contains("lightning") or s.contains("storm"):
+		return "storm"
+	return "fire"  # fire_wall / meteor / flame_cleave / falling_brand default
+
+
+# ── Battlemage ────────────────────────────────────────────────────────────────
+func start_flameblade(duration: float) -> void:
+	flameblade_t = max(flameblade_t, duration)
+
+
+func is_flameblade_active() -> bool:
+	return flameblade_t > 0.0
+
+
+func add_battlemage_stack() -> void:
+	battlemage_stacks = mini(battlemage_stacks + 1, BATTLEMAGE_STACK_MAX)
+
+
+# +3% melee damage per stack (basic attack + melee-arc skills).
+func get_battlemage_melee_mult() -> float:
+	return 1.0 + 0.03 * float(battlemage_stacks)
+
+
+# +4% incoming-damage reduction per stack (the "armor" half of the passive).
+func get_battlemage_dr() -> float:
+	return 0.04 * float(battlemage_stacks)
+
+
+# The fire-blade: while Flameblade is active, a melee basic attack ignites foes in
+# front and, for any that were already burning, grants a stacking shield (the
+# "+2% max HP per hit, cap 30%" design — robust without cross-node hit hooks).
+func _flameblade_melee_proc(dir: Vector2) -> void:
+	if not is_flameblade_active() or GameManager == null:
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var front: Vector2 = global_position + dir * 60.0
+	var max_hp: float = float(GameManager.player_max_hp)
+	var shield_cap: float = max_hp * 0.30
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or not (e is Node2D) or bool(e.get("dead")):
+			continue
+		if front.distance_to((e as Node2D).global_position) > 130.0:
+			continue
+		var was_burning: bool = e.has_method("is_burning") and bool(e.call("is_burning"))
+		if e.has_method("apply_burn"):
+			e.call("apply_burn", 4.0, float(GameManager.get_effective_damage()) * 0.4)
+		if was_burning:
+			add_shield(max_hp * 0.02, shield_cap)
+
+
+# ── Elementalist ──────────────────────────────────────────────────────────────
+func add_elem_orb(element: String) -> void:
+	elem_orbs.append(element)
+	while elem_orbs.size() > ELEM_ORB_MAX:
+		elem_orbs.pop_front()
+
+
+func consume_elem_orbs() -> Array[String]:
+	var orbs: Array[String] = elem_orbs.duplicate()
+	elem_orbs.clear()
+	return orbs
+
+
+# ── Chronomancer ──────────────────────────────────────────────────────────────
+# Banked whenever a spec path controls the battlefield (Chronomancer shields/slows,
+# Titanbreaker enemy control). Each path reads its own stack pool.
+func notify_control_applied() -> void:
+	if GameManager == null:
+		return
+	match String(GameManager.player_spec_path):
+		"chronomancer":
+			borrowed_stacks = mini(borrowed_stacks + 1, BORROWED_STACK_MAX)
+		"titanbreaker":
+			add_seismic_stack()
+
+
+# SkillSystem asks this before charging a slot's mana/cooldown. At the cap the
+# next skill is free and half-cooldown; returns the cooldown multiplier to apply.
+func consume_borrowed_second() -> float:
+	if borrowed_stacks >= BORROWED_STACK_MAX:
+		borrowed_stacks = 0
+		return 0.5
+	return 1.0
+
+
+# Refresh the Temporal Dome benefit window (called each frame the player is inside
+# the dome zone).
+func enter_dome(duration: float) -> void:
+	dome_t = max(dome_t, duration)
+
+
+# Warchief Hold the Line: when taking damage with an ally nearby, soak 20% of the
+# hit (turned into mitigation) and grant that ally 5% damage reduction for 3s.
+func _hold_the_line(amount: int) -> int:
+	if GameManager == null or String(GameManager.player_spec_path) != "warchief":
+		return amount
+	var tree := get_tree()
+	if tree == null:
+		return amount
+	var helped: bool = false
+	for ally in tree.get_nodes_in_group("remote_player"):
+		if not is_instance_valid(ally) or not (ally is Node2D):
+			continue
+		if global_position.distance_to((ally as Node2D).global_position) > 280.0:
+			continue
+		if ally.has_method("apply_aura"):
+			ally.call("apply_aura", 1.0, 0.05, 3.0)
+		helped = true
+	if helped:
+		return int(round(float(amount) * 0.8))
+	return amount
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -691,7 +1018,17 @@ func _perform_basic_attack() -> void:
 		dir = Vector2.RIGHT
 	dir = dir.normalized()
 	var base_dmg: int = GameManager.get_effective_damage() if GameManager else 14
-	var dmg: int = int(round(float(base_dmg) * buff_damage_mult))
+	# get_buff_damage_mult folds in active buff × ally aura × Pain Engine.
+	var dmg: int = int(round(float(base_dmg) * get_buff_damage_mult()))
+	# Battlemage stacks empower melee basics; Flameblade ignites foes in front.
+	if basic_attack_kind == "melee" or basic_attack_kind == "claw":
+		dmg = int(round(float(dmg) * get_battlemage_melee_mult()))
+		_flameblade_melee_proc(dir)
+	# Blood Frenzy: each basic attack leeches 2% of missing HP.
+	if frenzy_t > 0.0 and GameManager:
+		var missing: int = GameManager.player_max_hp - GameManager.player_hp
+		if missing > 0:
+			heal_amount(maxi(1, int(round(float(missing) * 0.02))))
 
 	# Stealth burst: next attack auto-crits.
 	if stealth_crit_charge:
@@ -1186,6 +1523,27 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		return false
 	invuln_t = 0.4
 	var amount: int = int(round(payload.amount))
+	# Blood Frenzy makes the Berserker take +15% damage.
+	if frenzy_t > 0.0:
+		amount = int(round(float(amount) * 1.15))
+	# Warchief Hold the Line: near an ally, part of the hit is absorbed and that
+	# ally gains brief damage reduction.
+	amount = _hold_the_line(amount)
+	# Battlemage armor stacks + ally aura reduce the hit before anything else.
+	var dr: float = min(0.8, get_battlemage_dr() + aura_dr)
+	if dr > 0.0:
+		amount = int(round(float(amount) * (1.0 - dr)))
+	# Generic shield pool soaks damage before HP (Flameblade burn-shield, etc.).
+	if shield_hp > 0.0 and amount > 0:
+		var soaked: int = int(min(shield_hp, float(amount)))
+		shield_hp -= float(soaked)
+		amount -= soaked
+		if VfxManager:
+			VfxManager.spawn_hit_sparks(global_position, Color(0.6, 0.85, 1.0, 1), 6)
+		if amount <= 0:
+			payload.amount = 0.0
+			return false
+		payload.amount = float(amount)
 	var previous_hp: float = health_component.current_hp if health_component else float(GameManager.player_hp)
 	if health_component:
 		health_component.apply_damage(payload)

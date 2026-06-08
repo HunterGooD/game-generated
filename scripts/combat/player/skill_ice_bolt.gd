@@ -104,6 +104,8 @@ func _on_area_entered(area: Area2D) -> void:
 		enemy.take_damage(damage, global_position)
 	if enemy.has_method("apply_slow"):
 		enemy.apply_slow(slow_duration, slow_mult)
+	if enemy.has_method("mark_element"):
+		enemy.call("mark_element", "frost")
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(enemy.global_position, Color(0.7, 0.9, 1.4, 1.0), 8)
 	if pierce:

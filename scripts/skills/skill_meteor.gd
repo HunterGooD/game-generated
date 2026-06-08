@@ -87,6 +87,8 @@ func _explode() -> void:
 				var dmg: int = int(round(float(damage) * falloff))
 				if e.has_method("take_damage"):
 					e.take_damage(dmg, global_position)
+				if e.has_method("mark_element"):
+					e.call("mark_element", "fire")
 
 	# Pyrocrown unique — leave a burning crater that ticks fire damage.
 	if InventorySystem and InventorySystem.has_unique("pyrocrown"):

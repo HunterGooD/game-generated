@@ -131,6 +131,10 @@ func _process(delta: float) -> void:
 						enemy.take_damage(damage, global_position)
 				if is_ice and enemy and enemy.has_method("apply_slow"):
 					enemy.apply_slow(1.2, 0.4)
+					if enemy.has_method("mark_element"):
+						enemy.call("mark_element", "frost")
+				elif enemy and enemy.has_method("mark_element"):
+					enemy.call("mark_element", "fire")
 
 
 func _on_area_entered(area: Area2D) -> void:

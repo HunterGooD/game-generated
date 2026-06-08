@@ -41,6 +41,8 @@ const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
 
 var pending_level_ups: int = 0
 var level_up_active: bool = false
+var spec_path_pending: bool = false
+var spec_path_active: bool = false
 var game_over_shown: bool = false
 var net_sync: Node = null
 
@@ -125,6 +127,8 @@ func _ready() -> void:
 	# Listen for level-ups so we can queue choice overlays.
 	if GameManager:
 		GameManager.player_levelled_up.connect(_on_player_levelled_up)
+		GameManager.spec_path_offered.connect(_on_spec_path_offered)
+		GameManager.player_revived.connect(_on_player_revived_retry_spec)
 		GameManager.player_died.connect(_on_player_died)
 
 	# Multiplayer fork — spawn NetSync + N-1 remote players.
@@ -169,6 +173,39 @@ func _on_level_up_overlay_closed() -> void:
 	pending_level_ups = max(0, pending_level_ups - 1)
 	if pending_level_ups > 0:
 		call_deferred("_try_show_level_up")
+	else:
+		# Level-ups cleared — a pending spec-path choice (level 5) can show now.
+		call_deferred("_try_show_spec_path")
+
+
+func _on_spec_path_offered() -> void:
+	spec_path_pending = true
+	call_deferred("_try_show_spec_path")
+
+
+func _try_show_spec_path() -> void:
+	# Mandatory choice: wait until level-up overlays clear AND the player isn't
+	# downed/dead (offer re-opens on revive — see _ready's player_revived hook),
+	# so a player who hit level 7 mid-chaos still gets to pick.
+	if spec_path_active or not spec_path_pending or level_up_active or pending_level_ups > 0:
+		return
+	if GameManager and (GameManager.player_downed or GameManager.game_over):
+		return
+	spec_path_active = true
+	spec_path_pending = false
+	var ov := SpecPathChoice.new()
+	ov.tree_exited.connect(_on_spec_path_closed)
+	add_child(ov)
+
+
+func _on_spec_path_closed() -> void:
+	spec_path_active = false
+
+
+func _on_player_revived_retry_spec() -> void:
+	# A pending ascension choice deferred because the player was downed at level 7.
+	if spec_path_pending:
+		call_deferred("_try_show_spec_path")
 
 
 func _on_player_died() -> void:

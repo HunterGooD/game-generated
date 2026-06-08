@@ -1,5 +1,6 @@
 # Godot 4+ specific ignores
 .godot/
+.features
 /android/
 .idea/
 .claude/
@@ -30,3 +31,4 @@ Thumbs.db
 *.blend1
 *.[mM][dD]
 !/README.md
+!/server/*.md

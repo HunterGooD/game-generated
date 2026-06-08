@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://barbskill08"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_barb_guardian_leap.gd" id="1_barb_guardian_leap"]
+
+[node name="GuardianLeap" type="Node2D"]
+script = ExtResource("1_barb_guardian_leap")

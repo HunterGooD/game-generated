@@ -841,11 +841,24 @@ func _apply_enemy_death(msg: Dictionary) -> void:
 	var node = enemy_registry.get(id, null)
 	enemy_registry.erase(id)
 	if node and is_instance_valid(node):
+		# Boss puppets wire the HUD boss bar in _spawn_puppet_boss; the host hides
+		# it via enemy_spawner, but on clients death only flowed through here, so
+		# the bar lingered after the boss died. Hide it when the boss puppet dies.
+		if node.get("boss_data") != null:
+			var hud := _find_hud()
+			if hud and hud.has_method("hide_boss_bar"):
+				hud.call("hide_boss_bar")
 		if node.has_method("die_remote"):
 			node.call("die_remote")
 		else:
 			node.queue_free()
-	# Local gold + XP drops at the death position — each player gets their own.
+	# Shared party XP: grant this kill's XP on the client too (the host already
+	# granted the same amount authoritatively in enemy._die). Identical amounts in
+	# the same order → all peers stay on the same level and level up in sync.
+	if GameManager:
+		GameManager.add_xp(int(msg.get("xp", 0)), false)  # flat: matches host's grant
+	# Local gold + cosmetic XP visual at the death position — each player gets
+	# their own drop (gold is per-player; the XP drop is visual-only in co-op).
 	_spawn_local_drops(
 		pos, int(msg.get("gold_min", 0)), int(msg.get("gold_max", 0)), int(msg.get("xp", 0))
 	)

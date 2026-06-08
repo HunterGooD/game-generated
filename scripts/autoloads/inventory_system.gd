@@ -117,9 +117,15 @@ func equip_item(item: ItemInstance, target_slot: int = -1) -> bool:
 			else:
 				slot = ItemDatabase.SLOT_RING_2
 
-	# Weapons: handle 1H vs 2H and off-hand logic.
+	# Weapons: handle 1H vs 2H and off-hand logic. With no explicit target, a
+	# one-handed weapon auto-routes to the first free hand so a SECOND 1H weapon
+	# lands in the off-hand instead of displacing the main weapon (the old path
+	# always normalized to main, so two weapons could never be worn together).
 	if item.is_weapon():
-		return _equip_weapon(item, slot)
+		var weapon_slot: int = slot
+		if target_slot < 0 and not item.is_two_handed():
+			weapon_slot = _auto_weapon_slot(item)
+		return _equip_weapon(item, weapon_slot)
 
 	# Regular slot: swap.
 	var existing = equipment.get(slot, null)
@@ -133,6 +139,26 @@ func equip_item(item: ItemInstance, target_slot: int = -1) -> bool:
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_equip_armor.mp3", -8.0)
 	return true
+
+
+func _auto_weapon_slot(item: ItemInstance) -> int:
+	# Landing hand for a one-handed weapon equipped without an explicit target.
+	# Off-hand "home" items (caster catalysts) prefer the off-hand; otherwise fill
+	# the main hand if empty, else the off-hand when the main holds a 1H weapon,
+	# else fall back to main (a swap).
+	if item.get_slot() == ItemDatabase.SLOT_WEAPON_OFF:
+		return ItemDatabase.SLOT_WEAPON_OFF
+	var main_w = equipment.get(ItemDatabase.SLOT_WEAPON_MAIN, null)
+	var off_w = equipment.get(ItemDatabase.SLOT_WEAPON_OFF, null)
+	if main_w == null:
+		return ItemDatabase.SLOT_WEAPON_MAIN
+	if (
+		off_w == null
+		and main_w is ItemInstance
+		and not (main_w as ItemInstance).is_two_handed()
+	):
+		return ItemDatabase.SLOT_WEAPON_OFF
+	return ItemDatabase.SLOT_WEAPON_MAIN
 
 
 func _equip_weapon(item: ItemInstance, target_slot: int) -> bool:

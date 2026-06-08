@@ -6,7 +6,7 @@ use std::{
 };
 
 use axum::{
-    extract::{ws::WebSocket, Path, State, WebSocketUpgrade},
+    extract::{ws::WebSocket, Path, Query, State, WebSocketUpgrade},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -120,7 +120,7 @@ async fn create_room(
 
     state
         .rooms
-        .insert(code.clone(), Room::new(code.clone(), max_players));
+        .insert(code.clone(), Room::new(code.clone(), max_players, req.version));
 
     (StatusCode::OK, Json(CreateRoomResponse { code })).into_response()
 }
@@ -201,12 +201,14 @@ impl RateLimiter {
 async fn ws_room(
     ws: WebSocketUpgrade,
     Path(code): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
     State(app): State<AppState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, code.to_uppercase(), app))
+    let client_version = params.get("v").cloned().unwrap_or_default();
+    ws.on_upgrade(move |socket| handle_socket(socket, code.to_uppercase(), client_version, app))
 }
 
-async fn handle_socket(socket: WebSocket, code: String, app: AppState) {
+async fn handle_socket(socket: WebSocket, code: String, client_version: String, app: AppState) {
     let (mut ws_tx, mut ws_rx) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<axum::extract::ws::Message>();
 
@@ -223,6 +225,18 @@ async fn handle_socket(socket: WebSocket, code: String, app: AppState) {
                 return;
             }
         };
+
+        // Version gate: a joiner must present the same app version the host
+        // created the room with (?v= on the ws URL). Prevents an old client from
+        // connecting to a room hosted by a newer build. Empty room version = no gate.
+        if !room.version.is_empty() && room.version != client_version {
+            let _ = ws_tx
+                .send(axum::extract::ws::Message::Text(
+                    serde_json::json!({"t":"error","code":"version_mismatch","error":"game version mismatch — update to join"}).to_string(),
+                ))
+                .await;
+            return;
+        }
 
         if room.is_full() {
             let _ = ws_tx

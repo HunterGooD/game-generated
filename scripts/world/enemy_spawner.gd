@@ -140,7 +140,7 @@ const TYPE_ORDER := ["skeleton", "cultist", "wraith", "succubus", "spider_brood"
 @export var room_min: Vector2 = Vector2(192, 192)
 @export var room_max: Vector2 = Vector2(2400, 1408)
 @export var safe_radius_around_player: float = 220.0
-@export var wave_break: float = 4.0
+@export var wave_break: float = 8.0
 
 var current_wave: int = 0
 var enemies_remaining: int = 0

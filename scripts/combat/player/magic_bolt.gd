@@ -25,6 +25,15 @@ func setup(dir: Vector2, dmg: int, owner_tag_in: String) -> void:
 		hit_box.payload = _build_damage_payload()
 
 
+# Multiplayer replication path (NetSync._replicate_skill_cast) prefers
+# setup_with_mods. magic_bolt's own setup() takes a required owner tag, so without
+# this the visual-only copy on remote peers crashed with an arg-count mismatch.
+# Tag "remote" keeps the LOCAL player's unique checks (e.g. Voidstaff pierce tint)
+# from bleeding onto another player's replicated bolt.
+func setup_with_mods(dir: Vector2, dmg: int, _mods: Dictionary) -> void:
+	setup(dir, dmg, "remote")
+
+
 func _ready() -> void:
 	collision_layer = 4
 	collision_mask = 17  # 1 (walls) | 16 (enemy hurtbox)

@@ -4,6 +4,11 @@ use serde_json::{Map, Value};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoomRequest {
     pub max_players: u8,
+    // App/protocol version of the host. Joining clients must present the same
+    // version (?v= on the ws URL) or they're rejected, so an old client can't
+    // connect to a room hosted by a newer build. Defaults to empty for back-compat.
+    #[serde(default)]
+    pub version: String,
 }
 
 impl CreateRoomRequest {
@@ -273,9 +278,10 @@ mod tests {
 
     #[test]
     fn create_room_request_validation() {
-        assert!(CreateRoomRequest { max_players: 2 }.validate().is_ok());
-        assert!(CreateRoomRequest { max_players: 4 }.validate().is_ok());
-        assert!(CreateRoomRequest { max_players: 1 }.validate().is_err());
+        let v = String::new();
+        assert!(CreateRoomRequest { max_players: 2, version: v.clone() }.validate().is_ok());
+        assert!(CreateRoomRequest { max_players: 4, version: v.clone() }.validate().is_ok());
+        assert!(CreateRoomRequest { max_players: 1, version: v.clone() }.validate().is_err());
     }
 
     #[test]
