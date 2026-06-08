@@ -504,11 +504,24 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "chain",
 	},
 	"stasis_star": {
-		"name": "Stasis Star", "scene": "res://scenes/skills/skill_stasis_star.tscn",
+		"name": "Stasis Star", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_skill_meteor.png",
 		"cooldown": 12.0, "mana_cost": 36.0, "damage_mult": 1.6,
 		"sfx": "res://assets/audio/sfx/player/player_spell_meteor.mp3",
 		"spawn": "at_target", "behavior": "telegraph_aoe",
+		"effects": [
+			{
+				"type": "telegraph", "delay": 0.5, "radius": 150.0,
+				"chill_duration": 0.7, "chill_stacks": 4,
+				"ally_shield_frac": 0.5, "caster_shield_frac": 0.75,
+				"cooldown_refund": 1.0, "notify_control": true,
+				"telegraph_texture": "res://assets/sprites/effects/fire_flame.png",
+				"telegraph_color": Color(0.55, 0.85, 1.0, 0.9), "telegraph_scale": 2.4,
+				"explosion_scale": 1.5, "explosion_color": Color(0.5, 0.85, 1.0, 1),
+				"shake_strength": 8.0, "shake_time": 0.3,
+				"flash_color": Color(0.5, 0.8, 1.0, 0.25), "flash_time": 0.2
+			},
+		],
 	},
 	# ── BARBARIAN ASCENSIONS ──
 	# Berserker R + slot swaps.
@@ -566,11 +579,19 @@ const _RAW := {
 		],
 	},
 	"barb_war_ground": {
-		"name": "War Ground", "scene": "res://scenes/skills/skill_barb_war_ground.tscn",
+		"name": "War Ground", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_barb_quake.png",
 		"cooldown": 14.0, "mana_cost": 34.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_earthquake.mp3",
 		"spawn": "at_caster", "behavior": "ground",
+		"effects": [
+			{
+				"type": "aura", "radius": 200.0, "lifetime": 6.0, "tick_interval": 0.5,
+				"tick_damage_mult": 1.0, "enemy_slow_dur": 0.3, "enemy_slow_mult": 0.6,
+				"ally_aura_dr": 0.2, "ring_color": Color(0.75, 0.6, 0.35, 0.4),
+				"ring_texture_path": "res://assets/sprites/effects/fire_ring.png"
+			},
+		],
 	},
 	"barb_guardian_leap": {
 		"name": "Guardian Leap", "scene": "res://scenes/skills/skill_barb_guardian_leap.tscn",
@@ -765,11 +786,20 @@ const _RAW := {
 		],
 	},
 	"storm_pillar": {
-		"name": "Storm Pillar", "scene": "res://scenes/skills/skill_storm_pillar.tscn",
+		"name": "Storm Pillar", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_storm_sky_strike.png",
 		"cooldown": 14.0, "mana_cost": 30.0, "damage_mult": 0.8,
 		"sfx": "res://assets/audio/sfx/player/player_storm_sky_strike_warn.mp3",
 		"spawn": "at_target", "behavior": "telegraph_aoe",
+		"effects": [
+			{
+				"type": "aura", "radius": 120.0, "lifetime": 4.0, "tick_interval": 0.5,
+				"telegraph_delay": 0.5, "tick_damage_mult": 0.5, "mark_element": "storm",
+				"strike_explosion_scale": 1.3, "strike_explosion_color": Color(0.7, 0.9, 1.0, 1),
+				"strike_shake": 5.0, "ring_color": Color(0.6, 0.8, 1.0, 0.6),
+				"ring_texture_path": "res://assets/sprites/effects/meteor_telegraph.png"
+			},
+		],
 	},
 	"storm_living_battery": {
 		"name": "Living Battery", "scene": "res://scenes/skills/skill_storm_living_battery.tscn",

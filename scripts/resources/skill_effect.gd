@@ -38,6 +38,10 @@ static func from_data(d: Dictionary) -> SkillEffect:
 			return SkillEffectDash.from_data(d)
 		"projectile":
 			return SkillEffectProjectile.from_data(d)
+		"aura":
+			return SkillEffectAura.from_data(d)
+		"telegraph":
+			return SkillEffectTelegraph.from_data(d)
 		"vfx":
 			return SkillEffectVfx.from_data(d)
 		_:

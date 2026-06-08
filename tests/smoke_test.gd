@@ -121,6 +121,12 @@ func _check_composed_skills() -> void:
 					_fail("skill '%s' projectile effect has empty scene_path" % str(key))
 				elif not ResourceLoader.exists(pr.scene_path):
 					_fail("skill '%s' projectile scene missing: %s" % [str(key), pr.scene_path])
+			elif effect is SkillEffectAura:
+				var au := effect as SkillEffectAura
+				if au.radius <= 0.0 or au.lifetime <= 0.0:
+					_fail("skill '%s' aura effect has non-positive radius/lifetime" % str(key))
+			elif effect is SkillEffectTelegraph and (effect as SkillEffectTelegraph).radius <= 0.0:
+				_fail("skill '%s' telegraph effect has non-positive radius" % str(key))
 	print("Composed skills: %d" % composed)
 
 
