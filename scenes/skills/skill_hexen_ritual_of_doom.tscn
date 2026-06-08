@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://hexenasc08"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_hexen_ritual_of_doom.gd" id="1_hexen_ritual_of_doom"]
+
+[node name="RitualOfDoom" type="Node2D"]
+script = ExtResource("1_hexen_ritual_of_doom")

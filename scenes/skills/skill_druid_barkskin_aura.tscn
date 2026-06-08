@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://druidasc06"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_druid_barkskin_aura.gd" id="1_druid_barkskin_aura"]
+
+[node name="BarkskinAura" type="Node2D"]
+script = ExtResource("1_druid_barkskin_aura")

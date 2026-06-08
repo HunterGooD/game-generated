@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://hexenasc04"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_hexen_blood_arena.gd" id="1_hexen_blood_arena"]
+
+[node name="BloodArena" type="Node2D"]
+script = ExtResource("1_hexen_blood_arena")

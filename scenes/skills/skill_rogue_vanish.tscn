@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://rogueasc02"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_rogue_vanish.gd" id="1_rogue_vanish"]
+
+[node name="Vanish" type="Node2D"]
+script = ExtResource("1_rogue_vanish")

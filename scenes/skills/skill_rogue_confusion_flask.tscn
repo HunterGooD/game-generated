@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://rogueasc08"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_rogue_confusion_flask.gd" id="1_rogue_confusion_flask"]
+
+[node name="ConfusionFlask" type="Node2D"]
+script = ExtResource("1_rogue_confusion_flask")

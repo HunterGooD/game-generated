@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://necroasc02"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_necro_skeletal_legion.gd" id="1_necro_skeletal_legion"]
+
+[node name="SkeletalLegion" type="Node2D"]
+script = ExtResource("1_necro_skeletal_legion")

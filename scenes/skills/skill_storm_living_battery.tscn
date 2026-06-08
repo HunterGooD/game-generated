@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://stormasc1a"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_storm_living_battery.gd" id="1_storm_living_battery"]
+
+[node name="LivingBattery" type="Node2D"]
+script = ExtResource("1_storm_living_battery")

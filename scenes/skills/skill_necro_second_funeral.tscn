@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://necroasc1a"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_necro_second_funeral.gd" id="1_necro_second_funeral"]
+
+[node name="SecondFuneral" type="Node2D"]
+script = ExtResource("1_necro_second_funeral")

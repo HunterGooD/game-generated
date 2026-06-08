@@ -79,6 +79,15 @@ var vuln_amp: float = 0.0
 # Taunt: forces this enemy to chase a specific node while active.
 var taunt_target: Node2D = null
 var taunt_t: float = 0.0
+# Poison: stacking DoT (Venomancer). At POISON_MAX it mutates to Necrotic Poison
+# (also armor-breaks). Each stack adds damage; refreshing extends the duration.
+var poison_stacks: int = 0
+var poison_t: float = 0.0
+var _poison_tick_t: float = 0.0
+const POISON_MAX: int = 10
+# Curse stacks: generic distinct-debuff counter (Hexen Threefold Curse / Coven Sin).
+var curse_stacks: int = 0
+var curse_t: float = 0.0
 var hp_bar_shown: bool = false
 var retarget_t: float = 0.0
 
@@ -803,6 +812,36 @@ func apply_taunt(node: Node2D, duration: float) -> void:
 	taunt_t = max(taunt_t, duration)
 
 
+# Poison: each application adds `stacks` (cap POISON_MAX) and refreshes duration.
+# `dps_each` is the per-stack damage. At the cap it becomes Necrotic (armor break).
+func apply_poison(stacks: int, duration: float, dps_each: float) -> void:
+	if dead:
+		return
+	poison_stacks = mini(poison_stacks + stacks, POISON_MAX)
+	poison_t = max(poison_t, duration)
+	set_meta("poison_dps_each", dps_each)
+	if poison_stacks >= POISON_MAX:
+		apply_vulnerable(duration, 0.2)  # Necrotic Poison strips armor
+
+
+func is_poisoned() -> bool:
+	return poison_t > 0.0
+
+
+func get_poison_stacks() -> int:
+	return poison_stacks
+
+
+# Curse: track distinct debuffs over a window; returns the running stack count so
+# callers (Hexen) can trigger bursts on every Nth unique curse.
+func add_curse_stack() -> int:
+	if dead:
+		return 0
+	curse_stacks += 1
+	curse_t = 6.0
+	return curse_stacks
+
+
 func _tick_status(delta: float) -> void:
 	if frozen_t > 0.0:
 		frozen_t -= delta
@@ -839,6 +878,18 @@ func _tick_status(delta: float) -> void:
 		taunt_t -= delta
 		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
 			taunt_target = null
+	if poison_t > 0.0:
+		poison_t -= delta
+		_poison_tick_t -= delta
+		if _poison_tick_t <= 0.0:
+			_poison_tick_t = 0.5
+			_apply_poison_tick()
+		if poison_t <= 0.0:
+			poison_stacks = 0
+	if curse_t > 0.0:
+		curse_t -= delta
+		if curse_t <= 0.0:
+			curse_stacks = 0
 
 
 # Burn DoT damage. Host-authoritative (puppets never reach here). Routes through
@@ -864,6 +915,18 @@ func _apply_bleed_tick() -> void:
 	)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(global_position, Color(0.7, 0.05, 0.08, 1), 3)
+
+
+func _apply_poison_tick() -> void:
+	if dead or poison_stacks <= 0:
+		return
+	var dps_each: float = float(get_meta("poison_dps_each", 2.0))
+	var tick: int = max(1, int(round(dps_each * float(poison_stacks) * 0.5)))
+	receive_damage_payload(
+		DamageInstance.new(float(tick), null, self, [&"poison"], [], false, Vector2.ZERO)
+	)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.4, 0.85, 0.2, 1), 3)
 
 
 # Small elemental detonation when a Fractured enemy dies — splashes foes within

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://druidasc01"]
+
+[ext_resource type="Script" path="res://scripts/skills/skill_druid_apex_form.gd" id="1_druid_apex_form"]
+
+[node name="ApexForm" type="Node2D"]
+script = ExtResource("1_druid_apex_form")

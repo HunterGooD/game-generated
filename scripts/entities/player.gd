@@ -116,6 +116,17 @@ var frenzy_t: float = 0.0
 var seismic_stacks: int = 0
 const SEISMIC_STACK_MAX: int = 5
 
+# ── Rogue / Necromancer ascension runtime ─────────────────────────────────────
+# Evasion chance window (Trickster Decoy / Safehouse).
+var evasion_chance: float = 0.0
+var evasion_t: float = 0.0
+# Cheat-death: survive a lethal hit at 1 HP. `funeral_t` is the Necro Second Funeral
+# window (free while active); `dirty_escape_cd` gates the Trickster passive (90s).
+var funeral_t: float = 0.0
+var dirty_escape_cd: float = 0.0
+# Assassin Backstab Window: brief window (after a dash/vanish) where attacks crit harder.
+var backstab_t: float = 0.0
+
 # Stealth state (Smoke Bomb).
 var stealth_t: float = 0.0
 var stealth_crit_charge: bool = false
@@ -463,6 +474,16 @@ func _physics_process(delta: float) -> void:
 	if frenzy_t > 0.0:
 		frenzy_t -= delta
 		move_speed *= 1.25  # Blood Frenzy haste
+	if evasion_t > 0.0:
+		evasion_t -= delta
+		if evasion_t <= 0.0:
+			evasion_chance = 0.0
+	if funeral_t > 0.0:
+		funeral_t -= delta
+	if dirty_escape_cd > 0.0:
+		dirty_escape_cd -= delta
+	if backstab_t > 0.0:
+		backstab_t -= delta
 	if stealth_t > 0.0:
 		stealth_t -= delta
 		if stealth_t <= 0.0:
@@ -773,9 +794,20 @@ func get_buff_damage_mult() -> float:
 # Spec-path outgoing-damage multipliers that scale ALL damage (not just melee).
 func _spec_outgoing_mult() -> float:
 	var m: float = 1.0
-	if GameManager and String(GameManager.player_spec_path) == "berserker":
-		m *= _pain_engine_mult()
+	if GameManager == null:
+		return m
+	match String(GameManager.player_spec_path):
+		"berserker":
+			m *= _pain_engine_mult()
+		"assassin":
+			if backstab_t > 0.0:
+				m *= 1.4  # Backstab Window
 	return m
+
+
+# Open the Assassin Backstab Window (after a dash / Vanish).
+func start_backstab(duration: float) -> void:
+	backstab_t = max(backstab_t, duration)
 
 
 # Berserker Pain Engine: the lower the HP, the harder the hits.
@@ -990,6 +1022,54 @@ func _hold_the_line(amount: int) -> int:
 	if helped:
 		return int(round(float(amount) * 0.8))
 	return amount
+
+
+# ── Rogue / Necromancer ascension API ─────────────────────────────────────────
+func apply_evasion(chance: float, duration: float) -> void:
+	evasion_chance = max(evasion_chance, chance)
+	evasion_t = max(evasion_t, duration)
+
+
+# Necromancer Second Funeral: mark this player so a lethal hit is survived at 1 HP
+# for the next `duration` seconds.
+func grant_funeral(duration: float) -> void:
+	funeral_t = max(funeral_t, duration)
+
+
+# Trickster Dirty Escape passive: arm a one-shot cheat-death on an 90s shared CD.
+# Returns true if it fired (and started the cooldown).
+func try_dirty_escape() -> bool:
+	if GameManager == null or String(GameManager.player_spec_path) != "trickster":
+		return false
+	if dirty_escape_cd > 0.0:
+		return false
+	dirty_escape_cd = 90.0
+	return true
+
+
+# Called from receive_damage_payload when a hit would be lethal. Returns true if a
+# cheat-death effect saves the player (sets them to 1 HP + brief invuln + smoke).
+func _try_cheat_death() -> bool:
+	var saved: bool = false
+	if funeral_t > 0.0:
+		saved = true
+	elif try_dirty_escape():
+		saved = true
+		# Drop a smoke bomb on escape (Trickster flavour).
+		apply_stealth(1.0)
+	if not saved:
+		return false
+	if GameManager:
+		GameManager.player_hp = 1
+		if health_component:
+			health_component.current_hp = 1.0
+			health_component.is_dead = false
+		GameManager.player_stats_changed.emit()
+	invuln_t = 1.0
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.8, 0.9, 1.0, 1), 16)
+		VfxManager.screen_flash(Color(0.6, 0.7, 1.0, 0.2), 0.2)
+	return true
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1508,6 +1588,12 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	# Stealth ignores damage.
 	if stealth_t > 0.0:
 		return false
+	# Evasion (Trickster auras): chance to dodge the hit outright.
+	if evasion_chance > 0.0 and randf() < evasion_chance:
+		invuln_t = 0.1
+		if VfxManager:
+			VfxManager.spawn_damage_number(global_position + Vector2(0, -22), 0, Color(0.7, 0.9, 1, 1))
+		return false
 	# Stone Armor: absorb one incoming hit per charge, then break a stone.
 	if stone_armor_charges > 0:
 		stone_armor_charges -= 1
@@ -1555,6 +1641,10 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 			GameManager.player_hp = new_hp
 			if new_hp <= 0:
 				# Routes to downed (co-op) or full death (solo) per GameManager.
+				# Cheat-death (Trickster Dirty Escape / Necro Second Funeral) saves us
+				# at 1 HP before the downed/death routing kicks in.
+				if _try_cheat_death():
+					return true
 				GameManager.register_lethal_blow()
 			GameManager.player_stats_changed.emit()
 	else:
