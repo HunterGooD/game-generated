@@ -82,7 +82,11 @@ func _spawn_trail() -> void:
 	s.rotation = randf() * TAU
 	s.z_index = 140
 	get_tree().current_scene.add_child(s)
-	var tw := create_tween().set_parallel(true)
+	# Bind the fade tween to the TRAIL sprite, not the bolt: the bolt queue_free()s
+	# on impact, which would kill a bolt-owned tween mid-fade and strand the trail
+	# sprite (parented to the scene) frozen on the ground. Owned by `s`, the fade
+	# always completes and frees itself.
+	var tw := s.create_tween().set_parallel(true)
 	tw.tween_property(s, "modulate:a", 0.0, 0.3)
 	tw.tween_property(s, "scale", Vector2(0.05, 0.05), 0.3)
 	tw.chain().tween_callback(s.queue_free)

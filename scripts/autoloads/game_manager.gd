@@ -408,6 +408,12 @@ func add_gold_with_bonus(amount: int) -> void:
 	add_gold(int(round(float(amount) * mult)))
 
 
+# DEBUG/TEST: instantly grant enough XP to gain one level (bound to P in-game).
+# Solo testing aid — in co-op this only levels the local player, so it can desync.
+func debug_grant_level() -> void:
+	add_xp(maxi(1, player_xp_to_next - player_xp), false)
+
+
 func add_xp(amount: int, apply_mult: bool = true) -> void:
 	if amount <= 0:
 		return

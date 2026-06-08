@@ -26,6 +26,9 @@ var low_hp_overlay: ColorRect = null
 var static_charge_label: Label = null
 
 var skill_slots: Array = []
+# Ultimate (R / spec-path ascension) slot — built alongside the hotbar but driven
+# by the SkillSystem's separate ascension cooldown. Hidden until a path is chosen.
+var ult_slot: Dictionary = {}
 var skill_system_ref: Node = null
 var pause_menu_open: bool = false
 
@@ -252,6 +255,7 @@ func _refresh_hotbar_icons() -> void:
 		var icon: Texture2D = skill_system_ref.call("get_skill_icon", i)
 		if icon and skill_slots[i].has("icon"):
 			skill_slots[i]["icon"].texture = icon
+	_update_ult_slot()
 
 
 func _build_hotbar() -> void:
@@ -340,6 +344,84 @@ func _build_hotbar() -> void:
 				}
 			)
 		)
+
+	_build_ult_slot()
+
+
+# The ultimate (R) slot lives at the end of the hotbar. It mirrors a normal slot
+# but reads the SkillSystem's ascension cooldown and stays hidden until the
+# player picks a spec path at level 7. An amber border marks it as the ultimate.
+func _build_ult_slot() -> void:
+	ult_slot = {}
+	var slot_root := PanelContainer.new()
+	slot_root.theme_type_variation = &"HudPanel"
+	slot_root.custom_minimum_size = Vector2(88, 88)
+	slot_root.modulate = Color(1.0, 0.85, 0.4, 1)  # amber tint = ultimate
+	hotbar.add_child(slot_root)
+
+	var inner := Control.new()
+	inner.custom_minimum_size = Vector2(80, 80)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_root.add_child(inner)
+
+	var icon := TextureRect.new()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(72, 72)
+	inner.add_child(icon)
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var cd_overlay := ColorRect.new()
+	cd_overlay.color = Color(0, 0, 0, 0.55)
+	cd_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cd_overlay.visible = false
+	inner.add_child(cd_overlay)
+	cd_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var cd_label := Label.new()
+	cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cd_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cd_label.add_theme_color_override("font_color", Color(1, 0.95, 0.7, 1))
+	cd_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	cd_label.add_theme_constant_override("outline_size", 4)
+	cd_label.add_theme_font_size_override("font_size", 24)
+	cd_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(cd_label)
+	cd_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var key_label := Label.new()
+	key_label.text = "R"
+	key_label.add_theme_color_override("font_color", Color(1, 0.92, 0.55, 1))
+	key_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	key_label.add_theme_constant_override("outline_size", 4)
+	key_label.add_theme_font_size_override("font_size", 16)
+	key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(key_label)
+	key_label.position = Vector2(4, 4)
+
+	ult_slot = {
+		"root": slot_root,
+		"icon": icon,
+		"cd_overlay": cd_overlay,
+		"cd_label": cd_label,
+	}
+	slot_root.visible = false
+	_update_ult_slot()
+
+
+# Show/hide + icon for the ultimate slot based on whether a spec path is active.
+func _update_ult_slot() -> void:
+	if ult_slot.is_empty() or skill_system_ref == null:
+		return
+	var ability_id: String = ""
+	if skill_system_ref.has_method("get_ascension_skill_id"):
+		ability_id = String(skill_system_ref.call("get_ascension_skill_id"))
+	var root: Control = ult_slot["root"]
+	root.visible = ability_id != ""
+	if ability_id != "" and skill_system_ref.has_method("get_ascension_icon"):
+		var tex: Texture2D = skill_system_ref.call("get_ascension_icon")
+		if tex:
+			(ult_slot["icon"] as TextureRect).texture = tex
 
 
 func _refresh() -> void:
@@ -561,6 +643,27 @@ func _process(_delta: float) -> void:
 			else:
 				cd_overlay.visible = false
 				cd_label.text = ""
+		_update_ult_cooldown()
+
+
+# Drive the ultimate slot's cooldown overlay from the SkillSystem's ascension CD.
+func _update_ult_cooldown() -> void:
+	if ult_slot.is_empty() or skill_system_ref == null:
+		return
+	var root: Control = ult_slot["root"]
+	if not root.visible:
+		return
+	var cd_overlay: ColorRect = ult_slot["cd_overlay"]
+	var cd_label: Label = ult_slot["cd_label"]
+	var remaining: float = 0.0
+	if skill_system_ref.has_method("get_ascension_cooldown_remaining"):
+		remaining = float(skill_system_ref.call("get_ascension_cooldown_remaining"))
+	if remaining > 0.01:
+		cd_overlay.visible = true
+		cd_label.text = "%.0f" % ceil(remaining)
+	else:
+		cd_overlay.visible = false
+		cd_label.text = ""
 
 
 # Co-op bleed-out indicator — shown while the local player is downed, counting

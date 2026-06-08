@@ -167,6 +167,16 @@ func get_ascension_skill_id() -> String:
 	return ascension_skill_id
 
 
+func get_ascension_icon() -> Texture2D:
+	var d: SkillDefinition = SkillCatalog.get_def(ascension_skill_id)
+	return d.get_icon() if d else null
+
+
+func get_ascension_name() -> String:
+	var d: SkillDefinition = SkillCatalog.get_def(ascension_skill_id)
+	return d.display_name if d else ""
+
+
 func get_ascension_cooldown_remaining() -> float:
 	return ascension_cd
 

@@ -532,6 +532,9 @@ func _physics_process(delta: float) -> void:
 		# Ascension ability (R) — granted by the chosen spec path at level 7.
 		if Input.is_action_just_pressed("skill_ascension"):
 			skill_system.cast_ascension(self, get_global_mouse_position())
+		# DEBUG/TEST: P grants one level instantly to speed up testing.
+		if Input.is_action_just_pressed("debug_level_up") and GameManager:
+			GameManager.debug_grant_level()
 		# Druid ultimate (Q) — Eagle Form. Only meaningful for druid since
 		# only their skill_ids array reaches length 5.
 		if (
