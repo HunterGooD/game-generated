@@ -96,6 +96,8 @@ const ENEMY_TYPES := {
 		"attack_range": 38.0,
 		"attack_cooldown": 0.8,
 		"detection_range": 360.0,
+		# Hit-and-run: dart in, bite, scuttle back, re-approach (LimboAI spider BT).
+		"spider": true,
 		"xp_value": 3,
 		"gold_min": 0,
 		"gold_max": 1,

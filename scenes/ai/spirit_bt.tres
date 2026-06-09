@@ -1,0 +1,30 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_acquire_target.gd" id="1_ltr1v"]
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_spirit_pounce.gd" id="2_unvgq"]
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_chase_attack.gd" id="3_0uvco"]
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_follow_owner.gd" id="4_lhoqa"]
+
+[sub_resource type="BTAction" id="BTAction_kc60d"]
+script = ExtResource("1_ltr1v")
+
+[sub_resource type="BTAction" id="BTAction_3821c"]
+script = ExtResource("2_unvgq")
+
+[sub_resource type="BTAction" id="BTAction_r7q2r"]
+script = ExtResource("3_0uvco")
+
+[sub_resource type="BTSelector" id="BTSelector_d8iw6"]
+children = [SubResource("BTAction_3821c"), SubResource("BTAction_r7q2r")]
+
+[sub_resource type="BTSequence" id="BTSequence_kutvy"]
+children = [SubResource("BTAction_kc60d"), SubResource("BTSelector_d8iw6")]
+
+[sub_resource type="BTAction" id="BTAction_svuc2"]
+script = ExtResource("4_lhoqa")
+
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_6wlbh"]
+children = [SubResource("BTSequence_kutvy"), SubResource("BTAction_svuc2")]
+
+[resource]
+root_task = SubResource("BTDynamicSelector_6wlbh")

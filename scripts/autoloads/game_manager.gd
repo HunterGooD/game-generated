@@ -309,6 +309,11 @@ const CLASSES := {
 # runs every behaviour with the flag both off and on). Host-only; puppets unaffected
 # (no AI). Flip to false to fall back to the legacy state machine instantly.
 var use_bt_minions: bool = true
+# Feature flag — drive ENEMY host-AI (in-detection mode behaviour) with LimboAI
+# behaviour trees per archetype (melee / ranged-kite / spider hit-and-run). OFF until
+# parity proven per archetype, then flipped on. Host-only; puppets/idle/no-target and
+# AOE stay on the legacy path. Flip to false to fall back to the legacy state machine.
+var use_bt_enemies: bool = true
 
 # Selected class — persists across deaths within a session.
 var player_class: String = ""

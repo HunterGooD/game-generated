@@ -32,6 +32,10 @@ var max_hp: int = 1000
 var hp: int = 1000
 var damage_unit: int = 20
 var move_speed: float = 60.0
+# Phase modifiers (applied on phase enter). _base_move_speed is the unscaled speed;
+# _phase_attack_speed_mult divides the attack interval (higher = faster attacks).
+var _base_move_speed: float = 60.0
+var _phase_attack_speed_mult: float = 1.0
 var dead: bool = false
 var spawn_wave: int = 1
 var owner_player_id: int = 0  # For multiplayer per-player loot.
@@ -51,6 +55,7 @@ func configure(id: String, wave: int) -> void:
 		queue_free()
 		return
 	phases = boss_data.get("phases", [])
+	_ensure_phases()
 	# Stats scaled vs wave.
 	var hp_per_unit_wave: int = 36
 	max_hp = int(
@@ -61,12 +66,14 @@ func configure(id: String, wave: int) -> void:
 	var dmg_per_wave: int = 8 + int(float(wave) * 0.4)
 	damage_unit = int(round(float(dmg_per_wave) * float(boss_data.get("damage_mult_vs_wave", 1.4))))
 	move_speed = float(boss_data.get("move_speed", 60.0))
+	_base_move_speed = move_speed
 	_sync_component_stats(true)
 	# Apply visual + emit initial signals NOW. _ready already ran with an empty
 	# boss_data before configure was called by the spawner, which is exactly
 	# why bosses were rendering invisible.
 	_apply_visual()
 	current_phase_idx = 0
+	_enter_phase(0)
 	boss_hp_changed.emit(hp, max_hp)
 	boss_phase_changed.emit(current_phase_idx)
 
@@ -249,6 +256,44 @@ func _current_phase() -> Dictionary:
 	return phases[current_phase_idx]
 
 
+# Bosses authored with a single phase still escalate: synthesize "enrage" phases that
+# progressively speed up attacks as HP drops. Multi-phase bosses keep their authored
+# data untouched (their phases default attack_speed_mult/move_speed_mult to 1.0, so
+# behaviour is identical). This is also the growth point — a phase dict can later carry
+# move_speed_mult, extra attacks, or per-phase skills, read in _enter_phase.
+func _ensure_phases() -> void:
+	if phases.size() >= 2:
+		return
+	var base: Dictionary = phases[0] if not phases.is_empty() else {}
+	var cycle: Array = base.get("attack_cycle", [])
+	var interval: float = float(base.get("attack_interval", 2.0))
+	var base_tint: Color = base.get("tint", Color(1, 1, 1, 1))
+	phases = [
+		{
+			"hp_threshold": 1.0, "attack_cycle": cycle, "attack_interval": interval,
+			"attack_speed_mult": 1.0, "tint": base_tint,
+		},
+		{
+			"hp_threshold": 0.66, "attack_cycle": cycle, "attack_interval": interval,
+			"attack_speed_mult": 1.3, "move_speed_mult": 1.12, "tint": Color(1.2, 0.7, 0.6, 1),
+		},
+		{
+			"hp_threshold": 0.33, "attack_cycle": cycle, "attack_interval": interval,
+			"attack_speed_mult": 1.7, "move_speed_mult": 1.25, "tint": Color(1.35, 0.45, 0.4, 1),
+		},
+	]
+
+
+# Apply a phase's modifiers. Extension point for future per-phase content (new
+# attacks, granted skills, passives) — add fields to the phase dict and read here.
+func _enter_phase(idx: int) -> void:
+	if idx < 0 or idx >= phases.size():
+		return
+	var phase: Dictionary = phases[idx]
+	_phase_attack_speed_mult = float(phase.get("attack_speed_mult", 1.0))
+	move_speed = _base_move_speed * float(phase.get("move_speed_mult", 1.0))
+
+
 func _fire_next_attack() -> void:
 	var phase := _current_phase()
 	var cycle: Array = phase.get("attack_cycle", [])
@@ -257,7 +302,8 @@ func _fire_next_attack() -> void:
 		return
 	var atk_id: String = String(cycle[attack_idx % cycle.size()])
 	attack_idx += 1
-	attack_t = float(phase.get("attack_interval", 2.0))
+	# Phase attack-speed mult shortens the interval (later phases attack faster).
+	attack_t = float(phase.get("attack_interval", 2.0)) / maxf(0.1, _phase_attack_speed_mult)
 	_dispatch_attack(atk_id)
 
 
@@ -590,6 +636,7 @@ func _maybe_advance_phase() -> void:
 			next_idx = i
 	if next_idx > current_phase_idx:
 		current_phase_idx = next_idx
+		_enter_phase(current_phase_idx)
 		boss_phase_changed.emit(current_phase_idx)
 		_play_phase_transition()
 

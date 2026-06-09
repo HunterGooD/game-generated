@@ -24,6 +24,17 @@ var network_id: int = -1
 var owner_player_id: int = -1
 var is_puppet: bool = false
 var _net_target_pos: Vector2 = Vector2.ZERO
+# LimboAI behaviour tree (host-only, lazily created when use_bt_minions is on).
+const SPIRIT_BT_PATH := "res://scenes/ai/spirit_bt.tres"
+var _bt_player = null
+# Ghost-wolf pounce: close a mid-range gap in one leap, then melee normally.
+const LEAP_MIN: float = 90.0
+const LEAP_MAX: float = 300.0
+const LEAP_TIME: float = 0.22
+const LEAP_COOLDOWN: float = 4.0
+const LEAP_LAND_GAP: float = 45.0  # land this close to the target (inside melee)
+var _leap_t: float = 0.0
+var _leap_cd: float = 0.0
 
 
 func set_puppet() -> void:
@@ -107,24 +118,117 @@ func _physics_process(delta: float) -> void:
 		return
 	if attack_cd > 0.0:
 		attack_cd -= delta
-	var target: Node2D = _find_nearest_enemy()
+	if _leap_cd > 0.0:
+		_leap_cd -= delta
+	if _leap_t > 0.0:
+		_leap_t -= delta
+	# LimboAI BT when the feature flag is on (host-only, lazily created); the BT adds
+	# the ghost-wolf pounce. Legacy path (flag off) keeps the plain chase behaviour.
+	if _bt_enabled():
+		if _bt_player == null:
+			_setup_bt()
+		if _bt_player != null:
+			_bt_player.update(delta)
+			return
+	_run_host_ai(delta)
+
+
+# Legacy host-AI sequence (flag off): acquire → in range attack, else chase; no
+# enemy → follow owner. The BT drives the same bt_* primitives plus the pounce.
+func _run_host_ai(delta: float) -> void:
+	var target := bt_acquire_target()
 	if target == null:
-		_follow_owner(delta)
+		bt_follow_owner(delta)
 		return
-	var to_t: Vector2 = target.global_position - global_position
-	var dist: float = to_t.length()
-	if sprite and abs(to_t.x) > 1.0:
-		sprite.flip_h = to_t.x < 0.0
-	if dist > ATTACK_RANGE - 10.0:
-		velocity = to_t.normalized() * MOVE_SPEED
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
-			if sprite.animation != "walk":
-				sprite.play("walk")
+	if bt_in_attack_range(target.global_position):
+		bt_attack(target)
 	else:
-		velocity = Vector2.ZERO
-		if attack_cd <= 0.0:
-			_attack(target)
+		bt_move_toward(target.global_position)
+
+
+# ── Host-AI primitives (shared by the legacy sequence and the LimboAI BT) ──────
+func bt_acquire_target() -> Node2D:
+	return _find_nearest_enemy()
+
+
+func bt_in_attack_range(target_pos: Vector2) -> bool:
+	return global_position.distance_to(target_pos) <= ATTACK_RANGE - 10.0
+
+
+func bt_move_toward(target_pos: Vector2) -> void:
+	_face(target_pos)
+	velocity = (target_pos - global_position).normalized() * MOVE_SPEED
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
+		if sprite.animation != "walk":
+			sprite.play("walk")
 	move_and_slide()
+
+
+func bt_attack(target: Node2D) -> void:
+	_face(target.global_position)
+	velocity = Vector2.ZERO
+	if attack_cd <= 0.0:
+		_attack(target)
+	move_and_slide()
+
+
+func bt_follow_owner(delta: float) -> void:
+	_follow_owner(delta)
+
+
+# ── Ghost-wolf pounce (BT only) ───────────────────────────────────────────────
+func bt_is_leaping() -> bool:
+	return _leap_t > 0.0
+
+
+func bt_can_leap(target_pos: Vector2) -> bool:
+	if _leap_cd > 0.0 or bt_is_leaping():
+		return false
+	var d: float = global_position.distance_to(target_pos)
+	return d >= LEAP_MIN and d <= LEAP_MAX
+
+
+# Leap toward the target, landing just inside melee range; the tween moves the body
+# directly (a short flight), then normal chase/attack resumes.
+func bt_start_leap(target: Node2D) -> void:
+	var dir: Vector2 = (target.global_position - global_position).normalized()
+	var dest: Vector2 = target.global_position - dir * LEAP_LAND_GAP
+	_face(target.global_position)
+	velocity = Vector2.ZERO
+	_leap_t = LEAP_TIME
+	_leap_cd = LEAP_COOLDOWN
+	var tw := create_tween()
+	(
+		tw.tween_property(self, "global_position", dest, LEAP_TIME)
+		. set_trans(Tween.TRANS_QUAD)
+		. set_ease(Tween.EASE_OUT)
+	)
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("attack"):
+		sprite.play("attack")
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.55, 0.95, 1.0, 1), 4)
+
+
+func _face(target_pos: Vector2) -> void:
+	if sprite and absf(target_pos.x - global_position.x) > 1.0:
+		sprite.flip_h = target_pos.x < global_position.x
+
+
+func _bt_enabled() -> bool:
+	return GameManager != null and bool(GameManager.use_bt_minions)
+
+
+func _setup_bt() -> void:
+	var bt = load(SPIRIT_BT_PATH)
+	if bt == null:
+		return
+	_bt_player = ClassDB.instantiate("BTPlayer")
+	if _bt_player == null:
+		return
+	_bt_player.behavior_tree = bt
+	_bt_player.update_mode = 2  # BTPlayer.UpdateMode.MANUAL
+	_bt_player.set_scene_root_hint(self)
+	add_child(_bt_player)
 
 
 func _follow_owner(delta: float) -> void:

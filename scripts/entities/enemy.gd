@@ -29,6 +29,13 @@ var fly: bool = false
 var is_aoe: bool = false
 var is_brood_mother: bool = false
 var hatchling_spawn_t: float = 4.0
+# Spider hit-and-run archetype (bite → retreat → re-approach fast).
+var is_spider: bool = false
+const SPIDER_RETREAT_TIME: float = 0.7
+const SPIDER_RETREAT_SPEED_MULT: float = 1.6
+var _spider_retreat_t: float = 0.0
+# LimboAI behaviour tree (host-only, lazily created when use_bt_enemies is on).
+var _bt_player = null
 
 @export var sprite: Sprite2D
 @export var hp_bar: ProgressBar
@@ -202,6 +209,7 @@ func configure(cfg: Dictionary) -> void:
 	fly = bool(cfg.get("fly", false))
 	is_aoe = bool(cfg.get("aoe", false))
 	is_brood_mother = bool(cfg.get("brood_mother", false))
+	is_spider = bool(cfg.get("spider", false))
 	if reward_drop:
 		reward_drop.xp_value = xp_value
 		reward_drop.gold_min = gold_drop_min
@@ -323,6 +331,8 @@ func _physics_process(delta: float) -> void:
 			_spawn_hatchlings(2)
 	if attack_cd > 0.0:
 		attack_cd -= delta
+	if _spider_retreat_t > 0.0:
+		_spider_retreat_t -= delta
 
 	# Periodically reconsider target so aggro routes to whichever ally is now
 	# closest (e.g. a fresh spirit pet pulls the enemy off a fleeing player).
@@ -351,7 +361,12 @@ func _physics_process(delta: float) -> void:
 		sprite.flip_h = to_player.x < 0.0
 
 	if dist <= detection_range:
-		if is_aoe:
+		# LimboAI BT drives the in-detection mode for piloted archetypes (melee /
+		# ranged-kite / spider) when the flag is on; AOE and everything else stay on
+		# the legacy path below. The preamble/idle/no-target handling is unchanged.
+		if _bt_enabled() and _ensure_bt():
+			_bt_player.update(delta)
+		elif is_aoe:
 			# Succubus: kite at medium range, charge up an AOE attack.
 			var aoe_keep: float = max(180.0, attack_range - 40.0)
 			if dist < aoe_keep - 30.0:
@@ -389,6 +404,101 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(_idle_jitter, 200.0 * delta)
 
 	move_and_slide()
+
+
+# ── LimboAI BT support (host-only; replaces the in-detection mode decision) ────
+func _bt_enabled() -> bool:
+	return GameManager != null and bool(GameManager.use_bt_enemies)
+
+
+# Behaviour tree path for this enemy's archetype, or "" if not piloted (AOE → legacy).
+func _bt_path() -> String:
+	if is_aoe:
+		return ""
+	if is_spider:
+		return "res://scenes/ai/enemy_spider_bt.tres"
+	if is_ranged:
+		return "res://scenes/ai/enemy_ranged_bt.tres"
+	return "res://scenes/ai/enemy_melee_bt.tres"
+
+
+# Lazily create the BTPlayer; false (→ legacy) when not piloted or the tree is absent.
+func _ensure_bt() -> bool:
+	if _bt_player != null:
+		return true
+	var path: String = _bt_path()
+	if path == "" or not ResourceLoader.exists(path):
+		return false
+	var bt = load(path)
+	if bt == null:
+		return false
+	_bt_player = ClassDB.instantiate("BTPlayer")
+	if _bt_player == null:
+		return false
+	_bt_player.behavior_tree = bt
+	_bt_player.update_mode = 2  # BTPlayer.UpdateMode.MANUAL
+	_bt_player.set_scene_root_hint(self)
+	add_child(_bt_player)
+	return true
+
+
+# ── AI primitives (shared by legacy modes and BT tasks). They set velocity / fire
+# attacks; _physics_process calls move_and_slide() once after the BT/legacy decision.
+func bt_target() -> Node2D:
+	return player if (player != null and is_instance_valid(player)) else null
+
+
+func _to_target() -> Vector2:
+	var t := bt_target()
+	return ((t as Node2D).global_position - global_position) if t else Vector2.ZERO
+
+
+func bt_dist() -> float:
+	return _to_target().length()
+
+
+func bt_move_toward_target(speed_mult: float = 1.0) -> void:
+	velocity = _to_target().normalized() * move_speed * slow_mult * speed_mult
+
+
+func bt_retreat(speed_mult: float = 1.0) -> void:
+	velocity = -_to_target().normalized() * move_speed * slow_mult * speed_mult
+
+
+func bt_hold() -> void:
+	velocity = Vector2.ZERO
+
+
+func bt_in_melee_range() -> bool:
+	return bt_dist() <= attack_range - 10.0
+
+
+func bt_in_attack_range() -> bool:
+	return bt_dist() <= attack_range
+
+
+func bt_can_attack() -> bool:
+	return attack_cd <= 0.0 and attack_lockout <= 0.0
+
+
+func bt_melee_attack() -> void:
+	_perform_melee_attack()
+
+
+func bt_ranged_attack() -> void:
+	_perform_ranged_attack()
+
+
+func bt_kite_distance() -> float:
+	return ranged_kite_distance
+
+
+func bt_spider_is_retreating() -> bool:
+	return _spider_retreat_t > 0.0
+
+
+func bt_spider_start_retreat() -> void:
+	_spider_retreat_t = SPIDER_RETREAT_TIME
 
 
 func _perform_melee_attack() -> void:
@@ -1111,6 +1221,7 @@ func _spawn_hatchlings(count: int) -> void:
 		"attack_range": 38.0,
 		"attack_cooldown": 0.8,
 		"detection_range": 360.0,
+		"spider": true,  # hit-and-run BT
 		"xp_value": 3,
 		"gold_min": 0,
 		"gold_max": 1,

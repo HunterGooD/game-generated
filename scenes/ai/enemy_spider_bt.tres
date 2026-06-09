@@ -1,0 +1,20 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/enemy/bt_enemy_spider_retreat.gd" id="1_7maub"]
+[ext_resource type="Script" path="res://scripts/ai/enemy/bt_enemy_spider_bite.gd" id="2_rgexf"]
+[ext_resource type="Script" path="res://scripts/ai/enemy/bt_enemy_spider_approach.gd" id="3_rx64p"]
+
+[sub_resource type="BTAction" id="BTAction_4eko1"]
+script = ExtResource("1_7maub")
+
+[sub_resource type="BTAction" id="BTAction_ja5v5"]
+script = ExtResource("2_rgexf")
+
+[sub_resource type="BTAction" id="BTAction_u7h6a"]
+script = ExtResource("3_rx64p")
+
+[sub_resource type="BTSelector" id="BTSelector_dllg3"]
+children = [SubResource("BTAction_4eko1"), SubResource("BTAction_ja5v5"), SubResource("BTAction_u7h6a")]
+
+[resource]
+root_task = SubResource("BTSelector_dllg3")

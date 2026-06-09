@@ -1,0 +1,9 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/enemy/bt_enemy_chase_melee.gd" id="1_rq60j"]
+
+[sub_resource type="BTAction" id="BTAction_uqmdk"]
+script = ExtResource("1_rq60j")
+
+[resource]
+root_task = SubResource("BTAction_uqmdk")
