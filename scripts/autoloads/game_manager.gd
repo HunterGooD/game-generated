@@ -314,6 +314,10 @@ var use_bt_minions: bool = true
 # parity proven per archetype, then flipped on. Host-only; puppets/idle/no-target and
 # AOE stay on the legacy path. Flip to false to fall back to the legacy state machine.
 var use_bt_enemies: bool = true
+# Feature flag — drive boss combat with the LimboAI phase HSM (each phase is a state)
+# instead of the inline phase loop. OFF until parity proven, then flipped on. Host-only;
+# puppets/transition-lockout stay on the legacy path. Flip to false to fall back.
+var use_hsm_bosses: bool = true
 
 # Selected class — persists across deaths within a session.
 var player_class: String = ""

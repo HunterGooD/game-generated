@@ -36,6 +36,9 @@ var move_speed: float = 60.0
 # _phase_attack_speed_mult divides the attack interval (higher = faster attacks).
 var _base_move_speed: float = 60.0
 var _phase_attack_speed_mult: float = 1.0
+# LimboAI phase HSM (host-only, lazily built when use_hsm_bosses is on).
+var _hsm = null
+var _phase_states: Array = []
 var dead: bool = false
 var spawn_wave: int = 1
 var owner_player_id: int = 0  # For multiplayer per-player loot.
@@ -202,7 +205,19 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		move_and_slide()
 		return
-	# Chase nearest player at move_speed.
+	# LimboAI HSM (phases-as-states) when the flag is on; else the legacy combat step.
+	# Both run the SAME boss_combat_step — the HSM adds the per-phase state structure.
+	if _hsm_enabled():
+		_ensure_hsm()
+		if _hsm != null:
+			_hsm.update(delta)
+			return
+	boss_combat_step(delta)
+
+
+# Chase/retreat the nearest player and fire the current phase's attack cycle on the
+# attack timer. Shared by the legacy path and every HSM phase state's _update.
+func boss_combat_step(delta: float) -> void:
 	var target := _find_nearest_player()
 	if is_instance_valid(target):
 		var to_target: Vector2 = (target as Node2D).global_position - global_position
@@ -213,16 +228,40 @@ func _physics_process(delta: float) -> void:
 			velocity = -to_target.normalized() * (move_speed * 0.5)
 		else:
 			velocity = Vector2.ZERO
-		# Face player.
 		if sprite and abs(to_target.x) > 1.0:
 			sprite.flip_h = to_target.x < 0.0
 	else:
 		velocity = Vector2.ZERO
 	move_and_slide()
-	# Attack timer.
 	attack_t -= delta
 	if attack_t <= 0.0:
 		_fire_next_attack()
+
+
+func _hsm_enabled() -> bool:
+	return GameManager != null and bool(GameManager.use_hsm_bosses)
+
+
+# Lazily build the phase HSM: one BossPhaseState per phase (its _enter applies the
+# phase mods, its _update runs boss_combat_step). Advancement is driven by HP via
+# _maybe_advance_phase → change_active_state. The state objects are the extension
+# point — a phase can later use a custom LimboState subclass for unique behaviour.
+func _ensure_hsm() -> void:
+	if _hsm != null or phases.is_empty():
+		return
+	_hsm = ClassDB.instantiate("LimboHSM")
+	add_child(_hsm)
+	_phase_states = []
+	var state_script: Script = load("res://scripts/ai/boss/boss_phase_state.gd")
+	for i in phases.size():
+		var st = state_script.new()
+		st.phase_idx = i
+		st.name = "Phase%d" % i
+		_hsm.add_child(st)
+		_phase_states.append(st)
+	_hsm.set_initial_state(_phase_states[mini(current_phase_idx, _phase_states.size() - 1)])
+	_hsm.initialize(self)
+	_hsm.set_active(true)
 
 
 func _find_nearest_player() -> Node:
@@ -635,10 +674,15 @@ func _maybe_advance_phase() -> void:
 		if pct <= thresh:
 			next_idx = i
 	if next_idx > current_phase_idx:
-		current_phase_idx = next_idx
-		_enter_phase(current_phase_idx)
-		boss_phase_changed.emit(current_phase_idx)
-		_play_phase_transition()
+		if _hsm != null and _hsm.is_active():
+			# HSM drives the phase: switching the active state runs the new phase
+			# state's _enter (sets idx, applies mods, emits signal, plays transition).
+			_hsm.change_active_state(_phase_states[next_idx])
+		else:
+			current_phase_idx = next_idx
+			_enter_phase(current_phase_idx)
+			boss_phase_changed.emit(current_phase_idx)
+			_play_phase_transition()
 
 
 func _play_phase_transition() -> void:

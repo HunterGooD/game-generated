@@ -139,8 +139,31 @@ func _run_host_ai(delta: float) -> void:
 
 # ── AI primitives (shared by the legacy sequence and the LimboAI BT) ───────────
 func bt_acquire_target() -> Node2D:
-	# Extension point for Commander's Mark later (prefer owner's marked target).
+	# Forced-target override (necromancer Commander's Mark; the hook future mark
+	# mechanics plug into): if our owner has marked a target in range, focus it.
+	# Otherwise behave normally — pick the nearest enemy.
+	var marked := _owner_marked_target()
+	if marked != null:
+		return marked
 	return _find_nearest_enemy()
+
+
+# The owner's marked target, if any, valid, alive, and within reach. Co-op-safe: an
+# owner without get_marked_target() (druid, remote puppet) just yields null → normal.
+func _owner_marked_target() -> Node2D:
+	if owner_caster == null or not is_instance_valid(owner_caster):
+		return null
+	if not owner_caster.has_method("get_marked_target"):
+		return null
+	var m = owner_caster.call("get_marked_target")
+	if m == null or not is_instance_valid(m) or not (m is Node2D):
+		return null
+	if bool(m.get("dead")):
+		return null
+	# Don't abandon position to chase a mark across the whole map.
+	if global_position.distance_to((m as Node2D).global_position) > _detection_range() * 1.5:
+		return null
+	return m as Node2D
 
 
 func bt_in_attack_range(target_pos: Vector2) -> bool:

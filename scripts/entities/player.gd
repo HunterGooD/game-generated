@@ -127,6 +127,9 @@ var funeral_t: float = 0.0
 var dirty_escape_cd: float = 0.0
 # Assassin Backstab Window: brief window (after a dash/vanish) where attacks crit harder.
 var backstab_t: float = 0.0
+# Deathlord Commander's Mark: the enemy this necromancer is aiming at; their minions
+# focus it (read via get_marked_target). null when not Deathlord / no enemy aimed at.
+var _marked_target: Node2D = null
 # Bone Architect Bones from Death: nearby kills bank shards; at the cap the next
 # skill is empowered (+50% damage), consumed on the next cast.
 var bone_shards: int = 0
@@ -465,6 +468,7 @@ func _normalize_player_sprite_scale(sample_tex: Texture2D) -> void:
 func _physics_process(delta: float) -> void:
 	if GameManager:
 		move_speed = GameManager.get_effective_move_speed()
+	_update_commanders_mark()
 	# Temporal Dome benefit: +20% move speed and faster cooldown regen while the
 	# dome keeps refreshing dome_t (see skill_temporal_dome._process).
 	if dome_t > 0.0:
@@ -879,6 +883,38 @@ func _spec_outgoing_mult() -> float:
 				if String(skill_system.call("get_druid_form")) != "human":
 					m *= 1.20
 	return m
+
+
+# Commander's Mark (Deathlord): mark the enemy this necromancer is aiming at (nearest
+# to the cursor, within range) so their minions focus-fire it. Cleared off Deathlord
+# or when nothing is aimed at — minions then behave normally (nearest-enemy). Read by
+# minions via owner_caster.get_marked_target() (BtAllyBody.bt_acquire_target).
+const COMMANDERS_MARK_CURSOR_RANGE: float = 220.0
+
+
+func _update_commanders_mark() -> void:
+	if GameManager == null or String(GameManager.player_spec_path) != "deathlord":
+		_marked_target = null
+		return
+	var tree := get_tree()
+	if tree == null:
+		_marked_target = null
+		return
+	var cursor: Vector2 = get_global_mouse_position()
+	var best: Node2D = null
+	var best_d: float = COMMANDERS_MARK_CURSOR_RANGE
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or not (e is Node2D) or bool(e.get("dead")):
+			continue
+		var d: float = cursor.distance_to((e as Node2D).global_position)
+		if d < best_d:
+			best_d = d
+			best = e as Node2D
+	_marked_target = best
+
+
+func get_marked_target() -> Node2D:
+	return _marked_target
 
 
 # Close Circuit (Thunderblade): outgoing damage rises the closer the nearest enemy.

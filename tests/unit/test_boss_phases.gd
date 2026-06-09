@@ -24,6 +24,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	GameManager.use_hsm_bosses = false
 	get_tree().current_scene = _prev_scene
 	if is_instance_valid(_container):
 		_container.free()
@@ -71,3 +72,35 @@ func test_attacks_fire_sooner_in_later_phase() -> void:
 	b._fire_next_attack()
 	var t2: float = b.attack_t
 	assert_lt(t2, t0, "enrage phase fires the next attack sooner")
+
+
+# ── LimboAI HSM (phases-as-states) ────────────────────────────────────────────
+func _boss_hsm(id: String) -> Node:
+	var b := _boss(id)
+	GameManager.use_hsm_bosses = true
+	b._ensure_hsm()
+	return b
+
+
+func test_hsm_builds_one_state_per_phase() -> void:
+	var b := _boss_hsm("crimson_matron")
+	assert_eq(b._phase_states.size(), b.phases.size(), "one HSM state per phase")
+	assert_eq(b._phase_states.size(), 3)
+	assert_true(b._hsm.is_active(), "HSM is active")
+
+
+func test_hsm_advances_phase_via_state_switch() -> void:
+	var b := _boss_hsm("crimson_matron")
+	assert_eq(b.current_phase_idx, 0)
+	b.hp = int(round(float(b.max_hp) * 0.2))
+	b._maybe_advance_phase()  # routes through _hsm.change_active_state
+	assert_gt(b.current_phase_idx, 0, "HSM switched to a later phase state")
+	assert_gt(b._phase_attack_speed_mult, 1.0, "the new state's _enter applied phase mods")
+
+
+func test_hsm_update_runs_combat_step() -> void:
+	var b := _boss_hsm("crimson_matron")
+	b.attack_idx = 0
+	var before: float = b.attack_t
+	b._hsm.update(0.05)  # ticks the active phase state → boss_combat_step
+	assert_ne(b.attack_t, before, "HSM update drove the boss combat step (attack timer moved)")
