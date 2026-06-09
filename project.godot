@@ -29,6 +29,7 @@ NetManager="*res://scripts/autoloads/net_manager.gd"
 VfxManager="*res://scripts/autoloads/vfx_manager.gd"
 TooltipManager="*res://scripts/autoloads/tooltip_manager.gd"
 LimboConsole="*uid://dyxornv8vwibg"
+DevConsole="*res://scripts/autoloads/dev_console.gd"
 
 [display]
 

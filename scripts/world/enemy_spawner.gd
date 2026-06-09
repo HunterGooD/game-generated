@@ -156,6 +156,7 @@ var portal_break_active: bool = false
 
 
 func _ready() -> void:
+	add_to_group("enemy_spawner")  # so dev console / tools can find us
 	if GameManager:
 		GameManager.enemy_defeated.connect(_on_enemy_defeated)
 	# In multiplayer, only the host spawns enemies. Clients receive enemy_spawn
@@ -272,6 +273,41 @@ func _spawn_one(
 		var ns := _find_net_sync()
 		if ns and ns.has_method("register_enemy"):
 			ns.call("register_enemy", e)
+
+
+# ── Dev/console spawn helpers (host/solo) ─────────────────────────────────────
+# Spawn one enemy of `type_id` at `pos` with the given affix ids (empty = no affixes).
+# Reuses the real spawn path incl. co-op register_enemy. Returns false on bad type.
+func dev_spawn(type_id: String, affix_ids: Array, pos: Vector2) -> bool:
+	if not ENEMY_TYPES.has(type_id):
+		return false
+	var cfg: Dictionary = ENEMY_TYPES[type_id].duplicate(true)
+	if not affix_ids.is_empty():
+		cfg["affixes"] = affix_ids
+	var e := ENEMY_SCENE.instantiate()
+	if get_parent():
+		get_parent().add_child(e)
+	else:
+		get_tree().current_scene.add_child(e)
+	e.global_position = pos
+	if e.has_method("configure"):
+		e.call("configure", cfg)
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("register_enemy"):
+			ns.call("register_enemy", e)
+	return true
+
+
+func dev_spawn_boss(boss_id: String) -> bool:
+	if String(boss_id) == "" or not BossDatabase.get_boss(boss_id):
+		return false
+	_spawn_boss(boss_id)
+	return true
+
+
+func enemy_type_ids() -> Array:
+	return ENEMY_TYPES.keys()
 
 
 func _find_net_sync() -> Node:
