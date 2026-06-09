@@ -28,6 +28,9 @@ var network_id: int = -1
 var owner_player_id: int = -1
 var is_puppet: bool = false
 var _net_target_pos: Vector2 = Vector2.ZERO
+# LimboAI behaviour tree (host-only, lazily created when use_bt_minions is on).
+const MINION_BT_PATH := "res://scenes/ai/minion_bt.tres"
+var _bt_player = null
 
 
 func set_puppet() -> void:
@@ -126,25 +129,88 @@ func _physics_process(delta: float) -> void:
 			spd_mult = 1.0
 			if sprite:
 				sprite.modulate = Color(0.85, 0.78, 1.0, 0.95)
-	var target: Node2D = _find_nearest_enemy()
+	# LimboAI BT when the feature flag is on (host-only, lazily created); otherwise
+	# the legacy primitive sequence. Both drive the same bt_* primitives → parity.
+	if _bt_enabled():
+		if _bt_player == null:
+			_setup_bt()
+		if _bt_player != null:
+			_bt_player.update(delta)
+			return
+	_run_host_ai(delta)
+
+
+# Legacy host-AI sequence: acquire nearest enemy → in range attack, else chase;
+# no enemy → follow owner. The LimboAI BT (Phase 2) drives the SAME bt_* primitives
+# when enabled, so behaviour is identical (proven by tests/unit/test_minion_ai.gd).
+func _run_host_ai(delta: float) -> void:
+	var target := bt_acquire_target()
 	if target == null:
-		_follow_owner(delta)
+		bt_follow_owner(delta)
 		return
-	var to_t: Vector2 = target.global_position - global_position
-	var dist: float = to_t.length()
-	if sprite and abs(to_t.x) > 1.0:
-		sprite.flip_h = to_t.x < 0.0
-	var base_speed: float = MOVE_SPEED_KNIGHT if minion_kind == "knight" else MOVE_SPEED_SOLDIER
-	if dist > ATTACK_RANGE - 10.0:
-		velocity = to_t.normalized() * base_speed * spd_mult
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
-			if sprite.animation != "walk":
-				sprite.play("walk")
+	if bt_in_attack_range(target.global_position):
+		bt_attack(target)
 	else:
-		velocity = Vector2.ZERO
-		if attack_cd <= 0.0:
-			_attack(target)
+		bt_move_toward(target.global_position)
+
+
+# ── Host-AI primitives (shared by the legacy sequence and the LimboAI BT) ──────
+func bt_acquire_target() -> Node2D:
+	# Extension point for Commander's Mark later (prefer owner's marked target).
+	return _find_nearest_enemy()
+
+
+func bt_in_attack_range(target_pos: Vector2) -> bool:
+	return global_position.distance_to(target_pos) <= ATTACK_RANGE - 10.0
+
+
+func bt_move_toward(target_pos: Vector2) -> void:
+	_face(target_pos)
+	var base_speed: float = MOVE_SPEED_KNIGHT if minion_kind == "knight" else MOVE_SPEED_SOLDIER
+	velocity = (target_pos - global_position).normalized() * base_speed * spd_mult
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
+		if sprite.animation != "walk":
+			sprite.play("walk")
 	move_and_slide()
+
+
+func bt_attack(target: Node2D) -> void:
+	_face(target.global_position)
+	velocity = Vector2.ZERO
+	if attack_cd <= 0.0:
+		_attack(target)
+	move_and_slide()
+
+
+func bt_follow_owner(delta: float) -> void:
+	_follow_owner(delta)
+
+
+func _face(target_pos: Vector2) -> void:
+	if sprite and absf(target_pos.x - global_position.x) > 1.0:
+		sprite.flip_h = target_pos.x < global_position.x
+
+
+func _bt_enabled() -> bool:
+	return GameManager != null and bool(GameManager.use_bt_minions)
+
+
+# Lazily create the host BTPlayer driving minion_bt.tres. MANUAL update_mode — we
+# tick it ourselves from _physics_process so it stays in lockstep with the legacy
+# path's cooldown/buff ticks. agent defaults to the parent (this minion).
+func _setup_bt() -> void:
+	var bt = load(MINION_BT_PATH)
+	if bt == null:
+		return
+	_bt_player = ClassDB.instantiate("BTPlayer")
+	if _bt_player == null:
+		return
+	_bt_player.behavior_tree = bt
+	_bt_player.update_mode = 2  # BTPlayer.UpdateMode.MANUAL
+	# Runtime-spawned minions have no scene owner; hint the scene root so the BT can
+	# initialise (our tasks use get_agent(), no node paths, so self is a fine root).
+	_bt_player.set_scene_root_hint(self)
+	add_child(_bt_player)
 
 
 func _follow_owner(delta: float) -> void:

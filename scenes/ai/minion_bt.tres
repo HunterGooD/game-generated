@@ -1,0 +1,23 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_acquire_target.gd" id="1_ic2ll"]
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_chase_attack.gd" id="2_u6v6r"]
+[ext_resource type="Script" path="res://scripts/ai/minion/bt_minion_follow_owner.gd" id="3_ljbe6"]
+
+[sub_resource type="BTAction" id="BTAction_2fm3b"]
+script = ExtResource("1_ic2ll")
+
+[sub_resource type="BTAction" id="BTAction_4arl7"]
+script = ExtResource("2_u6v6r")
+
+[sub_resource type="BTSequence" id="BTSequence_o53qr"]
+children = [SubResource("BTAction_2fm3b"), SubResource("BTAction_4arl7")]
+
+[sub_resource type="BTAction" id="BTAction_wm6b1"]
+script = ExtResource("3_ljbe6")
+
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_dv1ls"]
+children = [SubResource("BTSequence_o53qr"), SubResource("BTAction_wm6b1")]
+
+[resource]
+root_task = SubResource("BTDynamicSelector_dv1ls")

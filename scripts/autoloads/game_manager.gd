@@ -304,6 +304,12 @@ const CLASSES := {
 	},
 }
 
+# Feature flag — drive minion host-AI with the LimboAI behaviour tree instead of
+# the legacy state machine. ON now that the BT proves parity (tests/unit/test_minion_ai
+# runs every behaviour with the flag both off and on). Host-only; puppets unaffected
+# (no AI). Flip to false to fall back to the legacy state machine instantly.
+var use_bt_minions: bool = true
+
 # Selected class — persists across deaths within a session.
 var player_class: String = ""
 

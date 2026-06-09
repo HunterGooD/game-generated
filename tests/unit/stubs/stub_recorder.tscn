@@ -1,0 +1,4 @@
+[gd_scene format=3 uid="uid://stubrecorder01"]
+[ext_resource type="Script" path="res://tests/unit/stubs/stub_recorder.gd" id="1"]
+[node name="StubRecorder" type="Node2D"]
+script = ExtResource("1")
