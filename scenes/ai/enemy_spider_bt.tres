@@ -13,8 +13,8 @@ script = ExtResource("2_rgexf")
 [sub_resource type="BTAction" id="BTAction_u7h6a"]
 script = ExtResource("3_rx64p")
 
-[sub_resource type="BTSelector" id="BTSelector_dllg3"]
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_dllg3"]
 children = [SubResource("BTAction_4eko1"), SubResource("BTAction_ja5v5"), SubResource("BTAction_u7h6a")]
 
 [resource]
-root_task = SubResource("BTSelector_dllg3")
+root_task = SubResource("BTDynamicSelector_dllg3")

@@ -134,6 +134,23 @@ func test_spider_approaches_between_bites() -> void:
 	assert_gt(e.velocity.x, 0.0, "closes in on a distant target")
 
 
+func test_spider_bites_after_approaching_into_range() -> void:
+	# Regression: a plain BTSelector latches on the RUNNING Approach and never
+	# re-checks Bite (spider chases into the player but never attacks/retreats). A
+	# BTDynamicSelector re-evaluates each tick, so it bites once it reaches melee.
+	GameManager.use_bt_enemies = true
+	var e := _spider_enemy()
+	var p := _target_at(e, Vector2(200, 0))  # start far → Approach runs (RUNNING)
+	e._physics_process(0.05)
+	assert_eq(e.attack_cd, 0.0, "no bite while still out of range")
+	e.global_position = p.global_position - Vector2(20, 0)  # now in melee range
+	e.attack_cd = 0.0
+	e.attack_lockout = 0.0
+	e._physics_process(0.05)
+	assert_gt(e.attack_cd, 0.0, "bites once it reaches melee range")
+	assert_gt(e._spider_retreat_t, 0.0, "opens the retreat window after biting")
+
+
 func test_spider_falls_back_to_melee_when_flag_off() -> void:
 	GameManager.use_bt_enemies = false
 	var e := _spider_enemy()

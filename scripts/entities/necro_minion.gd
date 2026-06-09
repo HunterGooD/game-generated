@@ -1,50 +1,19 @@
-extends CharacterBody2D
+extends BtAllyBody
 
-# Necromancer minion — skeletal soldier or armored knight.
-# Same chassis as spirit_pet but with skeleton sprites and a "taunt aggro"
-# property knights use to pull enemy attention.
+# Necromancer minion — skeletal soldier or armored knight. Uses the shared ally
+# chassis (BtAllyBody) for networking / puppet / death / BT; adds the blood-pact buff,
+# the knight/soldier speed split, and skeleton sprites.
 
 const MOVE_SPEED_SOLDIER: float = 240.0
 const MOVE_SPEED_KNIGHT: float = 150.0
-const ATTACK_RANGE: float = 60.0
 const ATTACK_COOLDOWN: float = 1.0
-const DETECTION_RANGE: float = 520.0
+const DETECTION: float = 520.0
 
 var minion_kind: String = "skeleton"  # "skeleton" or "knight"
-var damage: int = 7
-var max_hp: int = 50
-var hp: int = 50
-var attack_cd: float = 0.0
-var dead: bool = false
-var sprite: AnimatedSprite2D = null
-var owner_caster: Node = null
 # Blood Pact buff state.
 var buff_t: float = 0.0
 var dmg_mult: float = 1.0
 var spd_mult: float = 1.0
-# Co-op networking. Authoritative minions live on the host; every other peer
-# holds a visual puppet driven by host-broadcast state (no AI, no damage).
-var network_id: int = -1
-var owner_player_id: int = -1
-var is_puppet: bool = false
-var _net_target_pos: Vector2 = Vector2.ZERO
-# LimboAI behaviour tree (host-only, lazily created when use_bt_minions is on).
-const MINION_BT_PATH := "res://scenes/ai/minion_bt.tres"
-var _bt_player = null
-
-
-func set_puppet() -> void:
-	is_puppet = true
-	_net_target_pos = global_position
-	# A puppet shouldn't block movement or be hit — the host owns its life.
-	set_deferred("collision_layer", 0)
-	set_deferred("collision_mask", 0)
-
-
-func apply_remote_state(d: Dictionary) -> void:
-	_net_target_pos = Vector2(float(d.get("x", global_position.x)), float(d.get("y", global_position.y)))
-	if d.has("hp"):
-		hp = int(d.get("hp"))
 
 
 func configure(kind: String, caster_dmg: int) -> void:
@@ -67,16 +36,67 @@ func apply_knight_armor_bonus(extra_hp: int) -> void:
 	hp = max_hp
 
 
-func _ready() -> void:
-	add_to_group("necro_minion")
-	add_to_group("pet_ally")  # so enemies aggro on us via the unified group
-	collision_layer = 2
-	collision_mask = 1
-	z_index = 11
-	sprite = AnimatedSprite2D.new()
-	sprite.name = "Visual"
-	add_child(sprite)
-	_apply_sprite_frames()
+# Called by Blood Pact — empower this minion temporarily and full-heal.
+func apply_blood_pact(duration: float, dmg_multiplier: float, speed_multiplier: float) -> void:
+	if dead:
+		return
+	buff_t = max(buff_t, duration)
+	dmg_mult = max(dmg_mult, dmg_multiplier)
+	spd_mult = max(spd_mult, speed_multiplier)
+	hp = max_hp
+	if sprite:
+		sprite.modulate = Color(1.4, 0.55, 0.9, 1)
+
+
+# ── BtAllyBody overrides ──────────────────────────────────────────────────────
+func _ai_group() -> String:
+	return "necro_minion"
+
+
+func _chase_speed() -> float:
+	var base_speed: float = MOVE_SPEED_KNIGHT if minion_kind == "knight" else MOVE_SPEED_SOLDIER
+	return base_speed * spd_mult
+
+
+func _detection_range() -> float:
+	return DETECTION
+
+
+func _follow_stop_dist() -> float:
+	return 110.0
+
+
+func _bt_path() -> String:
+	return "res://scenes/ai/minion_bt.tres"
+
+
+func _base_modulate() -> Color:
+	return Color(0.85, 0.78, 1.0, 0.95)
+
+
+func _death_spark_color() -> Color:
+	return Color(0.8, 0.55, 1.0, 1)
+
+
+func _tick_ai_timers(delta: float) -> void:
+	if buff_t > 0.0:
+		buff_t -= delta
+		if buff_t <= 0.0:
+			dmg_mult = 1.0
+			spd_mult = 1.0
+			if sprite:
+				sprite.modulate = _base_modulate()
+
+
+func _attack(target: Node2D) -> void:
+	attack_cd = ATTACK_COOLDOWN
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("attack"):
+		sprite.play("attack")
+	var dmg: int = int(round(float(damage) * dmg_mult))
+	if target.has_method("take_damage"):
+		target.call("take_damage", dmg, global_position)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(target.global_position, Color(0.8, 0.55, 1.0, 1), 5)
 
 
 func _apply_sprite_frames() -> void:
@@ -110,242 +130,4 @@ func _apply_sprite_frames() -> void:
 			s = clamp(target_h / src_h, 0.05, 0.5)
 	sprite.scale = Vector2(s, s)
 	# Subtle violet tint for the undead.
-	sprite.modulate = Color(0.85, 0.78, 1.0, 0.95)
-
-
-func _physics_process(delta: float) -> void:
-	if dead:
-		velocity = Vector2.ZERO
-		return
-	if is_puppet:
-		_puppet_process(delta)
-		return
-	if attack_cd > 0.0:
-		attack_cd -= delta
-	if buff_t > 0.0:
-		buff_t -= delta
-		if buff_t <= 0.0:
-			dmg_mult = 1.0
-			spd_mult = 1.0
-			if sprite:
-				sprite.modulate = Color(0.85, 0.78, 1.0, 0.95)
-	# LimboAI BT when the feature flag is on (host-only, lazily created); otherwise
-	# the legacy primitive sequence. Both drive the same bt_* primitives → parity.
-	if _bt_enabled():
-		if _bt_player == null:
-			_setup_bt()
-		if _bt_player != null:
-			_bt_player.update(delta)
-			return
-	_run_host_ai(delta)
-
-
-# Legacy host-AI sequence: acquire nearest enemy → in range attack, else chase;
-# no enemy → follow owner. The LimboAI BT (Phase 2) drives the SAME bt_* primitives
-# when enabled, so behaviour is identical (proven by tests/unit/test_minion_ai.gd).
-func _run_host_ai(delta: float) -> void:
-	var target := bt_acquire_target()
-	if target == null:
-		bt_follow_owner(delta)
-		return
-	if bt_in_attack_range(target.global_position):
-		bt_attack(target)
-	else:
-		bt_move_toward(target.global_position)
-
-
-# ── Host-AI primitives (shared by the legacy sequence and the LimboAI BT) ──────
-func bt_acquire_target() -> Node2D:
-	# Extension point for Commander's Mark later (prefer owner's marked target).
-	return _find_nearest_enemy()
-
-
-func bt_in_attack_range(target_pos: Vector2) -> bool:
-	return global_position.distance_to(target_pos) <= ATTACK_RANGE - 10.0
-
-
-func bt_move_toward(target_pos: Vector2) -> void:
-	_face(target_pos)
-	var base_speed: float = MOVE_SPEED_KNIGHT if minion_kind == "knight" else MOVE_SPEED_SOLDIER
-	velocity = (target_pos - global_position).normalized() * base_speed * spd_mult
-	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
-		if sprite.animation != "walk":
-			sprite.play("walk")
-	move_and_slide()
-
-
-func bt_attack(target: Node2D) -> void:
-	_face(target.global_position)
-	velocity = Vector2.ZERO
-	if attack_cd <= 0.0:
-		_attack(target)
-	move_and_slide()
-
-
-func bt_follow_owner(delta: float) -> void:
-	_follow_owner(delta)
-
-
-func _face(target_pos: Vector2) -> void:
-	if sprite and absf(target_pos.x - global_position.x) > 1.0:
-		sprite.flip_h = target_pos.x < global_position.x
-
-
-func _bt_enabled() -> bool:
-	return GameManager != null and bool(GameManager.use_bt_minions)
-
-
-# Lazily create the host BTPlayer driving minion_bt.tres. MANUAL update_mode — we
-# tick it ourselves from _physics_process so it stays in lockstep with the legacy
-# path's cooldown/buff ticks. agent defaults to the parent (this minion).
-func _setup_bt() -> void:
-	var bt = load(MINION_BT_PATH)
-	if bt == null:
-		return
-	_bt_player = ClassDB.instantiate("BTPlayer")
-	if _bt_player == null:
-		return
-	_bt_player.behavior_tree = bt
-	_bt_player.update_mode = 2  # BTPlayer.UpdateMode.MANUAL
-	# Runtime-spawned minions have no scene owner; hint the scene root so the BT can
-	# initialise (our tasks use get_agent(), no node paths, so self is a fine root).
-	_bt_player.set_scene_root_hint(self)
-	add_child(_bt_player)
-
-
-func _follow_owner(delta: float) -> void:
-	if owner_caster == null or not is_instance_valid(owner_caster):
-		velocity = velocity.move_toward(Vector2.ZERO, 400.0 * delta)
-		move_and_slide()
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("idle"):
-			if sprite.animation != "idle":
-				sprite.play("idle")
-		return
-	var to_owner: Vector2 = (owner_caster as Node2D).global_position - global_position
-	var dist: float = to_owner.length()
-	var base_speed: float = MOVE_SPEED_KNIGHT if minion_kind == "knight" else MOVE_SPEED_SOLDIER
-	if dist > 110.0:
-		velocity = to_owner.normalized() * base_speed * spd_mult
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
-			if sprite.animation != "walk":
-				sprite.play("walk")
-		if sprite and abs(to_owner.x) > 1.0:
-			sprite.flip_h = to_owner.x < 0.0
-	else:
-		velocity = velocity.move_toward(Vector2.ZERO, 600.0 * delta)
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("idle"):
-			if sprite.animation != "idle":
-				sprite.play("idle")
-	move_and_slide()
-
-
-# Puppet: smoothly chase the host-provided position and animate.
-func _puppet_process(delta: float) -> void:
-	var to_t: Vector2 = _net_target_pos - global_position
-	if to_t.length() > 2.0:
-		global_position = global_position.lerp(_net_target_pos, clamp(12.0 * delta, 0.0, 1.0))
-		if sprite and abs(to_t.x) > 1.0:
-			sprite.flip_h = to_t.x < 0.0
-		if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("walk"):
-			if sprite.animation != "walk":
-				sprite.play("walk")
-	elif sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("idle"):
-		if sprite.animation != "idle":
-			sprite.play("idle")
-
-
-func _find_nearest_enemy() -> Node2D:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var best: Node2D = null
-	var best_d: float = DETECTION_RANGE
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		var d: float = global_position.distance_to((e as Node2D).global_position)
-		if d < best_d:
-			best_d = d
-			best = e as Node2D
-	return best
-
-
-func _attack(target: Node2D) -> void:
-	attack_cd = ATTACK_COOLDOWN
-	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("attack"):
-		sprite.play("attack")
-	var dmg: int = int(round(float(damage) * dmg_mult))
-	if target.has_method("take_damage"):
-		target.call("take_damage", dmg, global_position)
-	if VfxManager:
-		VfxManager.spawn_hit_sparks(target.global_position, Color(0.8, 0.55, 1.0, 1), 5)
-
-
-# Called by Blood Pact — empower this minion temporarily and full-heal.
-func apply_blood_pact(duration: float, dmg_multiplier: float, speed_multiplier: float) -> void:
-	if dead:
-		return
-	buff_t = max(buff_t, duration)
-	dmg_mult = max(dmg_mult, dmg_multiplier)
-	spd_mult = max(spd_mult, speed_multiplier)
-	hp = max_hp
-	if sprite:
-		sprite.modulate = Color(1.4, 0.55, 0.9, 1)
-
-
-func take_damage(amount: int, _src: Vector2 = Vector2.ZERO) -> void:
-	if dead:
-		return
-	# Puppets never take authoritative damage — the host drives hp/death.
-	if is_puppet:
-		return
-	hp -= amount
-	if sprite:
-		var tw := create_tween()
-		tw.tween_property(sprite, "modulate", Color(1.6, 0.5, 0.5, 1), 0.06)
-		tw.tween_property(sprite, "modulate", Color(0.85, 0.78, 1.0, 0.95), 0.18)
-	if hp <= 0:
-		_die()
-
-
-func _die() -> void:
-	if dead:
-		return
-	dead = true
-	# Host: tell peers to drop their puppet of this minion.
-	if not is_puppet and network_id >= 0:
-		var ns := _net_sync()
-		if ns and ns.has_method("broadcast_minion_death"):
-			ns.call("broadcast_minion_death", network_id)
-	if sprite:
-		var tw := sprite.create_tween().set_parallel(true)
-		tw.tween_property(sprite, "modulate:a", 0.0, 0.5)
-		tw.tween_property(sprite, "scale", sprite.scale * 0.6, 0.5)
-		tw.chain().tween_callback(queue_free)
-	else:
-		queue_free()
-	if VfxManager:
-		VfxManager.spawn_hit_sparks(global_position, Color(0.8, 0.55, 1.0, 1), 10)
-	if is_inside_tree():
-		var safety := Timer.new()
-		safety.one_shot = true
-		safety.wait_time = 1.0
-		safety.autostart = true
-		safety.timeout.connect(_safety_free)
-		add_child(safety)
-
-
-func _safety_free() -> void:
-	if not is_inside_tree():
-		return
-	if is_instance_valid(self):
-		queue_free()
-
-
-func _net_sync() -> Node:
-	var tree := get_tree()
-	if tree == null or tree.current_scene == null:
-		return null
-	return tree.current_scene.get_node_or_null("NetSync")
+	sprite.modulate = _base_modulate()
