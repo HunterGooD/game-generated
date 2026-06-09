@@ -202,6 +202,8 @@ func register_enemy(enemy: Node) -> int:
 	var scale_v: float = (
 		float(enemy.get("sprite_scale")) if enemy.get("sprite_scale") != null else 0.34
 	)
+	# Elite affixes — for the puppet's aura (visual only; behaviour stays host-side).
+	var affix_ids: Array = enemy.get("affixes") if enemy.get("affixes") != null else []
 	(
 		NetManager
 		. send(
@@ -215,6 +217,7 @@ func register_enemy(enemy: Node) -> int:
 				"dmg": dmg,
 				"ranged": ranged,
 				"scale": scale_v,
+				"affixes": affix_ids,
 			}
 		)
 	)
@@ -754,6 +757,11 @@ func _spawn_puppet_enemy(msg: Dictionary) -> void:
 		enemy.call("configure", cfg)
 	enemy.set("is_puppet", true)
 	enemy.set("network_id", id)
+	# Elite aura on the puppet (visual only — affix STATS/behaviour stay host-side; the
+	# message's hp is already the affixed value, so we don't re-apply stat mults here).
+	var affix_ids: Array = msg.get("affixes", [])
+	if not affix_ids.is_empty() and enemy.has_method("_apply_affix_aura"):
+		enemy.call("_apply_affix_aura", affix_ids)
 	enemy_registry[id] = enemy
 
 

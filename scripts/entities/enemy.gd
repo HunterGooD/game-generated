@@ -36,6 +36,17 @@ const SPIDER_RETREAT_SPEED_MULT: float = 1.6
 var _spider_retreat_t: float = 0.0
 # LimboAI behaviour tree (host-only, lazily created when use_bt_enemies is on).
 var _bt_player = null
+# Elite affixes (V6) — applied at configure; aura shown via a child outline sprite.
+const OUTLINE_SHADER: Shader = preload("res://assets/shaders/outline.gdshader")
+var affixes: Array = []
+var _regen_frac: float = 0.0
+var _explosive: bool = false
+var _shielded: bool = false
+var _shield_ready: bool = false
+var _shield_t: float = 0.0
+var _aura: Sprite2D = null
+const SHIELD_COOLDOWN: float = 4.0
+const ELITE_EXPLODE_RADIUS: float = 130.0
 
 @export var sprite: Sprite2D
 @export var hp_bar: ProgressBar
@@ -210,6 +221,7 @@ func configure(cfg: Dictionary) -> void:
 	is_aoe = bool(cfg.get("aoe", false))
 	is_brood_mother = bool(cfg.get("brood_mother", false))
 	is_spider = bool(cfg.get("spider", false))
+	_apply_affix_stats(cfg.get("affixes", []))
 	if reward_drop:
 		reward_drop.xp_value = xp_value
 		reward_drop.gold_min = gold_drop_min
@@ -217,6 +229,79 @@ func configure(cfg: Dictionary) -> void:
 	if is_inside_tree():
 		_apply_sprite()
 		_sync_component_stats(true)
+		_apply_affix_aura()
+
+
+# ── Elite affixes (V6) ────────────────────────────────────────────────────────
+func is_elite() -> bool:
+	return not affixes.is_empty()
+
+
+# Apply each affix's stat multipliers / behaviour flags. Stats must be modified before
+# _sync_component_stats so the components pick up the elite values.
+func _apply_affix_stats(ids) -> void:
+	if not (ids is Array) or (ids as Array).is_empty():
+		return
+	affixes = (ids as Array).duplicate()
+	for id in affixes:
+		var a: Dictionary = EnemyAffixes.AFFIXES.get(String(id), {})
+		max_hp = int(round(float(max_hp) * float(a.get("hp_mult", 1.0))))
+		move_speed *= float(a.get("speed_mult", 1.0))
+		attack_damage = int(round(float(attack_damage) * float(a.get("damage_mult", 1.0))))
+		attack_cooldown /= maxf(0.1, float(a.get("attack_speed_mult", 1.0)))
+		if a.has("regen_frac"):
+			_regen_frac = float(a["regen_frac"])
+		if bool(a.get("explode", false)):
+			_explosive = true
+		if bool(a.get("shield", false)):
+			_shielded = true
+			_shield_ready = true
+	hp = max_hp
+
+
+# Child outline sprite shows the elite aura (blended affix colour). Kept separate from
+# the main sprite so it doesn't clobber the hit-flash material; its texture is synced to
+# the main sprite each frame. Used on the host and on client puppets (visual only).
+func _apply_affix_aura(ids = null) -> void:
+	if ids != null and ids is Array:
+		affixes = (ids as Array).duplicate()
+	if affixes.is_empty() or sprite == null or _aura != null:
+		return
+	_aura = Sprite2D.new()
+	_aura.name = "EliteAura"
+	_aura.show_behind_parent = true
+	var mat := ShaderMaterial.new()
+	mat.shader = OUTLINE_SHADER
+	mat.set_shader_parameter("outline_color", EnemyAffixes.aura_color(affixes))
+	mat.set_shader_parameter("outline_width", 2.5 + float(affixes.size()))
+	_aura.material = mat
+	sprite.add_child(_aura)
+	_sync_aura()
+
+
+func _sync_aura() -> void:
+	if _aura == null or sprite == null:
+		return
+	_aura.texture = sprite.texture
+	_aura.flip_h = sprite.flip_h
+
+
+# Explosive affix — burst that damages players/pets in radius on death (host/solo only).
+func _affix_explode() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var dmg: int = int(round(float(attack_damage) * 1.5))
+	for grp in ["player", "remote_player", "pet_ally"]:
+		for t in tree.get_nodes_in_group(grp):
+			if not is_instance_valid(t) or not (t is Node2D):
+				continue
+			if global_position.distance_to((t as Node2D).global_position) <= ELITE_EXPLODE_RADIUS:
+				if t.has_method("take_damage"):
+					t.call("take_damage", dmg)
+	if VfxManager:
+		VfxManager.spawn_explosion(global_position, 1.5, Color(1.0, 0.55, 0.12, 1))
+		VfxManager.screen_shake(6.0, 0.25)
 
 
 func _apply_sprite() -> void:
@@ -303,12 +388,24 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		velocity = Vector2.ZERO
 		return
+	if _aura != null:
+		_sync_aura()  # elite aura tracks the main sprite (host + puppet)
 	# Puppet mode (multiplayer client) — lerp toward host-broadcast position,
 	# no AI, no attacks.
 	if is_puppet:
 		var w: float = clamp(12.0 * delta, 0.0, 1.0)
 		global_position = global_position.lerp(_puppet_target_pos, w)
 		return
+	# Elite affixes: regenerating heals over time; shielded recharges its absorb.
+	if _regen_frac > 0.0 and health_component != null:
+		health_component.current_hp = minf(
+			health_component.max_hp, health_component.current_hp + float(max_hp) * _regen_frac * delta
+		)
+		hp = int(round(health_component.current_hp))
+	if _shielded and not _shield_ready:
+		_shield_t -= delta
+		if _shield_t <= 0.0:
+			_shield_ready = true
 	if attack_lockout > 0.0:
 		attack_lockout -= delta
 	if slow_t > 0.0:
@@ -767,6 +864,14 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 			tw.tween_property(sprite, "modulate", hue_tint, 0.18)
 		if VfxManager:
 			VfxManager.spawn_hit_sparks(global_position, Color(1, 0.7, 0.4, 1), 4)
+		return false
+	# Shielded affix — a recharged shield absorbs one hit, then goes on cooldown.
+	if _shielded and _shield_ready:
+		_shield_ready = false
+		_shield_t = SHIELD_COOLDOWN
+		payload.amount = 0.0
+		if VfxManager:
+			VfxManager.spawn_hit_sparks(global_position, Color(0.45, 0.62, 1.0, 1), 8)
 		return false
 	var previous_hp: int = hp
 	var knockback: Vector2 = payload.knockback
@@ -1254,6 +1359,9 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	# Explosive affix — burst that damages nearby players/pets (host/solo only).
+	if _explosive and not is_puppet:
+		_affix_explode()
 	# Elementalist Fracture payoff: a fractured enemy detonates in a small
 	# elemental burst, splashing nearby foes (host-side / solo only).
 	if fractured_t > 0.0 and not is_puppet:

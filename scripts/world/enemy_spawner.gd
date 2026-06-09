@@ -233,6 +233,9 @@ func _start_next_wave() -> void:
 	_switch_to_combat_music()
 
 
+const ELITE_CHANCE: float = 0.10
+
+
 func _spawn_one(
 	type_id: String, hp_mult: float, dmg_mult: float, xp_mult: float, gold_mult: float
 ) -> void:
@@ -244,6 +247,16 @@ func _spawn_one(
 	cfg["xp_value"] = int(round(float(cfg["xp_value"]) * xp_mult))
 	cfg["gold_min"] = int(round(float(cfg["gold_min"]) * gold_mult))
 	cfg["gold_max"] = int(round(float(cfg["gold_max"]) * gold_mult))
+	# Elite roll (V6): host-side a chance to grant 1–3 affixes (faster/stronger/tougher/
+	# regen/explosive/shielded). Clients receive the affix list via the spawn message for
+	# the aura. Elites give bumped XP/gold. Brood mothers stay vanilla.
+	var host_auth: bool = NetManager == null or not NetManager.is_multiplayer or NetManager.is_host
+	if host_auth and not bool(cfg.get("brood_mother", false)) and randf() < ELITE_CHANCE:
+		var affix_ids: Array = EnemyAffixes.roll(EnemyAffixes.roll_count())
+		cfg["affixes"] = affix_ids
+		var bump: float = 1.0 + 0.6 * float(affix_ids.size())
+		cfg["xp_value"] = int(round(float(cfg["xp_value"]) * bump))
+		cfg["gold_max"] = int(round(float(cfg["gold_max"]) * bump))
 	var pos: Vector2 = _pick_spawn_pos()
 	var e := ENEMY_SCENE.instantiate()
 	if get_parent():
