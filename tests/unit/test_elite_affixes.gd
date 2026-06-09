@@ -84,9 +84,23 @@ func test_non_elite_has_no_affixes_or_aura() -> void:
 
 
 func test_elite_gets_aura_sprite() -> void:
-	var e := _enemy({"max_hp": 100, "affixes": ["brutal"]})
-	assert_not_null(e._aura, "elite has an aura outline sprite")
+	var e := _enemy(
+		{
+			"max_hp": 100,
+			"sprite_idle": "res://assets/sprites/characters/spider_hatchling_idle.png",
+			"affixes": ["brutal"],
+		}
+	)
+	assert_not_null(e._aura, "elite has an aura sprite")
 	assert_true(e._aura is Sprite2D)
+	assert_gt(e._aura.scale.x, 1.0, "aura is enlarged so it peeks beyond the main sprite")
+	assert_true(e._aura.material is ShaderMaterial, "aura uses the elite-aura shader")
+	assert_eq(
+		e._aura.material.get_shader_parameter("tint"),
+		EnemyAffixes.aura_color(["brutal"]),
+		"aura tint = affix colour",
+	)
+	assert_not_null(e._aura.texture, "aura silhouette has the sprite texture")
 
 
 # ── behaviour hooks ───────────────────────────────────────────────────────────

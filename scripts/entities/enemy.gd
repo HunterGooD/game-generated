@@ -36,8 +36,8 @@ const SPIDER_RETREAT_SPEED_MULT: float = 1.6
 var _spider_retreat_t: float = 0.0
 # LimboAI behaviour tree (host-only, lazily created when use_bt_enemies is on).
 var _bt_player = null
-# Elite affixes (V6) — applied at configure; aura shown via a child outline sprite.
-const OUTLINE_SHADER: Shader = preload("res://assets/shaders/outline.gdshader")
+# Elite affixes (V6) — applied at configure; aura shown via a child silhouette sprite.
+const ELITE_AURA_SHADER: Shader = preload("res://assets/shaders/elite_aura.gdshader")
 var affixes: Array = []
 var _regen_frac: float = 0.0
 var _explosive: bool = false
@@ -270,10 +270,15 @@ func _apply_affix_aura(ids = null) -> void:
 	_aura = Sprite2D.new()
 	_aura.name = "EliteAura"
 	_aura.show_behind_parent = true
+	_aura.centered = sprite.centered  # align with the main sprite
+	_aura.offset = sprite.offset
+	# Enlarge so the silhouette peeks beyond the main sprite as a coloured halo. More
+	# affixes → a slightly bigger, more obvious aura.
+	var s: float = 1.18 + 0.04 * float(affixes.size())
+	_aura.scale = Vector2(s, s)
 	var mat := ShaderMaterial.new()
-	mat.shader = OUTLINE_SHADER
-	mat.set_shader_parameter("outline_color", EnemyAffixes.aura_color(affixes))
-	mat.set_shader_parameter("outline_width", 2.5 + float(affixes.size()))
+	mat.shader = ELITE_AURA_SHADER
+	mat.set_shader_parameter("tint", EnemyAffixes.aura_color(affixes))
 	_aura.material = mat
 	sprite.add_child(_aura)
 	_sync_aura()
