@@ -93,8 +93,10 @@ func _build_ambient_particles() -> void:
 
 
 func _ready() -> void:
-	# Reset run state when entering the dungeon (uses default class if none).
-	if GameManager:
+	# Reset run state when entering the dungeon (uses default class if none). Skip the
+	# reset when we arrived here as a run-map node — the run (HP/level/gold) must carry
+	# across nodes; only standalone/endless Play starts fresh.
+	if GameManager and GameManager.run_node_active.is_empty():
 		GameManager.reset_run()
 
 	_build_floor()

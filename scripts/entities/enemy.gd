@@ -36,6 +36,11 @@ const SPIDER_RETREAT_SPEED_MULT: float = 1.6
 var _spider_retreat_t: float = 0.0
 # LimboAI behaviour tree (host-only, lazily created when use_bt_enemies is on).
 var _bt_player = null
+# Object pooling — when set, death returns the node to the pool instead of freeing.
+# _release_done guards the two death exits (dissolve tween callback + safety timer)
+# from both firing pool.release on the same corpse (which would double-pool it).
+var _pool = null
+var _release_done: bool = false
 # Elite affixes (V6) — applied at configure; aura shown via a child silhouette sprite.
 const ELITE_AURA_SHADER: Shader = preload("res://assets/shaders/elite_aura.gdshader")
 var affixes: Array = []
@@ -230,6 +235,93 @@ func configure(cfg: Dictionary) -> void:
 		_apply_sprite()
 		_sync_component_stats(true)
 		_apply_affix_aura()
+
+
+# Wipe all per-life runtime state so this node can be handed back out by the pool as a
+# fresh enemy. configure() afterwards re-applies stats/affixes/sprite/aura. The GUT
+# test (test_enemy_pool) asserts a reused enemy carries no stale affix/HP/status/aura.
+func reset_for_reuse() -> void:
+	# Death state. (_release_done is intentionally NOT cleared here — it stays true from
+	# the death exit until acquire() hands the node back out, so a late safety timer
+	# can't re-release an already-pooled corpse. The pool clears it on acquire.)
+	dead = false
+	if health_component:
+		health_component.is_dead = false
+	# Drop any leftover death-safety timers (a pooled corpse can still hold one).
+	for c in get_children():
+		if c is Timer and c.name == "DeathSafety":
+			c.queue_free()
+	# Free the behaviour tree so it rebuilds with a clean blackboard / latch state.
+	if _bt_player != null and is_instance_valid(_bt_player):
+		_bt_player.queue_free()
+	_bt_player = null
+	# Elite affixes — clear flags and tear down the aura silhouette.
+	affixes = []
+	_regen_frac = 0.0
+	_explosive = false
+	_shielded = false
+	_shield_ready = false
+	_shield_t = 0.0
+	if _aura != null and is_instance_valid(_aura):
+		_aura.queue_free()
+	_aura = null
+	# Status effects / DoTs.
+	burn_t = 0.0
+	burn_dps = 0.0
+	chill_stacks = 0
+	chill_t = 0.0
+	frozen_t = 0.0
+	_elem_seen = {}
+	fractured_t = 0.0
+	bleed_t = 0.0
+	bleed_dps = 0.0
+	vuln_t = 0.0
+	vuln_amp = 0.0
+	poison_stacks = 0
+	poison_t = 0.0
+	curse_stacks = 0
+	curse_t = 0.0
+	slow_t = 0.0
+	slow_mult = 1.0
+	taunt_target = null
+	taunt_t = 0.0
+	# Combat / AI timers.
+	attack_cd = 0.0
+	attack_lockout = 0.0
+	retarget_t = 0.0
+	_spider_retreat_t = 0.0
+	_idle_jitter = Vector2.ZERO
+	_idle_jitter_t = 0.0
+	_status_ui_t = 0.0
+	# Physics / networking.
+	velocity = Vector2.ZERO
+	is_puppet = false
+	network_id = -1
+	_puppet_target_pos = global_position
+	# Collision back on (corpse disables it).
+	if collision_shape:
+		collision_shape.set_deferred("disabled", false)
+	if hurtbox:
+		hurtbox.set_deferred("monitoring", true)
+		hurtbox.set_deferred("monitorable", true)
+	if hitbox:
+		_melee_hitbox_active = false
+		hitbox.payload = null
+		hitbox.disable_collision()
+	# Status strip / HP bar UI.
+	if _status_strip and is_instance_valid(_status_strip):
+		_status_strip.visible = false
+		if _status_strip.has_method("update_statuses"):
+			_status_strip.update_statuses([])
+	hp_bar_shown = false
+	if hp_bar:
+		hp_bar.visible = false
+	# Visuals — undo the dissolve material, restore tint / visibility.
+	visible = true
+	modulate = Color(1, 1, 1, 1)
+	if sprite:
+		sprite.modulate = Color(1, 1, 1, 1)
+	_install_hit_flash_material()
 
 
 # ── Elite affixes (V6) ────────────────────────────────────────────────────────
@@ -1297,10 +1389,13 @@ func die_remote() -> void:
 			)
 			. set_trans(Tween.TRANS_QUAD)
 		)
-		tw.tween_callback(queue_free)
+		tw.tween_callback(_release_or_free)
+	else:
+		_release_or_free()
 	# Safety fallback — child Timer so we can't leak.
 	if is_inside_tree():
 		var safety := Timer.new()
+		safety.name = "DeathSafety"
 		safety.one_shot = true
 		safety.wait_time = 1.2
 		safety.autostart = true
@@ -1310,6 +1405,18 @@ func die_remote() -> void:
 
 func _safety_free() -> void:
 	if is_instance_valid(self):
+		_release_or_free()
+
+
+# Final death exit — return to the pool if pool-managed, else free. Guarded so the
+# dissolve tween and the safety timer can't both act on the same corpse.
+func _release_or_free() -> void:
+	if _release_done:
+		return
+	_release_done = true
+	if _pool != null and is_instance_valid(_pool) and _pool.has_method("release"):
+		_pool.release(self)
+	elif is_instance_valid(self):
 		queue_free()
 
 
@@ -1318,9 +1425,6 @@ func _spawn_hatchlings(count: int) -> void:
 		return
 	var tree := get_tree()
 	if tree == null:
-		return
-	var enemy_scene: PackedScene = load("res://scenes/entities/enemy.tscn") as PackedScene
-	if enemy_scene == null:
 		return
 	# Hatchling config matches enemy_spawner.gd's "spider_hatchling".
 	var cfg: Dictionary = {
@@ -1343,10 +1447,11 @@ func _spawn_hatchlings(count: int) -> void:
 		"ranged": false,
 	}
 	for i in count:
-		var h: Node2D = enemy_scene.instantiate()
-		tree.current_scene.add_child(h)
 		var ang: float = randf() * TAU
-		h.global_position = global_position + Vector2(cos(ang), sin(ang)) * 48.0
+		var pos: Vector2 = global_position + Vector2(cos(ang), sin(ang)) * 48.0
+		var h: Node2D = EnemyPool.acquire(tree.current_scene, pos)
+		if h == null:
+			continue
 		if h.has_method("configure"):
 			h.call("configure", cfg)
 		# Multiplayer host: broadcast so clients see the hatchlings too.
@@ -1469,12 +1574,13 @@ func _die() -> void:
 			)
 			. set_trans(Tween.TRANS_QUAD)
 		)
-		tw.tween_callback(queue_free)
+		tw.tween_callback(_release_or_free)
 	else:
-		queue_free()
+		_release_or_free()
 	# Safety net — child Timer so when we're freed the timer dies too.
 	if is_inside_tree():
 		var safety := Timer.new()
+		safety.name = "DeathSafety"
 		safety.one_shot = true
 		safety.wait_time = 1.2
 		safety.autostart = true

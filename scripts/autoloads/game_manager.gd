@@ -18,6 +18,14 @@ signal wave_started(wave: int)
 signal wave_cleared(wave: int)
 signal class_selected(class_id: String)
 signal xp_gained(amount: int)
+# Run-map flow. `run_started` fires when a new map is generated; `run_node_entered` when
+# the party travels onto a node; `run_completed` when the boss node is reached.
+signal run_started
+signal run_node_entered(node: Dictionary)
+# Fired when the gameplay for the active node is finished (e.g. arena waves cleared) —
+# RunFlow listens and returns the party to the run map.
+signal run_node_cleared(node: Dictionary)
+signal run_completed
 
 # Class catalog — base stats and per-level growth.
 const CLASSES := {
@@ -344,6 +352,19 @@ var gold: int = 0
 
 # Run state.
 var current_floor: int = 1
+# Run difficulty tier (index into Difficulty.TIERS), chosen before a run starts. Scales
+# enemy HP/damage, elite chance/affixes, spawn density, loot rarity and rewards. Host
+# owns this in co-op (broadcast with the run so every peer scales identically).
+var run_difficulty: int = 0
+# Active run-map traversal (null until a run is started). Host-authoritative in co-op:
+# only the host advances it; clients rebuild the same map from the broadcast seed and
+# follow the host's chosen node (replication is a Phase-1 relay addition — see run_travel_to).
+var run_state: RunState = null
+var run_seed: int = 0
+# The map node currently being played (set by RunFlow on entry, cleared on completion).
+# Empty {} means "not inside a run node" — e.g. the standalone endless Play mode, which
+# lets game_world reset the run normally instead of preserving mid-run state.
+var run_node_active: Dictionary = {}
 var is_paused: bool = false
 var total_gold_earned: int = 0
 var highest_wave: int = 0
@@ -402,8 +423,50 @@ func reset_run() -> void:
 	player_downed = false
 	downed_time_left = 0.0
 	current_floor = 1
+	run_state = null
+	run_node_active = {}
 	player_stats_changed.emit()
 	gold_changed.emit(gold)
+
+
+# ── Run-map flow ──────────────────────────────────────────────────────────────
+# Generate a fresh run map for `difficulty` and put the party at the entry gate. `seed`
+# < 0 picks a random one. In co-op the host calls this and broadcasts (seed, difficulty)
+# so every peer rebuilds the identical map.
+func start_run(difficulty: int, seed_value: int = -1) -> void:
+	run_difficulty = Difficulty.clamp_tier(difficulty)
+	run_seed = seed_value if seed_value >= 0 else int(randi())
+	run_state = RunState.new(RunMap.generate(run_seed, run_difficulty))
+	run_started.emit()
+
+
+# Travel onto node `id` if it's a legal next step. Host-authoritative: a co-op client
+# can't move the party itself (that needs a `run_nav` relay message — Phase 1). Returns
+# whether the move happened. Emits run_node_entered, and run_completed at the boss.
+func run_travel_to(id: int) -> bool:
+	if run_state == null:
+		return false
+	var is_client: bool = NetManager != null and NetManager.is_multiplayer and not NetManager.is_host
+	if is_client:
+		return false  # TODO(Phase 1): send run_nav request to host once the relay allows it
+	if not run_state.travel(id):
+		return false
+	run_node_entered.emit(run_state.current_node())
+	if run_state.is_complete():
+		run_completed.emit()
+	return true
+
+
+# Mark that the party is now playing `node` (its gameplay scene is loading).
+func begin_run_node(node: Dictionary) -> void:
+	run_node_active = node
+
+
+# The active node's gameplay finished — clear it and notify (RunFlow → back to map).
+func clear_run_node() -> void:
+	var node: Dictionary = run_node_active
+	run_node_active = {}
+	run_node_cleared.emit(node)
 
 
 func add_gold(amount: int) -> void:

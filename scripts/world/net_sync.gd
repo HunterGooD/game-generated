@@ -7,7 +7,6 @@ extends Node
 
 const REMOTE_PLAYER_SCENE: PackedScene = preload("res://scenes/entities/remote_player.tscn")
 const LOOT_CHEST_SCENE: PackedScene = preload("res://scenes/pickups/loot_chest.tscn")
-const ENEMY_SCENE: PackedScene = preload("res://scenes/entities/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/entities/boss.tscn")
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const WAVE_PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
@@ -741,9 +740,10 @@ func _spawn_puppet_enemy(msg: Dictionary) -> void:
 	var id: int = int(msg.get("id", -1))
 	if id < 0 or enemy_registry.has(id):
 		return
-	var enemy: Node2D = ENEMY_SCENE.instantiate()
-	game_world.add_child(enemy)
-	enemy.global_position = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
+	var spawn_pos := Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
+	var enemy: Node2D = EnemyPool.acquire(game_world, spawn_pos)
+	if enemy == null:
+		return
 	# Configure puppet to match host's enemy.
 	var type_id: String = String(msg.get("type", "skeleton"))
 	var cfg: Dictionary = _puppet_enemy_cfg(

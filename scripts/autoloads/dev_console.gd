@@ -19,6 +19,8 @@ func _ready() -> void:
 	c.register_command(cmd_list_enemies, "list_enemies", "list enemy type ids")
 	c.register_command(cmd_heal, "heal", "full-heal the player")
 	c.register_command(cmd_kill_all, "kill_all", "kill all live enemies")
+	c.register_command(cmd_open_map, "open_map", "open the run-map screen (picks difficulty if no run active)")
+	c.register_command(cmd_start_run, "start_run", "start a run: start_run <difficulty 0-3> <seed | -1 random>")
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -132,6 +134,23 @@ func cmd_kill_all() -> void:
 			e.call("take_damage", 999999)
 			n += 1
 	_info("killed %d enemies" % n)
+
+
+func cmd_start_run(difficulty: int = 0, seed_value: int = -1) -> void:
+	if RunFlow == null:
+		return
+	RunFlow.start_run(difficulty, seed_value)
+	_info(
+		"started run: %s (seed %d) → map" % [Difficulty.name_of(GameManager.run_difficulty), GameManager.run_seed]
+	)
+
+
+func cmd_open_map() -> void:
+	if RunFlow == null:
+		_err("RunFlow unavailable")
+		return
+	RunFlow.open_map()
+	_info("opened run-map")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

@@ -86,7 +86,8 @@ func open() -> void:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -6.0)
 	# Spawn roulette overlay.
 	var class_id: String = GameManager.player_class if GameManager else "mage"
-	var item: ItemInstance = LootRoller.roll_item(wave_number, class_id)
+	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var item: ItemInstance = LootRoller.roll_item(wave_number, class_id, diff)
 	# Boss chests have a forced minimum rarity stamped on as metadata.
 	var forced: String = String(get_meta("forced_rarity", ""))
 	if forced != "" and item != null:
@@ -96,7 +97,7 @@ func open() -> void:
 		for _i in 12:
 			if int(ranks.get(item.rarity, 0)) >= target_rank:
 				break
-			item = LootRoller.roll_item(wave_number + 5, class_id)
+			item = LootRoller.roll_item(wave_number + 5, class_id, diff)
 	if item == null:
 		queue_free()
 		return

@@ -8,9 +8,9 @@ extends RefCounted
 # Roll a single item based on the current wave number and the player class.
 # wave_number: 1+ — drives ilvl and rarity bias.
 # class_id: barbarian/rogue/mage — filters weapons and uniques.
-static func roll_item(wave_number: int, class_id: String) -> ItemInstance:
+static func roll_item(wave_number: int, class_id: String, difficulty: int = -1) -> ItemInstance:
 	var ilvl: int = max(1, 1 + int(float(wave_number) / 2.0))
-	var rarity: String = _roll_rarity(wave_number)
+	var rarity: String = _roll_rarity(wave_number, difficulty)
 	if rarity == ItemDatabase.RARITY_UNIQUE:
 		var uniq := _roll_unique(class_id)
 		if uniq != null:
@@ -32,9 +32,12 @@ static func roll_preview_strip(count: int, wave_number: int, class_id: String) -
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Rarity rolling
-static func _roll_rarity(wave_number: int) -> String:
-	# Base weights, with a small bonus to legendary+ every 5 waves.
-	var bonus: float = float(int(wave_number / 5)) * 0.04
+static func _roll_rarity(wave_number: int, difficulty: int = -1) -> String:
+	# Base weights, with a small bonus to legendary+ every 5 waves, plus a run-difficulty
+	# bonus (higher tiers drop better loot). difficulty < 0 → no difficulty bonus (tier 0);
+	# callers that know the run tier pass GameManager.run_difficulty.
+	var diff: int = difficulty if difficulty >= 0 else 0
+	var bonus: float = float(int(wave_number / 5)) * 0.04 + Difficulty.value(diff, "loot_rarity_bonus", 0.0)
 	var w_common: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_COMMON]
 	var w_rare: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_RARE]
 	var w_leg: float = (

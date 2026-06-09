@@ -2,7 +2,6 @@ extends Node
 
 # Enemy spawner — escalating waves with per-wave stat scaling.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/entities/enemy.tscn")
 const BOSS_SCENE: PackedScene = preload("res://scenes/entities/boss.tscn")
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
@@ -154,11 +153,32 @@ var current_merchant: Node = null
 var current_portal: Node = null
 var portal_break_active: bool = false
 
+# Arena / run-node mode. When the spawner is hosting a run-map combat node it runs a
+# BOUNDED set of waves (arena_waves) then opens an exit portal back to the map, instead
+# of the endless Play loop. Set from GameManager.run_node_active in _ready.
+var arena_mode: bool = false
+var arena_waves: int = 0
+var arena_elite_chance: float = -1.0  # -1 = use the difficulty default
+
 
 func _ready() -> void:
 	add_to_group("enemy_spawner")  # so dev console / tools can find us
 	if GameManager:
 		GameManager.enemy_defeated.connect(_on_enemy_defeated)
+	# Front-load enemy instancing into the pool (component setup is the costly part) so the
+	# first wave doesn't hitch. Deferred: during _ready the parent is still building its
+	# children, so add_child() is blocked — prewarm once the tree settles. Pool also feeds
+	# client puppets (net_sync).
+	if EnemyPool and get_parent():
+		EnemyPool.call_deferred("prewarm", 12, get_parent())
+	# Run-map combat node → bounded arena mode (vs the endless Play loop).
+	if GameManager and not GameManager.run_node_active.is_empty():
+		var node: Dictionary = GameManager.run_node_active
+		if RunMap.is_combat_type(String(node.get("type", ""))):
+			var plan: Dictionary = RunMap.combat_plan(node)
+			arena_mode = true
+			arena_waves = int(plan["waves"])
+			arena_elite_chance = float(plan["elite_chance"])
 	# In multiplayer, only the host spawns enemies. Clients receive enemy_spawn
 	# messages and instantiate puppet enemies via NetSync.
 	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
@@ -214,15 +234,21 @@ func _start_next_wave() -> void:
 			var pick: String = TYPE_ORDER[randi() % TYPE_ORDER.size()]
 			counts[pick] = int(counts.get(pick, 0)) + 1
 
-	# Stat / xp scaling factors.
-	var hp_mult: float = 1.0 + 0.08 * float(current_wave - 1)
-	var dmg_mult: float = 1.0 + 0.05 * float(int(floor(float(current_wave - 1) / 2.0)))
-	var xp_mult: float = 1.0 + 0.12 * float(current_wave - 1)
-	var gold_mult: float = 1.0 + 0.10 * float(current_wave - 1)
+	# Stat / xp scaling factors — wave growth × run difficulty.
+	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var d_hp: float = Difficulty.value(diff, "enemy_hp_mult", 1.0)
+	var d_dmg: float = Difficulty.value(diff, "enemy_dmg_mult", 1.0)
+	var d_reward: float = Difficulty.value(diff, "reward_mult", 1.0)
+	var d_spawn: float = Difficulty.value(diff, "spawn_rate_mult", 1.0)
+	var hp_mult: float = (1.0 + 0.08 * float(current_wave - 1)) * d_hp
+	var dmg_mult: float = (1.0 + 0.05 * float(int(floor(float(current_wave - 1) / 2.0)))) * d_dmg
+	var xp_mult: float = (1.0 + 0.12 * float(current_wave - 1)) * d_reward
+	var gold_mult: float = (1.0 + 0.10 * float(current_wave - 1)) * d_reward
 
 	var spawned: int = 0
 	for type_id in counts.keys():
-		var n: int = int(counts[type_id])
+		# Higher difficulty packs in more enemies per type (density).
+		var n: int = int(round(float(int(counts[type_id])) * d_spawn))
 		for i in n:
 			_spawn_one(String(type_id), hp_mult, dmg_mult, xp_mult, gold_mult)
 			spawned += 1
@@ -252,19 +278,22 @@ func _spawn_one(
 	# regen/explosive/shielded). Clients receive the affix list via the spawn message for
 	# the aura. Elites give bumped XP/gold. Brood mothers stay vanilla.
 	var host_auth: bool = NetManager == null or not NetManager.is_multiplayer or NetManager.is_host
-	if host_auth and not bool(cfg.get("brood_mother", false)) and randf() < ELITE_CHANCE:
-		var affix_ids: Array = EnemyAffixes.roll(EnemyAffixes.roll_count())
+	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var elite_chance: float = Difficulty.value(diff, "elite_chance", ELITE_CHANCE)
+	if arena_mode and arena_elite_chance >= 0.0:
+		elite_chance = arena_elite_chance  # node-type override (e.g. elite packs)
+	if host_auth and not bool(cfg.get("brood_mother", false)) and randf() < elite_chance:
+		var affix_n: int = EnemyAffixes.roll_count() + int(Difficulty.value(diff, "elite_affix_bonus", 0.0))
+		var affix_ids: Array = EnemyAffixes.roll(affix_n)
 		cfg["affixes"] = affix_ids
 		var bump: float = 1.0 + 0.6 * float(affix_ids.size())
 		cfg["xp_value"] = int(round(float(cfg["xp_value"]) * bump))
 		cfg["gold_max"] = int(round(float(cfg["gold_max"]) * bump))
 	var pos: Vector2 = _pick_spawn_pos()
-	var e := ENEMY_SCENE.instantiate()
-	if get_parent():
-		get_parent().add_child(e)
-	else:
-		get_tree().current_scene.add_child(e)
-	e.global_position = pos
+	var parent: Node = get_parent() if get_parent() else get_tree().current_scene
+	var e := EnemyPool.acquire(parent, pos)
+	if e == null:
+		return
 	if e.has_method("configure"):
 		e.call("configure", cfg)
 	# Multiplayer host: assign network id + broadcast spawn so clients render
@@ -284,12 +313,10 @@ func dev_spawn(type_id: String, affix_ids: Array, pos: Vector2) -> bool:
 	var cfg: Dictionary = ENEMY_TYPES[type_id].duplicate(true)
 	if not affix_ids.is_empty():
 		cfg["affixes"] = affix_ids
-	var e := ENEMY_SCENE.instantiate()
-	if get_parent():
-		get_parent().add_child(e)
-	else:
-		get_tree().current_scene.add_child(e)
-	e.global_position = pos
+	var parent: Node = get_parent() if get_parent() else get_tree().current_scene
+	var e := EnemyPool.acquire(parent, pos)
+	if e == null:
+		return false
 	if e.has_method("configure"):
 		e.call("configure", cfg)
 	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
@@ -382,6 +409,11 @@ func _end_wave() -> void:
 	_broadcast_wave_cleared(current_wave)
 	_switch_to_explore_music()
 	_spawn_loot_chest()
+	# Arena/run-node mode: once the bounded wave count is cleared, open the exit portal
+	# back to the run map instead of advancing endlessly.
+	if _should_finish_arena():
+		_finish_arena()
+		return
 	# Decide between merchant-break (portal-gated) and timed auto-advance.
 	var is_merchant_wave: bool = (
 		(BossDatabase.boss_for_wave(current_wave) == "") and (current_wave % 3 == 0)
@@ -446,7 +478,47 @@ func _on_portal_activated() -> void:
 
 # Called by NetSync on the host when a CLIENT portal triggers activation.
 func portal_activate_from_client() -> void:
-	_on_portal_activated()
+	if arena_mode:
+		_on_arena_exit()
+	else:
+		_on_portal_activated()
+
+
+func _should_finish_arena() -> bool:
+	return arena_mode and current_wave >= arena_waves
+
+
+# Bounded node cleared — spawn an exit portal (reuse of the wave portal) that returns the
+# party to the run map when entered. Reuses the co-op portal replication.
+func _finish_arena() -> void:
+	if not is_inside_tree():
+		return
+	portal_break_active = true
+	var center: Vector2 = (room_min + room_max) * 0.5
+	var portal_pos: Vector2 = center + Vector2(0, -40)
+	var portal: Node2D = PORTAL_SCENE.instantiate()
+	get_tree().current_scene.add_child(portal)
+	portal.global_position = portal_pos
+	current_portal = portal
+	if portal.has_signal("activated"):
+		portal.connect("activated", _on_arena_exit)
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_portal_spawn"):
+			ns.call("broadcast_portal_spawn", portal_pos)
+
+
+func _on_arena_exit() -> void:
+	if not portal_break_active:
+		return
+	portal_break_active = false
+	current_portal = null
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_portal_consumed"):
+			ns.call("broadcast_portal_consumed")
+	if GameManager:
+		GameManager.clear_run_node()  # → run_node_cleared → RunFlow returns to the map
 
 
 # ─────────────────────────────────────────────────────────────────────────────
