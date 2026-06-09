@@ -127,6 +127,23 @@ var funeral_t: float = 0.0
 var dirty_escape_cd: float = 0.0
 # Assassin Backstab Window: brief window (after a dash/vanish) where attacks crit harder.
 var backstab_t: float = 0.0
+# Bone Architect Bones from Death: nearby kills bank shards; at the cap the next
+# skill is empowered (+50% damage), consumed on the next cast.
+var bone_shards: int = 0
+var bone_empowered: bool = false
+const BONE_SHARD_MAX: int = 5
+# Primal Alpha Predator Rhythm: nearby kills grant decaying outgoing-damage stacks.
+var predator_stacks: int = 0
+var predator_t: float = 0.0
+const PREDATOR_STACK_MAX: int = 5
+const PREDATOR_DURATION: float = 4.0
+# Blood Witch Pain Dividend: HP lost banks into the next skill's burst (up to +50%).
+var pain_bank: float = 0.0
+# Tempest Lord Static Cascade: a nearby enemy death zaps other foes. Re-entrancy
+# guard stops a cascade kill from chaining into an infinite same-frame loop.
+var _cascading: bool = false
+const STATIC_CASCADE_RADIUS: float = 200.0
+const STATIC_CASCADE_TARGETS: int = 3
 
 # Stealth state (Smoke Bomb).
 var stealth_t: float = 0.0
@@ -169,6 +186,7 @@ func _ready() -> void:
 	# Berserker Blood Frenzy extends on kills near the player.
 	if GameEvents:
 		GameEvents.enemy_died.connect(_on_enemy_died_frenzy)
+		GameEvents.enemy_died.connect(_on_enemy_died_passives)
 
 
 func _setup_components() -> void:
@@ -475,6 +493,10 @@ func _physics_process(delta: float) -> void:
 	if frenzy_t > 0.0:
 		frenzy_t -= delta
 		move_speed *= 1.25  # Blood Frenzy haste
+	if predator_t > 0.0:
+		predator_t -= delta
+		if predator_t <= 0.0:
+			predator_stacks = 0  # Predator Rhythm lapses
 	if evasion_t > 0.0:
 		evasion_t -= delta
 		if evasion_t <= 0.0:
@@ -840,7 +862,102 @@ func _spec_outgoing_mult() -> float:
 		"assassin":
 			if backstab_t > 0.0:
 				m *= 1.4  # Backstab Window
+		"thunderblade":
+			m *= _close_circuit_mult()  # Close Circuit — more damage up close
+		"bone_architect":
+			if bone_empowered:
+				m *= 1.5  # Bones from Death — empowered skill
+		"primal_alpha":
+			m *= 1.0 + 0.06 * float(predator_stacks)  # Predator Rhythm
+		"blood_witch":
+			# Pain Dividend — banked self-harm empowers outgoing damage (max +50%).
+			if pain_bank > 0.0 and GameManager:
+				m *= 1.0 + clampf(pain_bank / float(maxi(1, GameManager.player_max_hp)), 0.0, 0.5)
+		"stormshaper":
+			# Form Casting — spell power carries into beast forms.
+			if skill_system and skill_system.has_method("get_druid_form"):
+				if String(skill_system.call("get_druid_form")) != "human":
+					m *= 1.20
 	return m
+
+
+# Close Circuit (Thunderblade): outgoing damage rises the closer the nearest enemy.
+func _close_circuit_mult() -> float:
+	var d: float = _nearest_enemy_distance()
+	if d < 120.0:
+		return 1.30
+	if d < 240.0:
+		return 1.15
+	return 1.0
+
+
+func _nearest_enemy_distance() -> float:
+	var tree := get_tree()
+	if tree == null:
+		return INF
+	var best: float = INF
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or not (e is Node2D) or bool(e.get("dead")):
+			continue
+		var dist: float = global_position.distance_to((e as Node2D).global_position)
+		if dist < best:
+			best = dist
+	return best
+
+
+# Bones from Death / Predator Rhythm: bank state from nearby kills. Host-safe — only
+# modifies this player's own outgoing damage (applied through the normal cast path),
+# so it never deals new authoritative damage from a client context.
+func _on_enemy_died_passives(event) -> void:
+	if GameManager == null:
+		return
+	var actor = event.get("actor") if event else null
+	if actor is Node2D and global_position.distance_to((actor as Node2D).global_position) > 360.0:
+		return
+	match String(GameManager.player_spec_path):
+		"bone_architect":
+			bone_shards = mini(bone_shards + 1, BONE_SHARD_MAX)
+			if bone_shards >= BONE_SHARD_MAX:
+				bone_empowered = true
+		"primal_alpha":
+			predator_stacks = mini(predator_stacks + 1, PREDATOR_STACK_MAX)
+			predator_t = PREDATOR_DURATION
+		"tempest_lord":
+			_static_cascade(actor)
+
+
+# Static Cascade (Tempest Lord): a nearby enemy death arcs storm damage to up to
+# STATIC_CASCADE_TARGETS other foes. Co-op-correct via the normal damage path —
+# take_damage applies directly on the host and auto-forwards (enemy_hit) when the
+# target is a client puppet, so a client Tempest Lord's cascade still resolves on
+# the host. The _cascading guard bounds the chain to one hop per original death.
+func _static_cascade(dead_actor) -> void:
+	if _cascading or GameManager == null or not (dead_actor is Node2D):
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var origin: Vector2 = (dead_actor as Node2D).global_position
+	var dmg: int = maxi(1, int(round(float(GameManager.player_damage) * 0.6)))
+	var targets: Array = []
+	for e in tree.get_nodes_in_group("enemy"):
+		if e == dead_actor or not is_instance_valid(e) or not (e is Node2D) or bool(e.get("dead")):
+			continue
+		if origin.distance_to((e as Node2D).global_position) <= STATIC_CASCADE_RADIUS:
+			targets.append(e)
+	targets.sort_custom(
+		func(a, b): return origin.distance_to(a.global_position) < origin.distance_to(b.global_position)
+	)
+	_cascading = true
+	for i in mini(STATIC_CASCADE_TARGETS, targets.size()):
+		var e = targets[i]
+		if e.has_method("take_damage"):
+			e.call("take_damage", dmg, origin)
+		if e.has_method("mark_element"):
+			e.call("mark_element", "storm")
+	_cascading = false
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(origin, Color(0.6, 0.85, 1.0, 1), 8)
 
 
 # Open the Assassin Backstab Window (after a dash / Vanish).
@@ -941,6 +1058,14 @@ func on_skill_cast(skill_id: String, _behavior: String) -> void:
 			add_battlemage_stack()
 		"elementalist":
 			add_elem_orb(_skill_element(skill_id))
+		"bone_architect":
+			# Bones from Death: the empowered cast (damage already applied) spends the bank.
+			if bone_empowered:
+				bone_empowered = false
+				bone_shards = 0
+		"blood_witch":
+			# Pain Dividend: the skill (damage already applied) spends the banked pain.
+			pain_bank = 0.0
 
 
 func _skill_element(skill_id: String) -> String:
@@ -1702,7 +1827,18 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var tw := create_tween()
 		tw.tween_property(sprite, "modulate", Color(1.6, 0.3, 0.3), 0.05)
 		tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.15)
+	# Pain Dividend (Blood Witch): the HP just lost banks into the next skill's burst.
+	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
+		_bank_pain(applied_amount)
 	return true
+
+
+# Blood Witch Pain Dividend: accumulate self-harm, capped at 60% of max HP worth.
+func _bank_pain(amount: int) -> void:
+	if GameManager == null or amount <= 0:
+		return
+	var cap: float = float(GameManager.player_max_hp) * 0.6
+	pain_bank = minf(pain_bank + float(amount), cap)
 
 
 func take_damage(amount: int) -> void:

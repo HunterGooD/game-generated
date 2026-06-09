@@ -1032,6 +1032,17 @@ func die_remote() -> void:
 	dead = true
 	if health_component:
 		health_component.is_dead = true
+	# Fire the death event on clients too, so death-hook ascension passives
+	# (Frenzy / Bones from Death / Predator Rhythm / Static Cascade) trigger for
+	# CLIENT players, not just the host. Only player passives listen to this signal
+	# and they are all local-state, so emitting on the puppet can't double-count
+	# waves or XP (those flow through the authoritative enemy_death message).
+	if GameEvents:
+		var de := ActorDeathEvent.new()
+		de.actor = self
+		de.actor_kind = &"enemy"
+		de.position = global_position
+		GameEvents.enemy_died.emit(de)
 	if collision_shape:
 		collision_shape.set_deferred("disabled", true)
 	if hurtbox:
