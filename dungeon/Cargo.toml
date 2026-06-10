@@ -1,0 +1,25 @@
+[package]
+name = "echoes-dungeon"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic multi-layer dungeon graph generator (gdext) for Echoes of the Forgotten"
+
+[lib]
+# rlib  → so `cargo test` can link the pure core without Godot.
+# cdylib → so Godot loads the native library through the .gdextension.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The gdext bridge is OPTIONAL and lives behind the `bridge` feature.
+# The pure graph core (rng/affix/graph modules) has ZERO dependencies, so
+# `cargo test` builds and runs the logic without fetching or building Godot.
+#
+# NOTE: pin `godot` to the gdext release that matches Godot 4.6 on this machine.
+# At time of writing the project targets Godot 4.6 ("Forward Plus"). If the build
+# complains about an API mismatch, adjust the version / add an `api-4-x` feature
+# to match your installed engine — the bridge code itself is version-agnostic.
+godot = { version = "0.4", optional = true }
+
+[features]
+default = []
+bridge = ["dep:godot"]

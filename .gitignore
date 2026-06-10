@@ -32,3 +32,6 @@ Thumbs.db
 *.[mM][dD]
 !/README.md
 !/server/*.md
+
+# Rust dungeon generator build artifacts
+/dungeon/target/

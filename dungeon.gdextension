@@ -1,0 +1,17 @@
+; Loads the Rust dungeon generator (echoes-dungeon) into Godot.
+; Build with:  cd dungeon && cargo build --features bridge            (debug)
+;              cd dungeon && cargo build --features bridge --release  (release)
+; Exposes the classes: DungeonGenerator, DungeonLayerRef.
+
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.2
+reloadable = true
+
+[libraries]
+macos.debug = "res://dungeon/target/debug/libechoes_dungeon.dylib"
+macos.release = "res://dungeon/target/release/libechoes_dungeon.dylib"
+linux.debug.x86_64 = "res://dungeon/target/debug/libechoes_dungeon.so"
+linux.release.x86_64 = "res://dungeon/target/release/libechoes_dungeon.so"
+windows.debug.x86_64 = "res://dungeon/target/debug/echoes_dungeon.dll"
+windows.release.x86_64 = "res://dungeon/target/release/echoes_dungeon.dll"
