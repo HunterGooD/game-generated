@@ -5,6 +5,7 @@ extends Node
 const BOSS_SCENE: PackedScene = preload("res://scenes/entities/boss.tscn")
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
+const RUN_VICTORY := preload("res://scripts/ui/run_victory.gd")
 
 const ENEMY_TYPES := {
 	"skeleton":
@@ -975,10 +976,15 @@ func _finish_elite_node() -> void:
 
 # Boss node: a single boss fight (no waves). Defeat → loot + exit portal.
 func _start_node_boss() -> void:
-	var boss_id: String = BossDatabase.boss_for_wave(10)
-	if boss_id == "":
-		boss_id = "crimson_matron"
-	var eff: int = 6 + (GameManager.run_difficulty if GameManager else 0) * 2
+	# The run finale = the UBER-BOSS: the hardest boss, scaled hard, with a grand intro.
+	var boss_id: String = "hellgate_sovereign"
+	if BossDatabase.get_boss(boss_id).is_empty():
+		boss_id = BossDatabase.boss_for_wave(10)
+		if boss_id == "":
+			boss_id = "crimson_matron"
+	var eff: int = 8 + (GameManager.run_difficulty if GameManager else 0) * 3
+	if GameManager:
+		GameManager.notice.emit("⚔  THE UBER-BOSS AWAKENS — the run's final trial  ⚔", Color(1.0, 0.3, 0.3))
 	_spawn_boss(boss_id, eff)
 
 
@@ -1000,6 +1006,34 @@ func _finish_node_simple(msg: String) -> void:
 func _on_node_exit_portal() -> void:
 	if GameManager:
 		GameManager.clear_run_node()  # → run_node_cleared → RunFlow returns to the map
+
+
+# The uber-boss is slain → the run is won. Drop a forced top-rarity reward and open a
+# golden victory portal that shows the end screen (rather than going back to the map).
+func _finish_uber_boss() -> void:
+	if not is_inside_tree():
+		return
+	_spawn_boss_loot("unique")  # the finale always pays out a top-tier item
+	var p := _find_player()
+	var center: Vector2 = p.global_position if p else (room_min + room_max) * 0.5
+	var portal: Node2D = PORTAL_SCENE.instantiate()
+	get_tree().current_scene.add_child(portal)
+	portal.global_position = _clamp_in_room(center + Vector2(0, -220.0))
+	if portal is CanvasItem:
+		(portal as CanvasItem).modulate = Color(1.0, 0.9, 0.4)
+	if portal.has_signal("activated"):
+		portal.connect("activated", _on_uber_victory)
+	if GameManager:
+		GameManager.run_completed.emit()
+		GameManager.notice.emit(
+			"THE UBER-BOSS FALLS! Claim your spoils, then take the golden portal to glory.",
+			Color(1.0, 0.86, 0.4)
+		)
+
+
+func _on_uber_victory() -> void:
+	var v := RUN_VICTORY.new()
+	get_tree().current_scene.add_child(v)
 
 
 # Wipe any enemies still alive at the end of an arena wave (no XP/gold/drops). Skips
@@ -1211,10 +1245,9 @@ func _on_boss_defeated(boss_id: String, reward: String) -> void:
 	if arena_mode:
 		_finish_arena()
 		return
-	# Boss-node finale → loot + exit portal to the map.
+	# Uber-boss node = the run finale → grand reward + victory portal to the end screen.
 	if _node_mode == "boss":
-		_spawn_boss_loot(reward)
-		_finish_node_simple("Boss slain!")
+		_finish_uber_boss()
 		return
 	_spawn_boss_loot(reward)
 	var t := get_tree().create_timer(wave_break)

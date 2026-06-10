@@ -21,6 +21,21 @@ static func roll_item(wave_number: int, class_id: String, difficulty: int = -1) 
 	return _roll_base(rarity, ilvl, class_id)
 
 
+# Roll an item of at least `min_rarity` (re-rolling with a wave bump, like boss chests).
+# Used for boss-reward candidates so the slot reels always offer worthwhile loot.
+static func roll_at_least(wave_number: int, class_id: String, difficulty: int, min_rarity: String) -> ItemInstance:
+	var item: ItemInstance = roll_item(wave_number, class_id, difficulty)
+	if item == null:
+		return null
+	var ranks := {"common": 0, "rare": 1, "legendary": 2, "unique": 3}
+	var target: int = int(ranks.get(min_rarity, 0))
+	for _i in 12:
+		if int(ranks.get(item.rarity, 0)) >= target:
+			break
+		item = roll_item(wave_number + 5, class_id, difficulty)
+	return item
+
+
 # Generate N preview items for the loot roulette belt — does NOT actually
 # give them to the player. Mix of rarities to make the strip look exciting.
 static func roll_preview_strip(count: int, wave_number: int, class_id: String) -> Array:

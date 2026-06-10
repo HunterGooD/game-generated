@@ -20,7 +20,7 @@ const DEFS := {
 		"floor": Color(0.42, 0.44, 0.52),
 		"wall": Color(0.34, 0.36, 0.5),
 		"light": Color(0.34, 0.36, 0.46),  # darker → oppressive crypt gloom
-		"hazard": "",
+		"hazard": "fog",  # screen-space vignette limiting vision
 	},
 	"frost":
 	{
@@ -28,7 +28,7 @@ const DEFS := {
 		"floor": Color(0.62, 0.72, 0.85),
 		"wall": Color(0.5, 0.62, 0.82),
 		"light": Color(0.66, 0.74, 0.9),
-		"hazard": "",
+		"hazard": "ice",  # frostbite floor pools
 	},
 	"garden":
 	{
@@ -36,7 +36,7 @@ const DEFS := {
 		"floor": Color(0.5, 0.66, 0.5),
 		"wall": Color(0.42, 0.58, 0.46),
 		"light": Color(0.6, 0.74, 0.58),
-		"hazard": "",
+		"hazard": "spore",  # poison spore pools
 	},
 	"infernal":
 	{

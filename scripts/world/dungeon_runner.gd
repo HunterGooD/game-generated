@@ -21,8 +21,10 @@ const PYLON_TEX := "res://assets/sprites/items/column_standing.png"
 const ELITE_TEX := "res://assets/sprites/items/crystal_purple.png"
 const BOSS_TEX := "res://assets/sprites/items/statue_guardian.png"
 const EVENT_PILLAR := preload("res://scripts/world/dungeon_event_pillar.gd")
-const LAVA_PATCH := preload("res://scripts/world/dungeon_lava_patch.gd")
+const FLOOR_HAZARD := preload("res://scripts/world/dungeon_floor_hazard.gd")
+const FOG := preload("res://scripts/world/dungeon_fog.gd")
 const DUNGEON_MAP := preload("res://scripts/ui/dungeon_map_ui.gd")
+const BOSS_REELS := preload("res://scripts/ui/boss_loot_reels.gd")
 
 const CELL_PX := 700.0      # world distance between adjacent graph cells
 const TILE := 96
@@ -281,25 +283,29 @@ func _spawn_event_pillar(center: Vector2) -> void:
 	p.global_position = center
 
 
-# Biome floor hazards. Currently: infernal → lava pools scattered in non-entry rooms.
+# Biome hazards: infernal→lava, frost→ice, garden→spore floor pools; crypt→a vision fog.
 func _spawn_biome_hazards() -> void:
-	if DungeonBiome.hazard(_biome) != "lava":
+	var hz: String = DungeonBiome.hazard(_biome)
+	if hz == "":
 		return
+	if hz == "fog":
+		add_child(FOG.new())  # one screen-space vignette for the whole crypt
+		return
+	# Floor pools (lava/ice/spore) scattered through the non-entry/boss rooms.
 	var entry_id: int = int(_layer.call("entry_id"))
 	var diff: int = GameManager.run_difficulty if GameManager else 0
 	for r in _layer.call("rooms"):
 		var id: int = int(r["id"])
 		var kind: String = String(r["kind"])
-		# Skip entry/boss/exit/descent so spawns and the finale stay clean.
 		if id == entry_id or kind in ["boss", "exit", "descent", "entry", "merchant"]:
 			continue
-		# A pool in roughly half the eligible rooms, offset from the centre.
 		if randf() < 0.5:
-			var lava := LAVA_PATCH.new()
-			lava.difficulty = diff
-			add_child(lava)
+			var pool := FLOOR_HAZARD.new()
+			pool.kind = hz
+			pool.difficulty = diff
+			add_child(pool)
 			var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(60.0, 150.0)
-			lava.global_position = _room_world.get(id, Vector2.ZERO) + off
+			pool.global_position = _room_world.get(id, Vector2.ZERO) + off
 
 
 # ── encounters ───────────────────────────────────────────────────────────────
@@ -407,13 +413,45 @@ func _spawn_boss() -> void:
 		GameManager.notice.emit("The dungeon's guardian awakens!", Color(1.0, 0.4, 0.35))
 
 
-func _on_boss_defeated(_boss_id: String, _reward: String) -> void:
+func _on_boss_defeated(_boss_id: String, reward: String) -> void:
 	if _boss_done:
 		return
 	_boss_done = true
 	var center: Vector2 = _room_world.get(_boss_room_id, Vector2.ZERO)
-	_spawn_chest(center + Vector2(0, 80))
+	# Boss slain = the level is cleared: remove the remaining enemies so the reward pick is
+	# safe (the reels pause solo, but this also covers co-op and any in-flight attackers).
+	_clear_enemies()
+	_award_boss_reels(reward)
 	_spawn_portals(center)
+
+
+func _clear_enemies() -> void:
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if is_instance_valid(e) and not bool(e.get("is_puppet")) and e.has_method("despawn_silent"):
+			e.call("despawn_silent")
+
+
+# Boss reward: the slot-machine reels (pick 1 of 3, or 4 with Fortune's Favor) instead of a
+# plain chest. Candidates are at least the boss's reward rarity. The reels overlay handles
+# its own pause (solo) and the 4th reel from `dungeon_extra_reel`.
+func _award_boss_reels(reward: String) -> void:
+	var class_id: String = "mage"
+	if GameManager and GameManager.player_class != "":
+		class_id = GameManager.player_class
+	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var wave: int = _loot_wave()
+	var min_rarity: String = reward if reward != "" else "legendary"
+	var candidates: Array = []
+	for _i in 3:
+		var it: ItemInstance = LootRoller.roll_at_least(wave, class_id, diff, min_rarity)
+		if it:
+			candidates.append(it)
+	if candidates.is_empty():
+		_spawn_chest(_room_world.get(_boss_room_id, Vector2.ZERO) + Vector2(0, 80))  # fallback
+		return
+	var reels := BOSS_REELS.new()
+	get_tree().current_scene.add_child(reels)
+	reels.call("start", candidates, wave, class_id)
 
 
 # ── portals: exit (to map) + optional descent (one layer deeper) ────────────────

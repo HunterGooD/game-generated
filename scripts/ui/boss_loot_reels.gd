@@ -182,7 +182,7 @@ func _spin() -> void:
 	for i in reels.size():
 		var reel: Reel = reels[i]
 		reel.inner.position.y = -land_y * 0.0  # start at top (cell 0 centered)
-		_set_reel_scroll(reel, 0.0)
+		_set_reel_scroll(0.0, reel)
 		var dur: float = BASE_DURATION + STAGGER * float(i)
 		reel.tween = create_tween()
 		(
