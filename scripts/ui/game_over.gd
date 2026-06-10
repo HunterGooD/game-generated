@@ -13,15 +13,14 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = true
 	_populate()
+	# Button 1 → the hub (hero select / next run). Button 2 → the main menu
+	# (co-op: leave the lobby back to the menu).
 	if btn_menu:
-		btn_menu.pressed.connect(_on_menu)
-		btn_menu.text = "Return to Lobby"
+		btn_menu.pressed.connect(_on_hub)
+		btn_menu.text = "Return to Hub"
 	if btn_retry:
-		btn_retry.pressed.connect(_on_retry)
-		if NetManager and NetManager.is_multiplayer:
-			btn_retry.text = "Back to Lobby"
-		else:
-			btn_retry.text = "Retry"
+		btn_retry.pressed.connect(_on_main_menu)
+		btn_retry.text = "Main Menu"
 
 	# Tween title pulse.
 	if title_label:
@@ -73,46 +72,37 @@ func _populate() -> void:
 		stat_grid.add_child(v)
 
 
-func _on_menu() -> void:
+# Button 1: end the run and return to the walkable hub (hero select / next run).
+# Co-op "all players confirm → hub together" is a relay TODO; for now the local player goes.
+func _on_hub() -> void:
 	get_tree().paused = false
 	if GameManager:
 		GameManager.game_over = false
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_ui_menu_click.mp3", -8.0)
-	# Solo: back to the walkable HUB (the new entry point) — abandons the run and respawns
-	# you as your last hero. Multiplayer: keep the room and re-enter the lobby together.
-	if NetManager and NetManager.is_multiplayer:
-		if GameManager:
-			GameManager.player_class = ""
-		var dest_path: String = "res://scenes/ui/multiplayer_lobby.tscn"
-		var ls = get_tree().root.get_node_or_null("LoadingScreen")
-		if ls and ls.has_method("preload_and_change_scene"):
-			ls.call("preload_and_change_scene", dest_path)
-		elif ls and ls.has_method("change_scene"):
-			ls.call("change_scene", dest_path)
-		else:
-			get_tree().change_scene_to_file(dest_path)
-	elif RunFlow:
+	if RunFlow:
 		RunFlow.exit_to_hub()
 	else:
-		get_tree().change_scene_to_file("res://scenes/world/hub.tscn")
+		_change_scene("res://scenes/world/hub.tscn")
 
 
-func _on_retry() -> void:
+# Button 2: leave to the main menu. In co-op, disconnect from the lobby first.
+func _on_main_menu() -> void:
 	get_tree().paused = false
 	if GameManager:
 		GameManager.game_over = false
-		# Preserve class, reset stats.
-		GameManager.reset_run()
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_ui_menu_click.mp3", -8.0)
-	# In multiplayer, retry isn't a sane local action — bounce to the lobby
-	# so the host can press START GAME again for everyone.
 	if NetManager and NetManager.is_multiplayer:
-		_on_menu()
-		return
+		NetManager.disconnect_from_room()
+	_change_scene("res://scenes/main.tscn")
+
+
+func _change_scene(path: String) -> void:
 	var ls = get_tree().root.get_node_or_null("LoadingScreen")
-	if ls and ls.has_method("change_scene"):
-		ls.call("change_scene", "res://scenes/world/game_world.tscn")
+	if ls and ls.has_method("preload_and_change_scene"):
+		ls.call("preload_and_change_scene", path)
+	elif ls and ls.has_method("change_scene"):
+		ls.call("change_scene", path)
 	else:
-		get_tree().change_scene_to_file("res://scenes/world/game_world.tscn")
+		get_tree().change_scene_to_file(path)

@@ -59,8 +59,17 @@ func start(award_candidates: Array, wave: int, class_id: String) -> void:
 	# Co-op keeps simulating while one player browses (see loot_roulette).
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = true
+	# Belt-and-suspenders: make players invulnerable while choosing, so you can't be killed
+	# during the reveal regardless of pause / co-op / stray attackers.
+	_set_players_invuln(99999.0)
 	_build_ui(wave, class_id)
 	_spin()
+
+
+func _set_players_invuln(t: float) -> void:
+	for p in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(p) and p.get("invuln_t") != null:
+			p.set("invuln_t", t)
 
 
 func _build_ui(wave: int, class_id: String) -> void:
@@ -260,6 +269,7 @@ func _on_pick(index: int) -> void:
 func _close() -> void:
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = false
+	_set_players_invuln(1.0)  # short grace, then back to normal
 	queue_free()
 
 

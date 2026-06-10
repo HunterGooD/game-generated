@@ -6,12 +6,11 @@ const HUB_SCENE := "res://scenes/world/hub.tscn"
 # Buttons detected by scanning assets/ui/btn_*.tres at provisioning time.
 # Parallel arrays (rather than Array[Dictionary]) because GDScript const
 # Dictionary literals have spotty support across Godot 4.x point releases.
-const BUTTON_IDS: PackedStringArray = ["play", "back", "quit", "choose"]
+const BUTTON_IDS: PackedStringArray = ["play", "setting", "quit"]
 const BUTTON_STYLEBOXES: PackedStringArray = [
 	"res://assets/ui/btn_play.tres",
-	"res://assets/ui/btn_back.tres",
+	"res://assets/ui/btn_choose.tres",
 	"res://assets/ui/btn_quit.tres",
-	"res://assets/ui/btn_choose.tres"
 ]
 
 # Runtime-resolved per-game asset paths (first existing wins).
@@ -176,12 +175,6 @@ func _on_button_pressed(id: String) -> void:
 			_open_settings_or_noop()
 		"credits":
 			_open_credits_or_noop()
-		"back":
-			# Direct multiplayer entry (legacy back button).
-			_go_to_lobby("multiplayer")
-		"choose":
-			# Direct multiplayer entry (legacy choose button).
-			_go_to_lobby("multiplayer")
 		"quit", "exit":
 			_quit_game()
 		_:

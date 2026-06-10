@@ -57,12 +57,23 @@ func _build() -> void:
 	stats.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95))
 	vb.add_child(stats)
 
-	var btn := Button.new()
-	btn.text = "Return to Hub"
-	btn.custom_minimum_size = Vector2(260, 54)
-	btn.pressed.connect(_on_return)
-	vb.add_child(btn)
-	btn.grab_focus()
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 20)
+	vb.add_child(row)
+
+	var btn_hub := Button.new()
+	btn_hub.text = "Return to Hub"
+	btn_hub.custom_minimum_size = Vector2(240, 54)
+	btn_hub.pressed.connect(_on_hub)
+	row.add_child(btn_hub)
+
+	var btn_menu := Button.new()
+	btn_menu.text = "Main Menu"
+	btn_menu.custom_minimum_size = Vector2(240, 54)
+	btn_menu.pressed.connect(_on_main_menu)
+	row.add_child(btn_menu)
+	btn_hub.grab_focus()
 
 
 func _stats_text() -> String:
@@ -75,19 +86,44 @@ func _stats_text() -> String:
 	)
 
 
-func _on_return() -> void:
+# Button 1: end the run and return to the hub. Co-op "all players confirm → hub together"
+# is a relay TODO; for now the confirming player goes.
+func _on_hub() -> void:
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = false
-	# Ends the run and returns to the hub (RunFlow clears run state + swaps the scene,
-	# which frees this overlay).
 	if RunFlow:
-		RunFlow.exit_to_hub()
+		RunFlow.exit_to_hub()  # clears run state + swaps the scene (frees this overlay)
 	else:
-		queue_free()
+		_change_scene("res://scenes/world/hub.tscn")
+
+
+# Button 2: leave to the main menu. In co-op, disconnect from the lobby first.
+func _on_main_menu() -> void:
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = false
+	if NetManager and NetManager.is_multiplayer:
+		NetManager.disconnect_from_room()
+	if GameManager:
+		GameManager.run_state = null
+		GameManager.run_node_active = {}
+	_change_scene("res://scenes/main.tscn")
+
+
+func _change_scene(path: String) -> void:
+	var ls = get_tree().root.get_node_or_null("LoadingScreen")
+	if ls and ls.has_method("preload_and_change_scene"):
+		ls.call("preload_and_change_scene", path)
+	elif ls and ls.has_method("change_scene"):
+		ls.call("change_scene", path)
+	else:
+		get_tree().change_scene_to_file(path)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
-		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_ESCAPE]:
-			_on_return()
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			_on_hub()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ESCAPE:
+			_on_main_menu()
 			get_viewport().set_input_as_handled()
