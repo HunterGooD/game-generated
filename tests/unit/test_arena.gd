@@ -143,6 +143,16 @@ func test_arena_node_runs_ten_waves() -> void:
 	assert_eq(int(RunMap.combat_plan(node)["waves"]), 10, "arena cycle = 10 waves")
 
 
+func test_combat_node_modes() -> void:
+	var sp = load("res://scripts/world/enemy_spawner.gd").new()
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_ELITE), "elite")
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_BOSS), "boss")
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_ARENA), "arena")
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_DUNGEON), "arena", "dungeon reuses arena until Rust gen")
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_MERCHANT), "", "non-combat → no mode")
+	sp.free()
+
+
 func test_despawn_silent_removes_without_reward() -> void:
 	var e: Node = (load("res://scenes/entities/enemy.tscn") as PackedScene).instantiate()
 	add_child_autofree(e)

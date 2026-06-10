@@ -48,8 +48,8 @@ func test_elite_pack_affix_raises_elite_chance() -> void:
 func test_routing_targets() -> void:
 	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_ARENA)), RunFlow.SCENE_COMBAT)
 	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_BOSS)), RunFlow.SCENE_COMBAT)
-	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_MERCHANT)), "", "merchant stays on map")
-	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_CAMPFIRE)), "", "campfire stays on map")
+	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_MERCHANT)), RunFlow.SCENE_NODE_ROOM)
+	assert_eq(RunFlow.target_for_node(_node(RunMap.TYPE_CAMPFIRE)), RunFlow.SCENE_NODE_ROOM)
 
 
 # ── GameManager run-node context ──────────────────────────────────────────────

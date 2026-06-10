@@ -159,6 +159,9 @@ var portal_break_active: bool = false
 var arena_mode: bool = false
 var arena_waves: int = 0  # waves before the finale boss (from RunMap.combat_plan)
 var arena_elite_chance: float = -1.0  # -1 = use the difficulty default
+# Non-arena combat node modes: "elite" (one elite pack) / "boss" (a single boss fight).
+# "arena"/"dungeon" use the full arena cycle (arena_mode). "" = endless Play.
+var _node_mode: String = ""
 var _arena_pillars: Array = []
 var _arena_choosing: bool = false  # true while the pre-wave pillar choice is open
 # Timed survival waves: each wave lasts ARENA_WAVE_DURATION and spawns a batch every
@@ -211,13 +214,18 @@ func _ready() -> void:
 	# Run-map combat node → bounded arena mode (vs the endless Play loop).
 	if GameManager and not GameManager.run_node_active.is_empty():
 		var node: Dictionary = GameManager.run_node_active
-		if RunMap.is_combat_type(String(node.get("type", ""))):
-			var plan: Dictionary = RunMap.combat_plan(node)
-			arena_mode = true
-			arena_waves = int(plan["waves"])
-			arena_elite_chance = float(plan["elite_chance"])
-			if GameManager:
-				GameManager.arena_reset()
+		var ntype: String = String(node.get("type", ""))
+		if RunMap.is_combat_type(ntype):
+			match _combat_node_mode(ntype):
+				"arena":
+					var plan: Dictionary = RunMap.combat_plan(node)
+					arena_mode = true
+					arena_waves = int(plan["waves"])
+					arena_elite_chance = float(plan["elite_chance"])
+					if GameManager:
+						GameManager.arena_reset()
+				_:
+					_node_mode = _combat_node_mode(ntype)  # "elite" | "boss"
 	# In multiplayer, only the host spawns enemies. Clients receive enemy_spawn
 	# messages and instantiate puppet enemies via NetSync.
 	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
@@ -235,6 +243,12 @@ func _start_next_wave() -> void:
 	# Arena nodes open with a mandatory pillar choice that starts the timed survival wave.
 	if arena_mode:
 		_arena_open_pillars()
+		return
+	if _node_mode == "elite":
+		_start_elite_pack()
+		return
+	if _node_mode == "boss":
+		_start_node_boss()
 		return
 	# If a merchant is still on the field, send them away.
 	if (
@@ -473,6 +487,11 @@ func _on_enemy_defeated() -> void:
 			var thresh: int = GameManager.arena_event_threshold if GameManager else 12
 			if thresh > 0 and _wave_kills % thresh == 0:
 				_trigger_arena_event()
+		return
+	# Elite node: clearing the whole pack finishes the node.
+	if _node_mode == "elite":
+		if combat_active and _live_enemy_count() == 0:
+			_finish_elite_node()
 		return
 	if combat_active and _live_enemy_count() == 0:
 		_end_wave()
@@ -841,6 +860,89 @@ func _end_arena_wave() -> void:
 		_arena_open_pillars()
 
 
+# ── Elite / Boss nodes (short combat encounters, no arena cycle) ──────────────
+func _combat_node_mode(type: String) -> String:
+	match type:
+		RunMap.TYPE_ELITE:
+			return "elite"
+		RunMap.TYPE_BOSS:
+			return "boss"
+		RunMap.TYPE_ARENA, RunMap.TYPE_DUNGEON:
+			return "arena"
+	return ""
+
+
+func _node_combat_mults() -> Dictionary:
+	var diff: int = GameManager.run_difficulty if GameManager else 0
+	return {
+		"hp": Difficulty.value(diff, "enemy_hp_mult", 1.0),
+		"dmg": Difficulty.value(diff, "enemy_dmg_mult", 1.0),
+		"reward": Difficulty.value(diff, "reward_mult", 1.0),
+	}
+
+
+# Elite node: one pack of 3–5 elites. Clearing them all finishes the node.
+func _start_elite_pack() -> void:
+	current_wave += 1
+	combat_active = true
+	if GameManager:
+		GameManager.wave_started.emit(current_wave)
+	_broadcast_wave_started(current_wave)
+	_switch_to_combat_music()
+	var host_auth: bool = NetManager == null or not NetManager.is_multiplayer or NetManager.is_host
+	if host_auth:
+		var m: Dictionary = _node_combat_mults()
+		var n: int = 3 + (randi() % 3)
+		var p := _find_player()
+		var center: Vector2 = p.global_position if p else (room_min + room_max) * 0.5
+		for i in n:
+			var t: String = String(ARENA_BATCH_TYPES[randi() % ARENA_BATCH_TYPES.size()])
+			var ang: float = TAU * float(i) / float(n)
+			var pos: Vector2 = _clamp_in_room(center + Vector2(cos(ang), sin(ang)) * 280.0)
+			_spawn_one(t, float(m["hp"]) * 1.6, float(m["dmg"]) * 1.2, float(m["reward"]), float(m["reward"]), EnemyAffixes.roll(2), pos)
+	if GameManager:
+		GameManager.notice.emit("Elite pack — slay them all!", Color(0.92, 0.3, 0.82))
+
+
+func _finish_elite_node() -> void:
+	combat_active = false
+	if GameManager:
+		GameManager.wave_cleared.emit(current_wave)
+	_broadcast_wave_cleared(current_wave)
+	_switch_to_explore_music()
+	_spawn_loot_chest()  # reward
+	_finish_node_simple("Elite pack cleared!")
+
+
+# Boss node: a single boss fight (no waves). Defeat → loot + exit portal.
+func _start_node_boss() -> void:
+	var boss_id: String = BossDatabase.boss_for_wave(10)
+	if boss_id == "":
+		boss_id = "crimson_matron"
+	var eff: int = 6 + (GameManager.run_difficulty if GameManager else 0) * 2
+	_spawn_boss(boss_id, eff)
+
+
+# Exit portal for elite/boss nodes — returns to the run map. Loot is dropped by the caller.
+func _finish_node_simple(msg: String) -> void:
+	if not is_inside_tree():
+		return
+	var p := _find_player()
+	var center: Vector2 = p.global_position if p else (room_min + room_max) * 0.5
+	var portal: Node2D = PORTAL_SCENE.instantiate()
+	get_tree().current_scene.add_child(portal)
+	portal.global_position = _clamp_in_room(center + Vector2(0, -200.0))
+	if portal.has_signal("activated"):
+		portal.connect("activated", _on_node_exit_portal)
+	if GameManager:
+		GameManager.notice.emit("%s  Take the portal to the map." % msg, Color(1.0, 0.86, 0.5))
+
+
+func _on_node_exit_portal() -> void:
+	if GameManager:
+		GameManager.clear_run_node()  # → run_node_cleared → RunFlow returns to the map
+
+
 # Wipe any enemies still alive at the end of an arena wave (no XP/gold/drops). Skips
 # puppets (clients mirror the host's despawns through normal death sync).
 func _despawn_arena_survivors() -> void:
@@ -1042,9 +1144,14 @@ func _on_boss_defeated(boss_id: String, reward: String) -> void:
 		hud.call("hide_boss_bar")
 	# Avoid "unused" warning.
 	var _ignore := boss_id
-	# Arena finale boss → reward screen (spend local currency), then back to the map.
+	# Arena finale boss → reward chests, then back to the map.
 	if arena_mode:
 		_finish_arena()
+		return
+	# Boss-node finale → loot + exit portal to the map.
+	if _node_mode == "boss":
+		_spawn_boss_loot(reward)
+		_finish_node_simple("Boss slain!")
 		return
 	_spawn_boss_loot(reward)
 	var t := get_tree().create_timer(wave_break)
