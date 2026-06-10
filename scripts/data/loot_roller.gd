@@ -38,6 +38,9 @@ static func _roll_rarity(wave_number: int, difficulty: int = -1) -> String:
 	# callers that know the run tier pass GameManager.run_difficulty.
 	var diff: int = difficulty if difficulty >= 0 else 0
 	var bonus: float = float(int(wave_number / 5)) * 0.04 + Difficulty.value(diff, "loot_rarity_bonus", 0.0)
+	# Fortune's Favor (dungeon positive affix) nudges every drop toward higher rarity.
+	if GameManager:
+		bonus += GameManager.dungeon_loot_luck
 	var w_common: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_COMMON]
 	var w_rare: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_RARE]
 	var w_leg: float = (

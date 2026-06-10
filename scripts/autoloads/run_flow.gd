@@ -11,6 +11,7 @@ extends Node
 
 const SCENE_RUN_MAP := "res://scenes/ui/run_map.tscn"
 const SCENE_COMBAT := "res://scenes/world/game_world.tscn"
+const SCENE_DUNGEON := "res://scenes/world/dungeon.tscn"
 const SCENE_HUB := "res://scenes/world/hub.tscn"
 const SCENE_NODE_ROOM := "res://scenes/world/node_room.tscn"
 
@@ -48,6 +49,8 @@ func exit_to_hub() -> void:
 # Scene path for a node, or "" when the node auto-resolves on the map.
 func target_for_node(node: Dictionary) -> String:
 	var t: String = String(node.get("type", ""))
+	if t == RunMap.TYPE_DUNGEON:
+		return SCENE_DUNGEON  # graph-built explorable dungeon (own scene)
 	if RunMap.is_combat_type(t):
 		return SCENE_COMBAT
 	if t == RunMap.TYPE_MERCHANT or t == RunMap.TYPE_CAMPFIRE:

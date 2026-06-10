@@ -371,6 +371,16 @@ var run_seed: int = 0
 # Empty {} means "not inside a run node" — e.g. the standalone endless Play mode, which
 # lets game_world reset the run normally instead of preserving mid-run state.
 var run_node_active: Dictionary = {}
+# Dungeon positive-affix effects, local to the current dungeon node (set by
+# DungeonAffixController, reset whenever a node begins/clears). `dungeon_loot_luck` is an
+# additive bonus LootRoller._roll_rarity folds into its rarity weights (Fortune's Favor);
+# `dungeon_extra_reel` tells the boss chest to spin a 4th reel.
+var dungeon_loot_luck: float = 0.0
+var dungeon_extra_reel: bool = false
+# How many Descent portals deep the party is in the CURRENT dungeon node (0 = surface
+# layer). Reset when a node begins; bumped by the dungeon's descent portal, which reloads
+# the dungeon scene one layer deeper. Drives loot ×1.5 / enemies +1 / +1 negative affix.
+var dungeon_depth: int = 0
 # Last hero the player chose (persisted locally) — the hub spawns you as this on entry.
 # Defaults to barbarian (first available hero). This is a UI preference, not meta-
 # progression, so a small user:// config is fine (meta lives on the backend — see V7).
@@ -560,13 +570,21 @@ func arena_spend(cost: int) -> bool:
 # Mark that the party is now playing `node` (its gameplay scene is loading).
 func begin_run_node(node: Dictionary) -> void:
 	run_node_active = node
+	_reset_dungeon_affix_state()  # each node starts with no carried-over dungeon luck
 
 
 # The active node's gameplay finished — clear it and notify (RunFlow → back to map).
 func clear_run_node() -> void:
 	var node: Dictionary = run_node_active
 	run_node_active = {}
+	_reset_dungeon_affix_state()
 	run_node_cleared.emit(node)
+
+
+func _reset_dungeon_affix_state() -> void:
+	dungeon_loot_luck = 0.0
+	dungeon_extra_reel = false
+	dungeon_depth = 0
 
 
 func add_gold(amount: int) -> void:

@@ -47,7 +47,12 @@ func _ready() -> void:
 
 ## candidates: Array[ItemInstance] (length 3, or 4 with Fortune's Favor).
 func start(award_candidates: Array, wave: int, class_id: String) -> void:
-	candidates = award_candidates
+	candidates = award_candidates.duplicate()
+	# Fortune's Favor (dungeon positive affix) adds a 4th reel of better-odds loot.
+	if GameManager and GameManager.dungeon_extra_reel and candidates.size() < 4:
+		var extra := LootRoller.roll_item(wave, class_id, GameManager.run_difficulty)
+		if extra:
+			candidates.append(extra)
 	if candidates.is_empty():
 		queue_free()
 		return

@@ -16,17 +16,21 @@ struct DungeonExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for DungeonExtension {}
 
-/// Stateless façade. `DungeonGenerator.new().generate(...)` from GDScript.
+/// Stateless façade, instantiable so GDScript can resolve it dynamically via
+/// `ClassDB.instantiate("DungeonGenerator")` without a hard compile-time class
+/// reference (keeps the game loading even if this native lib isn't built yet).
 #[derive(GodotClass)]
-#[class(no_init, base=RefCounted)]
-pub struct DungeonGenerator;
+#[class(init, base=RefCounted)]
+pub struct DungeonGenerator {
+    base: Base<RefCounted>,
+}
 
 #[godot_api]
 impl DungeonGenerator {
     /// Generate a top-level dungeon layer (depth 0).
     /// Deterministic in `(seed, difficulty)`.
     #[func]
-    fn generate(seed: i64, difficulty: i64, depth: i64) -> Gd<DungeonLayerRef> {
+    fn generate(&self, seed: i64, difficulty: i64, depth: i64) -> Gd<DungeonLayerRef> {
         let layer = graph::generate(seed as u64, difficulty.clamp(0, 255) as u8, depth.clamp(0, 255) as u8, None);
         Gd::from_object(DungeonLayerRef { layer })
     }
@@ -34,7 +38,7 @@ impl DungeonGenerator {
     /// Generate the next, deeper layer that inherits `parent`'s affixes and adds
     /// one more negative. Use this when the party takes a Descent portal.
     #[func]
-    fn descend(parent: Gd<DungeonLayerRef>) -> Gd<DungeonLayerRef> {
+    fn descend(&self, parent: Gd<DungeonLayerRef>) -> Gd<DungeonLayerRef> {
         let p = parent.bind();
         let layer = graph::generate(
             p.layer.seed,

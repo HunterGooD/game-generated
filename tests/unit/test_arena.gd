@@ -148,7 +148,7 @@ func test_combat_node_modes() -> void:
 	assert_eq(sp._combat_node_mode(RunMap.TYPE_ELITE), "elite")
 	assert_eq(sp._combat_node_mode(RunMap.TYPE_BOSS), "boss")
 	assert_eq(sp._combat_node_mode(RunMap.TYPE_ARENA), "arena")
-	assert_eq(sp._combat_node_mode(RunMap.TYPE_DUNGEON), "arena", "dungeon reuses arena until Rust gen")
+	assert_eq(sp._combat_node_mode(RunMap.TYPE_DUNGEON), "managed", "dungeon is runner-managed (own scene)")
 	assert_eq(sp._combat_node_mode(RunMap.TYPE_MERCHANT), "", "non-combat → no mode")
 	sp.free()
 

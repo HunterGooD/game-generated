@@ -28,6 +28,7 @@ var _positions: Dictionary = {}  # node id -> Vector2 centre
 var _edges: Node = null  # _EdgeCanvas
 var _root: Control = null
 var _banner: Label = null
+var _dungeon_warn: Dictionary = {}  # dungeon node id -> true when it has known negatives
 
 
 # Edge layer — its own Control so _draw can render the DAG lines behind the node buttons.
@@ -60,6 +61,7 @@ func _rebuild(_a = null) -> void:
 	for c in get_children():
 		c.queue_free()
 	_positions.clear()
+	_dungeon_warn.clear()
 	_edges = null
 	_banner = null
 	var dim := ColorRect.new()
@@ -143,6 +145,15 @@ func _make_node_button(node: Dictionary) -> Button:
 	b.position = _positions[id] - b.size * 0.5
 	b.clip_text = true
 	b.pressed.connect(func(): _on_node_pressed(id))
+	# Dungeon nodes preview their NEGATIVE affixes (rolled by the Rust generator) as a
+	# hover tooltip — informed risk. Positives stay hidden until the party enters.
+	if String(node.get("type", "")) == RunMap.TYPE_DUNGEON:
+		var seed_value: int = DungeonAffixes.node_seed(int(GameManager.run_seed), id)
+		var affixes: Array = DungeonAffixes.generate_node_affixes(seed_value, GameManager.run_difficulty)
+		var tip: String = DungeonAffixes.tooltip_for_affixes(affixes)
+		if tip != "":
+			b.tooltip_text = tip
+			_dungeon_warn[id] = true
 	return b
 
 
@@ -161,7 +172,8 @@ func _refresh() -> void:
 		var letter: String = style[0]
 		var col: Color = style[1]
 		var affix_mark: String = "*" if not (node["affixes"] as Array).is_empty() else ""
-		b.text = "%s%s" % [letter, affix_mark]
+		var warn_mark: String = "⚠" if _dungeon_warn.get(id, false) else ""
+		b.text = "%s%s%s" % [letter, affix_mark, warn_mark]
 		var is_current: bool = id == state.current_id
 		var is_reachable: bool = id in reachable
 		var is_visited: bool = state.visited.has(id)

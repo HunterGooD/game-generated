@@ -22,6 +22,8 @@ func _ready() -> void:
 	c.register_command(cmd_open_map, "open_map", "open the run-map screen (picks difficulty if no run active)")
 	c.register_command(cmd_start_run, "start_run", "start a run: start_run <difficulty 0-3> <seed | -1 random>")
 	c.register_command(cmd_finish_arena, "finish_arena", "instantly end the current arena → reward screen (grants test coin)")
+	c.register_command(cmd_list_dungeon_affixes, "list_dungeon_affixes", "list the 6 dungeon affixes (polarity / shown|hidden)")
+	c.register_command(cmd_dungeon_info, "dungeon_info", "show this dungeon's active affixes, or the run map's per-node negatives")
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -165,6 +167,43 @@ func cmd_finish_arena() -> void:
 		_info("arena finished → reward screen (pick a reward to return to the map)")
 	else:
 		_err("could not finish arena")
+
+
+func cmd_list_dungeon_affixes() -> void:
+	var lines: Array = []
+	for id in DungeonAffixes.DEFS.keys():
+		var pol: String = "+" if DungeonAffixes.is_positive(id) else "−"
+		var vis: String = "hidden" if DungeonAffixes.is_hidden(id) else "shown"
+		lines.append("[%s] %-18s %s (%s)" % [pol, id, DungeonAffixes.display_name(id), vis])
+	_info("dungeon affixes:\n  " + "\n  ".join(lines))
+
+
+func cmd_dungeon_info() -> void:
+	var tree := get_tree()
+	# In a live dungeon node? Read the controller's rolled affixes directly.
+	var ctrl: Node = tree.get_first_node_in_group("dungeon_affix_controller") if tree else null
+	if ctrl:
+		_info(
+			"current dungeon — negatives: %s  positives: %s"
+			% [str(ctrl.get("active_negatives")), str(ctrl.get("active_positives"))]
+		)
+		return
+	# Otherwise preview the active run's dungeon nodes (negatives only; positives stay hidden).
+	if GameManager and GameManager.run_state and GameManager.run_state.is_active():
+		var out: Array = []
+		for node in GameManager.run_state.map.all_nodes():
+			if String(node.get("type", "")) != RunMap.TYPE_DUNGEON:
+				continue
+			var s: int = DungeonAffixes.node_seed(GameManager.run_seed, int(node["id"]))
+			var af: Array = DungeonAffixes.generate_node_affixes(s, GameManager.run_difficulty)
+			var negs: Array = DungeonAffixes.ids_from(af, "negative")
+			out.append("node %d: %s" % [int(node["id"]), str(negs) if not negs.is_empty() else "(none)"])
+		if out.is_empty():
+			_info("no dungeon nodes in the current run")
+		else:
+			_info("dungeon node negatives (positives hidden until entry):\n  " + "\n  ".join(out))
+		return
+	_err("not in a dungeon and no active run — try list_dungeon_affixes")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

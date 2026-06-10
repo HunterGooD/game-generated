@@ -99,12 +99,18 @@ func _ready() -> void:
 	if GameManager and GameManager.run_node_active.is_empty():
 		GameManager.reset_run()
 
-	_build_floor()
-	_build_walls()
-	_place_decorations()
-#	_place_activities()
-
-	_setup_camera_limits()
+	# A graph-built dungeon node carries a DungeonRunner child that lays out the rooms
+	# itself; skip the default arena floor/walls/decor and hand off to it.
+	var dungeon_runner: Node = get_node_or_null("DungeonRunner")
+	if dungeon_runner:
+		_setup_camera_limits()  # runner overrides limits to the dungeon bounds
+		dungeon_runner.call("build")
+	else:
+		_build_floor()
+		_build_walls()
+		_place_decorations()
+	#	_place_activities()
+		_setup_camera_limits()
 
 #	call_deferred("_build_ambient_particles")
 
@@ -125,6 +131,11 @@ func _ready() -> void:
 	# entered game_world without going through the lobby (e.g. dev shortcut).
 	if GameManager and GameManager.player_class == "":
 		call_deferred("_spawn_class_selector")
+
+	# Dungeon nodes carry affixes rolled by the Rust generator — spawn the controller
+	# that reads them and activates their live hazards (gloom / orbs / wrath).
+	if GameManager and String(GameManager.run_node_active.get("type", "")) == RunMap.TYPE_DUNGEON:
+		add_child(DungeonAffixController.new())
 
 	# Listen for level-ups so we can queue choice overlays.
 	if GameManager:

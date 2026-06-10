@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://cgbr5t4omovmj"]
+
+[ext_resource type="Script" uid="uid://d3y5jf73s1dul" path="res://scripts/world/game_world.gd" id="1_world"]
+[ext_resource type="PackedScene" uid="uid://bo2oha83pdf1k" path="res://scenes/entities/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://b8plyrarhud" path="res://scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://blu0dpdiw06sl" path="res://scripts/world/enemy_spawner.gd" id="4_spawner"]
+[ext_resource type="Script" path="res://scripts/world/dungeon_runner.gd" id="5_runner"]
+
+[node name="GameWorld" type="Node2D" node_paths=PackedStringArray("floor_layer", "wall_layer", "decor_layer")]
+script = ExtResource("1_world")
+floor_layer = NodePath("FloorLayer")
+wall_layer = NodePath("WallLayer")
+decor_layer = NodePath("DecorLayer")
+player = NodePath("Player")
+camera = NodePath("Player/Camera2D")
+hud = NodePath("HUD")
+
+[node name="FloorLayer" type="Node2D" parent="."]
+z_index = -10
+
+[node name="DecorLayer" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="WallLayer" type="Node2D" parent="."]
+z_index = 5
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector2(0, 0)
+
+[node name="WorldLight" type="CanvasModulate" parent="."]
+color = Color(0.62, 0.6, 0.78, 1)
+
+[node name="EnemySpawner" type="Node" parent="."]
+script = ExtResource("4_spawner")
+
+[node name="DungeonRunner" type="Node2D" parent="."]
+script = ExtResource("5_runner")
+
+[node name="HUD" parent="." instance=ExtResource("3_hud")]

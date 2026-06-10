@@ -225,10 +225,15 @@ func _ready() -> void:
 					if GameManager:
 						GameManager.arena_reset()
 				_:
-					_node_mode = _combat_node_mode(ntype)  # "elite" | "boss"
+					# "elite" | "boss" | "managed" (dungeon — runner drives spawns)
+					_node_mode = _combat_node_mode(ntype)
 	# In multiplayer, only the host spawns enemies. Clients receive enemy_spawn
 	# messages and instantiate puppet enemies via NetSync.
 	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
+		return
+	# Dungeon nodes are externally managed: the DungeonRunner spawns per-room packs via
+	# spawn_room_pack(); no automatic wave cycle here.
+	if _node_mode == "managed":
 		return
 	# Start the first wave after a short grace period so the player can settle in.
 	var t := get_tree().create_timer(2.5)
@@ -240,6 +245,8 @@ func _start_next_wave() -> void:
 		return
 	if GameManager and GameManager.game_over:
 		return
+	if _node_mode == "managed":
+		return  # dungeon spawns are runner-driven; never auto-advance waves
 	# Arena nodes open with a mandatory pillar choice that starts the timed survival wave.
 	if arena_mode:
 		_arena_open_pillars()
@@ -479,6 +486,10 @@ func _on_enemy_defeated() -> void:
 	# cleared the wave early and let survivors keep fighting during the merchant
 	# break ("волны продолжаются в магазине").
 	enemies_remaining = max(0, enemies_remaining - 1)
+	# Dungeon (managed): the DungeonRunner owns encounters; the spawner runs no wave-end
+	# logic here (kills are just counted above for stats).
+	if _node_mode == "managed":
+		return
 	# Arena waves are timer-driven (survival); kills feed the hidden event counter instead
 	# of ending the wave.
 	if arena_mode:
@@ -867,8 +878,10 @@ func _combat_node_mode(type: String) -> String:
 			return "elite"
 		RunMap.TYPE_BOSS:
 			return "boss"
-		RunMap.TYPE_ARENA, RunMap.TYPE_DUNGEON:
+		RunMap.TYPE_ARENA:
 			return "arena"
+		RunMap.TYPE_DUNGEON:
+			return "managed"  # DungeonRunner drives per-room spawns
 	return ""
 
 
@@ -879,6 +892,52 @@ func _node_combat_mults() -> Dictionary:
 		"dmg": Difficulty.value(diff, "enemy_dmg_mult", 1.0),
 		"reward": Difficulty.value(diff, "reward_mult", 1.0),
 	}
+
+
+# Public spawn entry for the DungeonRunner (managed mode). Spawns `count` enemies of the
+# given types in a ring around `center`, with optional forced elite affixes. Enemies scale
+# with run difficulty AND dungeon depth (+50% hp/dmg per Descent = "enemies +1 level").
+# Reuses _spawn_one so elite rolls, co-op net registration, and pooling all apply.
+func spawn_room_pack(
+	type_ids: Array, center: Vector2, radius: float, count: int, affix_n: int = 0
+) -> void:
+	if type_ids.is_empty() or count <= 0:
+		return
+	var m: Dictionary = _node_combat_mults()
+	var depth: int = GameManager.dungeon_depth if GameManager else 0
+	var depth_mult: float = 1.0 + 0.5 * float(depth)
+	for i in count:
+		var t: String = String(type_ids[i % type_ids.size()])
+		var ang: float = TAU * float(i) / float(maxi(1, count)) + randf()
+		var pos: Vector2 = center + Vector2(cos(ang), sin(ang)) * radius * randf_range(0.45, 1.0)
+		var affixes: Array = EnemyAffixes.roll(affix_n) if affix_n > 0 else []
+		_spawn_one(
+			t,
+			float(m["hp"]) * depth_mult,
+			float(m["dmg"]) * depth_mult,
+			float(m["reward"]),
+			float(m["reward"]),
+			affixes,
+			pos
+		)
+
+
+# A single beefy, fully-affixed mini-boss for a dungeon elite room. Tanky (×3 hp) with a
+# big reward bump; reuses _spawn_one so affix auras + co-op net registration apply.
+func spawn_miniboss(type_id: String, center: Vector2, affix_n: int = 3) -> Node:
+	var m: Dictionary = _node_combat_mults()
+	var depth: int = GameManager.dungeon_depth if GameManager else 0
+	var depth_mult: float = 1.0 + 0.5 * float(depth)
+	var affixes: Array = EnemyAffixes.roll(maxi(2, affix_n))
+	return _spawn_one(
+		type_id,
+		float(m["hp"]) * depth_mult * 3.0,
+		float(m["dmg"]) * depth_mult * 1.3,
+		float(m["reward"]) * 2.0,
+		float(m["reward"]) * 2.0,
+		affixes,
+		center
+	)
 
 
 # Elite node: one pack of 3–5 elites. Clearing them all finishes the node.
@@ -1144,6 +1203,10 @@ func _on_boss_defeated(boss_id: String, reward: String) -> void:
 		hud.call("hide_boss_bar")
 	# Avoid "unused" warning.
 	var _ignore := boss_id
+	# Dungeon (managed) → the DungeonRunner owns the reward chest + exit/descent portals.
+	# Don't drop loot or schedule another wave here.
+	if _node_mode == "managed":
+		return
 	# Arena finale boss → reward chests, then back to the map.
 	if arena_mode:
 		_finish_arena()

@@ -83,5 +83,8 @@ func _activate() -> void:
 		tw.tween_property(sprite, "scale", sprite.scale * 2.2, 0.55)
 		tw.tween_property(sprite, "modulate:a", 0.0, 0.55)
 	activated.emit()
-	var t := get_tree().create_timer(0.65)
-	t.timeout.connect(queue_free)
+	# The handler may swap/reload the scene (e.g. dungeon descent), which removes us from
+	# the tree — only set up our own fade-cleanup timer if we're still in it.
+	if is_inside_tree():
+		var t := get_tree().create_timer(0.65)
+		t.timeout.connect(queue_free)

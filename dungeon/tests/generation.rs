@@ -119,6 +119,39 @@ fn descent_inherits_affixes_and_adds_one_negative() {
 }
 
 #[test]
+fn loops_reconnect_into_cycles() {
+    // Side paths loop back into the spine, so most layers contain at least one cycle.
+    // A connected graph with a cycle has |E| >= |V| (a tree is exactly |V|-1); leaf rooms
+    // (exit/descent/dead-ends) add equal V and E, so this still detects the loops.
+    let total: u64 = 200;
+    let mut with_cycle = 0;
+    for seed in 0..total {
+        let l = layer(seed, 2, 0);
+        if l.edges.len() >= l.rooms.len() {
+            with_cycle += 1;
+        }
+    }
+    assert!(
+        with_cycle > (total / 2) as usize,
+        "expected most layers to loop, got {with_cycle}/{total}"
+    );
+}
+
+#[test]
+fn event_pillars_appear() {
+    // The new EventPillar is now common loop content.
+    let mut total_pillars = 0;
+    for seed in 0..200u64 {
+        total_pillars += layer(seed, 2, 0)
+            .rooms
+            .iter()
+            .filter(|r| r.kind == RoomKind::EventPillar)
+            .count();
+    }
+    assert!(total_pillars > 0, "event pillars should be generated");
+}
+
+#[test]
 fn positives_hidden_negatives_visible() {
     for seed in 0..500u64 {
         let l = layer(seed, 2, 0);
