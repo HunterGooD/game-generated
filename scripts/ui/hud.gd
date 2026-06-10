@@ -54,6 +54,10 @@ func _ready() -> void:
 		GameManager.wave_cleared.connect(_on_wave_cleared)
 		GameManager.xp_gained.connect(_on_xp_gained)
 		GameManager.class_selected.connect(_on_class_selected)
+		GameManager.notice.connect(_show_banner)
+		GameManager.arena_timer.connect(_on_arena_timer)
+		GameManager.arena_currency_changed.connect(_on_arena_currency)
+		GameManager.run_node_cleared.connect(_on_run_node_cleared)
 	_refresh()
 	_refresh_gold(GameManager.gold if GameManager else 0)
 	if hint_label:
@@ -95,6 +99,67 @@ func _build_status_row() -> void:
 
 # Persistent wave counter pinned top-center, separate from the transient banner.
 var wave_counter_label: Label = null
+# Arena wave countdown, just under the wave counter (built lazily on first arena_timer).
+var arena_timer_label: Label = null
+
+
+func _on_arena_timer(seconds_left: int) -> void:
+	if seconds_left < 0:
+		if arena_timer_label:
+			arena_timer_label.visible = false
+		return
+	if arena_timer_label == null:
+		var band := Control.new()
+		band.name = "ArenaTimer"
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(band)
+		band.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		band.offset_top = 46
+		band.offset_bottom = 78
+		arena_timer_label = Label.new()
+		arena_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		arena_timer_label.add_theme_font_size_override("font_size", 20)
+		arena_timer_label.add_theme_color_override("font_color", Color(0.6, 0.92, 1.0, 1))
+		arena_timer_label.add_theme_color_override("font_outline_color", Color(0.0, 0.05, 0.1, 1))
+		arena_timer_label.add_theme_constant_override("outline_size", 4)
+		band.add_child(arena_timer_label)
+		arena_timer_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	arena_timer_label.visible = true
+	arena_timer_label.text = "⏱ %d" % seconds_left
+
+
+# Local arena currency — a gold coin counter pinned top-right, shown during an arena node.
+var arena_coin_label: Label = null
+
+
+func _on_arena_currency(amount: int) -> void:
+	if arena_coin_label == null:
+		var band := Control.new()
+		band.name = "ArenaCoins"
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(band)
+		band.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		band.offset_left = -260
+		band.offset_right = -16
+		band.offset_top = 12
+		band.offset_bottom = 46
+		arena_coin_label = Label.new()
+		arena_coin_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		arena_coin_label.add_theme_font_size_override("font_size", 22)
+		arena_coin_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.25, 1))
+		arena_coin_label.add_theme_color_override("font_outline_color", Color(0.2, 0.1, 0.0, 1))
+		arena_coin_label.add_theme_constant_override("outline_size", 4)
+		band.add_child(arena_coin_label)
+		arena_coin_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	arena_coin_label.visible = true
+	arena_coin_label.text = "🪙 %d" % amount
+
+
+func _on_run_node_cleared(_node: Dictionary) -> void:
+	if arena_coin_label:
+		arena_coin_label.visible = false
+	if arena_timer_label:
+		arena_timer_label.visible = false
 
 
 func _build_wave_counter() -> void:

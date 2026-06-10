@@ -1,6 +1,7 @@
 extends Control
 
 const PLAY_TARGET_SCENE := "res://scenes/world/game_world.tscn"
+const HUB_SCENE := "res://scenes/world/hub.tscn"
 
 # Buttons detected by scanning assets/ui/btn_*.tres at provisioning time.
 # Parallel arrays (rather than Array[Dictionary]) because GDScript const
@@ -167,7 +168,10 @@ func _on_button_pressed(id: String) -> void:
 	_play_click_sfx()
 	match id:
 		"play", "continue", "new_game":
-			_show_mode_picker_modal()
+			# Straight into the hub as the last-played hero (no solo/co-op picker — co-op
+			# create/join via the hub is a later task). You pick difficulty + nodes from
+			# the run map reached through the hub portal.
+			_go_to_hub()
 		"settings", "options":
 			_open_settings_or_noop()
 		"credits":
@@ -327,6 +331,18 @@ func _go_to_play() -> void:
 		loader.preload_and_change_scene(PLAY_TARGET_SCENE)
 	else:
 		get_tree().change_scene_to_file(PLAY_TARGET_SCENE)
+
+
+# Enter the walkable hub (solo). Drop any stale net connection so the hub/run are solo.
+func _go_to_hub() -> void:
+	if NetManager:
+		NetManager.disconnect_from_room()
+		NetManager.lobby_intent = ""
+	var loader := get_node_or_null("/root/LoadingScreen")
+	if loader and loader.has_method("preload_and_change_scene"):
+		loader.preload_and_change_scene(HUB_SCENE)
+	else:
+		get_tree().change_scene_to_file(HUB_SCENE)
 
 
 func _open_settings_or_noop() -> void:

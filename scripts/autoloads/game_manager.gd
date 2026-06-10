@@ -26,6 +26,12 @@ signal run_node_entered(node: Dictionary)
 # RunFlow listens and returns the party to the run map.
 signal run_node_cleared(node: Dictionary)
 signal run_completed
+# Arena local currency changed (the shared pool earned from empowerment pillars).
+signal arena_currency_changed(amount: int)
+# Transient on-screen notice (the HUD shows it as a banner) — wave/pillar/event callouts.
+signal notice(text: String, color: Color)
+# Arena wave countdown (seconds left); -1 = hide. The HUD shows it.
+signal arena_timer(seconds_left: int)
 
 # Class catalog — base stats and per-level growth.
 const CLASSES := {
@@ -365,6 +371,30 @@ var run_seed: int = 0
 # Empty {} means "not inside a run node" — e.g. the standalone endless Play mode, which
 # lets game_world reset the run normally instead of preserving mid-run state.
 var run_node_active: Dictionary = {}
+# Last hero the player chose (persisted locally) — the hub spawns you as this on entry.
+# Defaults to barbarian (first available hero). This is a UI preference, not meta-
+# progression, so a small user:// config is fine (meta lives on the backend — see V7).
+var last_class: String = "barbarian"
+const _PREFS_PATH: String = "user://prefs.cfg"
+# Arena economy (local to an arena node). `arena_currency` is a SHARED pool earned from
+# empowerment pillars; `arena_enemy_power` is the escalation multiplier "empower enemies"
+# pillars stack onto subsequent waves. Both reset when an arena node begins. (Co-op: the
+# pool is shared, but each player spends it on themselves — that split is a later nuance;
+# solo spends the whole pool.)
+var arena_currency: int = 0
+# Bonuses ACCUMULATE across the whole arena (every pillar you pick stacks) and are wiped on
+# exit — unless arena_carryover (a future upgrade) keeps them across all arena nodes.
+var arena_enemy_power: float = 1.0  # red "brutality" — enemy hp/dmg
+var arena_event_threshold: int = 12  # red "frenzy" lowers it → events fire sooner
+var arena_spawn_bonus: float = 0.0  # red "horde" — bigger batches
+var arena_buff_dmg: float = 1.0  # green "might" — player damage
+var arena_buff_spd: float = 1.0  # green "swift" — player speed
+const ARENA_BASE_THRESHOLD: int = 12
+# When true (a future meta upgrade / unique can flip it), arena effects + currency are NOT
+# wiped between arena nodes — they stack across the run. Default off = effects are local to
+# the current arena and vanish when you move to the next node on the map.
+var arena_carryover: bool = false
+const ARENA_GOLD_RATE: int = 2  # dump chest: 1 local coin → 2 gold
 var is_paused: bool = false
 var total_gold_earned: int = 0
 var highest_wave: int = 0
@@ -454,6 +484,76 @@ func run_travel_to(id: int) -> bool:
 	run_node_entered.emit(run_state.current_node())
 	if run_state.is_complete():
 		run_completed.emit()
+	return true
+
+
+# ── Hero preference (persisted) ───────────────────────────────────────────────
+func _ready() -> void:
+	_load_prefs()
+
+
+# Record the chosen hero so the hub spawns you as it next time.
+func set_last_class(class_id: String) -> void:
+	if not CLASSES.has(class_id):
+		return
+	last_class = class_id
+	_save_prefs()
+
+
+func _load_prefs() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(_PREFS_PATH) != OK:
+		return
+	var lc: String = String(cfg.get_value("hero", "last_class", "barbarian"))
+	if CLASSES.has(lc):
+		last_class = lc
+
+
+func _save_prefs() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(_PREFS_PATH)  # keep any other stored keys
+	cfg.set_value("hero", "last_class", last_class)
+	cfg.save(_PREFS_PATH)
+
+
+# ── Arena economy ─────────────────────────────────────────────────────────────
+func arena_reset() -> void:
+	# Carryover (a future upgrade) keeps the empowerment + currency stacking across arenas.
+	if arena_carryover:
+		return
+	arena_currency = 0
+	arena_enemy_power = 1.0
+	arena_event_threshold = ARENA_BASE_THRESHOLD
+	arena_spawn_bonus = 0.0
+	arena_buff_dmg = 1.0
+	arena_buff_spd = 1.0
+	arena_currency_changed.emit(arena_currency)
+
+
+# Grant local currency into the shared pool (from pillar picks and cleared events).
+func arena_award(amount: int) -> void:
+	if amount <= 0:
+		return
+	arena_currency += amount
+	arena_currency_changed.emit(arena_currency)
+
+
+# Dump chest — convert ALL remaining local currency to gold at ARENA_GOLD_RATE. Returns the
+# gold granted.
+func arena_dump_to_gold() -> int:
+	var gold_gained: int = arena_currency * ARENA_GOLD_RATE
+	arena_currency = 0
+	arena_currency_changed.emit(0)
+	add_gold(gold_gained)
+	return gold_gained
+
+
+# Spend from the shared pool if affordable. Returns whether the purchase went through.
+func arena_spend(cost: int) -> bool:
+	if cost <= 0 or arena_currency < cost:
+		return false
+	arena_currency -= cost
+	arena_currency_changed.emit(arena_currency)
 	return true
 
 

@@ -28,7 +28,7 @@ func test_combat_types() -> void:
 
 
 func test_combat_plan_per_type() -> void:
-	assert_eq(int(RunMap.combat_plan(_node(RunMap.TYPE_ARENA))["waves"]), 4)
+	assert_eq(int(RunMap.combat_plan(_node(RunMap.TYPE_ARENA))["waves"]), 10)
 	assert_eq(int(RunMap.combat_plan(_node(RunMap.TYPE_DUNGEON))["waves"]), 5)
 	var elite := RunMap.combat_plan(_node(RunMap.TYPE_ELITE))
 	assert_eq(int(elite["waves"]), 3)

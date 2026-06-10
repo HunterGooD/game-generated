@@ -21,6 +21,7 @@ func _ready() -> void:
 	c.register_command(cmd_kill_all, "kill_all", "kill all live enemies")
 	c.register_command(cmd_open_map, "open_map", "open the run-map screen (picks difficulty if no run active)")
 	c.register_command(cmd_start_run, "start_run", "start a run: start_run <difficulty 0-3> <seed | -1 random>")
+	c.register_command(cmd_finish_arena, "finish_arena", "instantly end the current arena → reward screen (grants test coin)")
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -151,6 +152,19 @@ func cmd_open_map() -> void:
 		return
 	RunFlow.open_map()
 	_info("opened run-map")
+
+
+func cmd_finish_arena() -> void:
+	var sp := _spawner()
+	if sp == null or not bool(sp.get("arena_mode")):
+		_err("not in an arena node")
+		return
+	if GameManager:
+		GameManager.arena_award(200)  # so the reward chests are affordable to test
+	if sp.call("dev_finish_arena"):
+		_info("arena finished → reward screen (pick a reward to return to the map)")
+	else:
+		_err("could not finish arena")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

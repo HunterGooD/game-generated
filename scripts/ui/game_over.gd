@@ -74,28 +74,28 @@ func _populate() -> void:
 
 
 func _on_menu() -> void:
-	# Return to the lobby (the new entry point for both solo and multiplayer)
-	# instead of dropping all the way back to the main menu.
 	get_tree().paused = false
 	if GameManager:
-		GameManager.player_class = ""
 		GameManager.game_over = false
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_ui_menu_click.mp3", -8.0)
-	# In multiplayer, keep the room alive so the party can re-ready together.
-	# In solo, simply re-enter the lobby (which auto-enters in-room solo mode).
-	var dest_path: String = "res://scenes/ui/multiplayer_lobby.tscn"
+	# Solo: back to the walkable HUB (the new entry point) — abandons the run and respawns
+	# you as your last hero. Multiplayer: keep the room and re-enter the lobby together.
 	if NetManager and NetManager.is_multiplayer:
-		# Keep the connection. The lobby reconstructs the in-room view because
-		# NetManager.is_multiplayer is still true.
-		pass
-	var ls = get_tree().root.get_node_or_null("LoadingScreen")
-	if ls and ls.has_method("preload_and_change_scene"):
-		ls.call("preload_and_change_scene", dest_path)
-	elif ls and ls.has_method("change_scene"):
-		ls.call("change_scene", dest_path)
+		if GameManager:
+			GameManager.player_class = ""
+		var dest_path: String = "res://scenes/ui/multiplayer_lobby.tscn"
+		var ls = get_tree().root.get_node_or_null("LoadingScreen")
+		if ls and ls.has_method("preload_and_change_scene"):
+			ls.call("preload_and_change_scene", dest_path)
+		elif ls and ls.has_method("change_scene"):
+			ls.call("change_scene", dest_path)
+		else:
+			get_tree().change_scene_to_file(dest_path)
+	elif RunFlow:
+		RunFlow.exit_to_hub()
 	else:
-		get_tree().change_scene_to_file(dest_path)
+		get_tree().change_scene_to_file("res://scenes/world/hub.tscn")
 
 
 func _on_retry() -> void:

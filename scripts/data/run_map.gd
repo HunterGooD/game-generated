@@ -40,7 +40,7 @@ static func combat_plan(node: Dictionary) -> Dictionary:
 	var plan: Dictionary = {"waves": 0, "elite_chance": -1.0}
 	match String(node.get("type", "")):
 		TYPE_ARENA:
-			plan = {"waves": 4, "elite_chance": -1.0}
+			plan = {"waves": 10, "elite_chance": -1.0}  # arena cycle = 10 waves → finale boss
 		TYPE_ELITE:
 			plan = {"waves": 3, "elite_chance": 0.6}
 		TYPE_DUNGEON:

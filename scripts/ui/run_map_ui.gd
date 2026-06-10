@@ -228,15 +228,15 @@ func _build_chrome() -> void:
 	close.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	close.position = Vector2(-104, 16)
 	close.custom_minimum_size = Vector2(120, 36)
-	close.text = "Quit to Menu"
+	close.text = "Back to Hub"
 	close.pressed.connect(_on_close)
 	_root.add_child(close)
 
 
 func _on_close() -> void:
-	# As a scene root, freeing ourselves would leave an empty tree — go to the menu.
+	# As a scene root, freeing ourselves would leave an empty tree — return to the hub.
 	if get_parent() == get_tree().root:
-		RunFlow.exit_to_menu()
+		RunFlow.exit_to_hub()
 	else:
 		queue_free()  # overlay use (e.g. dev): just dismiss
 

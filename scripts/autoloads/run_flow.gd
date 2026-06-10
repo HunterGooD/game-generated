@@ -11,7 +11,7 @@ extends Node
 
 const SCENE_RUN_MAP := "res://scenes/ui/run_map.tscn"
 const SCENE_COMBAT := "res://scenes/world/game_world.tscn"
-const SCENE_MAIN := "res://scenes/main.tscn"
+const SCENE_HUB := "res://scenes/world/hub.tscn"
 
 # Only drive scene changes while RunFlow actually owns a live run (entered via start_run /
 # open_map). Otherwise stray GameManager run signals — e.g. unit tests exercising
@@ -36,11 +36,12 @@ func open_map() -> void:
 	_change_scene(SCENE_RUN_MAP)
 
 
-func exit_to_menu() -> void:
+# Leave the run and return to the hub (the staging area). Abandons the current run.
+func exit_to_hub() -> void:
 	_flow_active = false
 	GameManager.run_state = null
 	GameManager.run_node_active = {}
-	_change_scene(SCENE_MAIN)
+	_change_scene(SCENE_HUB)
 
 
 # Scene path for a node, or "" when the node auto-resolves on the map (merchant/campfire).

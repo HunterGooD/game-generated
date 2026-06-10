@@ -1408,6 +1408,20 @@ func _safety_free() -> void:
 		_release_or_free()
 
 
+# Remove this enemy with NO rewards/drops/death event (used when an arena wave ends and
+# survivors are wiped — the incentive is to kill them during the wave). Pools the node.
+func despawn_silent() -> void:
+	if dead:
+		return
+	dead = true
+	if collision_shape:
+		collision_shape.set_deferred("disabled", true)
+	if hurtbox:
+		hurtbox.set_deferred("monitoring", false)
+		hurtbox.set_deferred("monitorable", false)
+	_release_or_free()
+
+
 # Final death exit — return to the pool if pool-managed, else free. Guarded so the
 # dissolve tween and the safety timer can't both act on the same corpse.
 func _release_or_free() -> void:

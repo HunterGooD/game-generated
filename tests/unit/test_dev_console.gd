@@ -9,6 +9,11 @@ class _MockSpawner:
 	extends Node
 	var spawned: Array = []
 	var current_wave: int = 4
+	var arena_mode: bool = false
+	var finished: bool = false
+	func dev_finish_arena() -> bool:
+		finished = true
+		return true
 	func dev_spawn(type, affixes, _pos) -> bool:
 		if type == "skeleton" or type == "cultist":
 			spawned.append([type, (affixes as Array).duplicate()])
@@ -126,6 +131,21 @@ func test_kill_all_hits_every_enemy() -> void:
 	DevConsole.cmd_kill_all()
 	assert_eq(e1.hits.size(), 1)
 	assert_eq(e2.hits.size(), 1)
+
+
+func test_finish_arena_grants_coin_and_finishes() -> void:
+	var cur0: int = GameManager.arena_currency
+	_sp.arena_mode = true
+	DevConsole.cmd_finish_arena()
+	assert_true(_sp.finished, "dev_finish_arena invoked")
+	assert_eq(GameManager.arena_currency, cur0 + 200, "test coin granted for reward testing")
+	GameManager.arena_currency = cur0
+
+
+func test_finish_arena_noop_outside_arena() -> void:
+	_sp.arena_mode = false
+	DevConsole.cmd_finish_arena()
+	assert_false(_sp.finished, "does nothing when not in an arena")
 
 
 func test_list_commands_do_not_error() -> void:
