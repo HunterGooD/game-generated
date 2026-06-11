@@ -455,6 +455,20 @@ func reset_run() -> void:
 	player_strength = int(base.get("strength", 5))
 	player_dexterity = int(base.get("dexterity", 5))
 	player_intelligence = int(base.get("intelligence", 5))
+	# Meta-mirror passives — fold the player's persistent tree bonuses on top of the base
+	# stat line so every run starts already empowered. Per-player & local in co-op (each
+	# peer applies its own save to its own player). Empty {} when the class has no tree.
+	if player_class != "" and MetaProgress != null:
+		_apply_stat_dict(MetaProgress.meta_bonus(player_class))
+		# Repeatable-notable ranks add small PERCENT bumps (the infinite point sink).
+		var mpct: Dictionary = MetaProgress.meta_percent(player_class)
+		var dmg_pct: float = float(mpct.get("damage", 0.0))
+		var hp_pct: float = float(mpct.get("max_hp", 0.0))
+		if dmg_pct != 0.0:
+			player_damage = int(round(float(player_damage) * (1.0 + dmg_pct)))
+		if hp_pct != 0.0:
+			player_max_hp = int(round(float(player_max_hp) * (1.0 + hp_pct)))
+			player_hp = player_max_hp
 	gold = 0
 	total_gold_earned = 0
 	highest_wave = 0
@@ -663,6 +677,10 @@ func add_xp(amount: int, apply_mult: bool = true) -> void:
 	):
 		_spec_path_offered = true
 		spec_path_offered.emit()
+	# Mirror run XP into the player's persistent meta level (local & per-class). 1:1 for now
+	# — the rate is a polish-time tuning knob. Co-op: each peer feeds its own local class.
+	if player_class != "" and MetaProgress != null:
+		MetaProgress.award_xp(player_class, amount)
 	player_stats_changed.emit()
 
 
@@ -703,6 +721,9 @@ func _apply_stat_dict(s: Dictionary) -> void:
 	player_move_speed += float(s.get("move_speed", 0.0))
 	player_crit_chance += float(s.get("crit_chance", 0.0))
 	player_crit_damage += float(s.get("crit_damage", 0.0))
+	player_strength += int(s.get("strength", 0))
+	player_dexterity += int(s.get("dexterity", 0))
+	player_intelligence += int(s.get("intelligence", 0))
 
 
 func damage_player(amount: int) -> void:

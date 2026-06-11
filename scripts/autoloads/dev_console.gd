@@ -24,6 +24,12 @@ func _ready() -> void:
 	c.register_command(cmd_finish_arena, "finish_arena", "instantly end the current arena → reward screen (grants test coin)")
 	c.register_command(cmd_list_dungeon_affixes, "list_dungeon_affixes", "list the 6 dungeon affixes (polarity / shown|hidden)")
 	c.register_command(cmd_dungeon_info, "dungeon_info", "show this dungeon's active affixes, or the run map's per-node negatives")
+	c.register_command(cmd_meta_info, "meta_info", "show the current class's meta-mirror level/points/allocated nodes")
+	c.register_command(cmd_meta_nodes, "meta_nodes", "list the current class's meta-tree node ids (type, allocated?)")
+	c.register_command(cmd_meta_xp, "meta_xp", "grant meta XP to the current class: meta_xp <amount>")
+	c.register_command(cmd_meta_levels, "meta_levels", "grant N meta levels to the current class: meta_levels <n>")
+	c.register_command(cmd_meta_alloc, "meta_alloc", "allocate a meta node for the current class: meta_alloc <node_id>")
+	c.register_command(cmd_meta_respec, "meta_respec", "free full respec of the current class's meta tree")
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -204,6 +210,92 @@ func cmd_dungeon_info() -> void:
 			_info("dungeon node negatives (positives hidden until entry):\n  " + "\n  ".join(out))
 		return
 	_err("not in a dungeon and no active run — try list_dungeon_affixes")
+
+
+# ── meta-mirror (Phase A) ──────────────────────────────────────────────────────
+# The class whose mirror the dev commands act on — the active class, falling back to the
+# last-selected hero so the commands work in the hub before a run starts.
+func _meta_class() -> String:
+	if GameManager == null:
+		return ""
+	var c: String = String(GameManager.player_class)
+	return c if c != "" else String(GameManager.last_class)
+
+
+func cmd_meta_info() -> void:
+	if MetaProgress == null:
+		_err("MetaProgress unavailable")
+		return
+	var cls: String = _meta_class()
+	var s: Dictionary = MetaProgress.summary(cls)
+	var alloc: Array = s.get("allocated", [])
+	_info(
+		(
+			"meta[%s] lvl %d  (xp %d/%d)  points %d/%d  allocated: %s"
+			% [
+				cls,
+				int(s.get("meta_level", 1)),
+				int(s.get("meta_xp", 0)),
+				int(s.get("xp_to_next", 0)),
+				int(s.get("points_available", 0)),
+				int(s.get("points_total", 0)),
+				str(alloc) if not alloc.is_empty() else "(none)",
+			]
+		)
+	)
+
+
+func cmd_meta_nodes() -> void:
+	if MetaProgress == null:
+		_err("MetaProgress unavailable")
+		return
+	var cls: String = _meta_class()
+	var tree: Dictionary = MetaTrees.tree_for(cls)
+	if tree.is_empty():
+		_info("meta[%s] has no tree yet (Phase C rollout)" % cls)
+		return
+	var lines: Array = []
+	for id in tree:
+		var nd: Dictionary = tree[id]
+		var mark: String = "✓" if MetaProgress.is_allocated(cls, String(id)) else " "
+		lines.append("[%s] %-10s %s" % [mark, String(id), String(nd.get("type", "?"))])
+	_info("meta[%s] nodes:\n  %s" % [cls, "\n  ".join(lines)])
+
+
+func cmd_meta_xp(amount: int = 100) -> void:
+	if MetaProgress == null:
+		return
+	var cls: String = _meta_class()
+	MetaProgress.award_xp(cls, maxi(1, amount))
+	cmd_meta_info()
+
+
+func cmd_meta_levels(n: int = 1) -> void:
+	if MetaProgress == null:
+		return
+	var cls: String = _meta_class()
+	for i in maxi(1, n):
+		# Grant exactly enough XP to cross the next level threshold.
+		MetaProgress.award_xp(cls, MetaProgress.xp_to_next(cls) - MetaProgress.get_meta_xp(cls))
+	cmd_meta_info()
+
+
+func cmd_meta_alloc(node_id: String = "") -> void:
+	if MetaProgress == null:
+		return
+	var cls: String = _meta_class()
+	if MetaProgress.allocate(cls, node_id):
+		_info("meta[%s] allocated '%s' (re-enter a run to apply bonuses)" % [cls, node_id])
+	else:
+		_err("could not allocate '%s' (unknown, no points, or not connected — try meta_nodes)" % node_id)
+
+
+func cmd_meta_respec() -> void:
+	if MetaProgress == null:
+		return
+	var cls: String = _meta_class()
+	MetaProgress.respec(cls)
+	_info("meta[%s] respec — all points refunded" % cls)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

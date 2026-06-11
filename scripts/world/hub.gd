@@ -11,6 +11,11 @@ extends Node2D
 const FLOOR_TEX: String = "res://assets/textures/floors/ruins_floor.webp"
 const HERO_SELECT := preload("res://scripts/ui/hero_select.gd")
 const COOP_PANEL := preload("res://scripts/ui/hub_coop_panel.gd")
+const META_TREE := preload("res://scripts/ui/meta_tree_ui.gd")
+const MIRROR_SHADER := preload("res://assets/shaders/hub_mirror.gdshader")
+const PORTAL_SHADER := preload("res://assets/shaders/hub_portal.gdshader")
+const WARDROBE_SHADER := preload("res://assets/shaders/hub_wardrobe.gdshader")
+const BEACON_SHADER := preload("res://assets/shaders/hub_beacon.gdshader")
 # NetSync is loaded lazily (not preloaded) — it pulls in the whole combat scene
 # graph (boss / merchant / minions), which a solo hub has no need to compile.
 const NET_SYNC_PATH: String = "res://scripts/world/net_sync.gd"
@@ -86,36 +91,169 @@ func _build_floor() -> void:
 
 func _spawn_props() -> void:
 	_props.append(
-		_make_prop("Wardrobe  —  change hero", Vector2(-260, -40), Color(0.55, 0.7, 1.0), _open_wardrobe)
+		_make_prop(
+			"Wardrobe  —  change hero",
+			Vector2(-260, -40),
+			Color(0.55, 0.7, 1.0),
+			_open_wardrobe,
+			WARDROBE_SHADER,
+			"spark"
+		)
 	)
 	_props.append(
-		_make_prop("Portal  —  begin the run", Vector2(260, -40), Color(1.0, 0.55, 0.35), _enter_portal)
+		_make_prop(
+			"Portal  —  begin the run",
+			Vector2(260, -40),
+			Color(1.0, 0.55, 0.35),
+			_enter_portal,
+			PORTAL_SHADER,
+			"fire",
+			Vector2(96, 132)
+		)
 	)
 	_props.append(
-		_make_prop("Beacon  —  co-op", Vector2(0, -220), Color(0.5, 0.85, 0.6), _open_coop_panel)
+		_make_prop(
+			"Beacon  —  co-op",
+			Vector2(0, -220),
+			Color(0.5, 0.85, 0.6),
+			_open_coop_panel,
+			BEACON_SHADER,
+			"green",
+			Vector2(128, 88)
+		)
 	)
+	_props.append(_make_mirror_prop("Mirror  —  meta tree", Vector2(260, -220), _open_mirror))
 
 
-func _make_prop(text: String, pos: Vector2, tint: Color, action: Callable) -> Dictionary:
+func _make_prop(
+	text: String,
+	pos: Vector2,
+	tint: Color,
+	action: Callable,
+	shader: Shader = null,
+	particle_kind: String = "",
+	body_size: Vector2 = Vector2(64, 88)
+) -> Dictionary:
 	var root := Node2D.new()
 	root.position = pos
 	add_child(root)
-	# Simple glowing marker (art polish later).
+	# Body: a flat marker by default, or a shader-driven surface (portal/wardrobe/beacon).
+	# Stands on the ground line (bottom at y=0), centred horizontally.
 	var body := ColorRect.new()
 	body.color = tint
-	body.size = Vector2(64, 88)
-	body.position = Vector2(-32, -88)
+	body.size = body_size
+	body.position = Vector2(-body_size.x * 0.5, -body_size.y)
+	if shader != null:
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("tint", tint)
+		body.material = mat
 	root.add_child(body)
-	var glow := ColorRect.new()
-	glow.color = Color(tint.r, tint.g, tint.b, 0.25)
-	glow.size = Vector2(96, 120)
-	glow.position = Vector2(-48, -104)
-	glow.z_index = -1
-	root.add_child(glow)
+	# Optional ambient particles (fire embers / green sparks / sparkles) rising off the prop.
+	if particle_kind != "":
+		root.add_child(_make_particles(particle_kind, tint, body_size))
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(-120, -128)
+	label.position = Vector2(-120, -body_size.y - 40.0)
+	label.custom_minimum_size = Vector2(240, 0)
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.82))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	label.add_theme_constant_override("outline_size", 4)
+	root.add_child(label)
+	return {"node": root, "label": label, "pos": pos, "base_text": text, "action": action, "in_range": false}
+
+
+# Ambient particle emitter for a prop. "fire" = rising orange embers (portal), "green" =
+# small rising green sparks (beacon), anything else = drifting sparkles (wardrobe). Emission
+# is scaled to the body (which spans y ∈ [-body_size.y, 0], centred on x).
+func _make_particles(kind: String, _tint: Color, body_size: Vector2 = Vector2(64, 88)) -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.emitting = true
+	p.lifetime_randomness = 0.4
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	var base_y: float = -body_size.y * 0.14  # just above the prop's base
+	var half_w: float = body_size.x * 0.42
+	match kind:
+		"fire":
+			p.position = Vector2(0, base_y)
+			p.amount = 26
+			p.lifetime = 1.1
+			p.emission_rect_extents = Vector2(half_w, 6)
+			p.direction = Vector2(0, -1)
+			p.spread = 22.0
+			p.gravity = Vector2(0, -30)
+			p.initial_velocity_min = 18.0
+			p.initial_velocity_max = 42.0
+			p.scale_amount_min = 2.0
+			p.scale_amount_max = 4.0
+			p.color = Color(1.0, 0.6, 0.2)
+			p.color_ramp = _fade_ramp(Color(1.0, 0.85, 0.4), Color(0.95, 0.25, 0.12))
+		"green":
+			p.position = Vector2(0, base_y)
+			p.amount = 26
+			p.lifetime = 1.4
+			p.emission_rect_extents = Vector2(half_w, 6)
+			p.direction = Vector2(0, -1)
+			p.spread = 16.0
+			p.gravity = Vector2(0, -22)
+			p.initial_velocity_min = 14.0
+			p.initial_velocity_max = 34.0
+			p.scale_amount_min = 1.5
+			p.scale_amount_max = 3.0
+			p.color = Color(0.5, 0.95, 0.55)
+			p.color_ramp = _fade_ramp(Color(0.7, 1.0, 0.7), Color(0.3, 0.8, 0.4))
+		_:  # "spark" — drifting twinkles across the body.
+			p.position = Vector2(0, -body_size.y * 0.5)
+			p.amount = 18
+			p.lifetime = 1.6
+			p.emission_rect_extents = Vector2(body_size.x * 0.45, body_size.y * 0.45)
+			p.direction = Vector2(0, -1)
+			p.spread = 180.0
+			p.gravity = Vector2(0, -6)
+			p.initial_velocity_min = 4.0
+			p.initial_velocity_max = 14.0
+			p.scale_amount_min = 1.0
+			p.scale_amount_max = 2.5
+			p.color = Color(0.75, 0.85, 1.0)
+			p.color_ramp = _fade_ramp(Color(0.85, 0.92, 1.0), Color(0.55, 0.7, 1.0))
+	return p
+
+
+# Two-stop gradient that fades the particle out (start opaque → end transparent).
+func _fade_ramp(c_start: Color, c_end: Color) -> Gradient:
+	var g := Gradient.new()
+	g.set_color(0, Color(c_start.r, c_start.g, c_start.b, 1.0))
+	g.set_color(1, Color(c_end.r, c_end.g, c_end.b, 0.0))
+	return g
+
+
+# The Mirror prop is a tall pane of enchanted glass driven by hub_mirror.gdshader (a
+# violet, rippling, sheening surface) inside a dark gilt frame — so the meta-tree portal
+# reads differently from the flat marker props. Same return shape / interaction contract.
+func _make_mirror_prop(text: String, pos: Vector2, action: Callable) -> Dictionary:
+	var root := Node2D.new()
+	root.position = pos
+	add_child(root)
+	# Gilt frame behind the glass.
+	var frame := ColorRect.new()
+	frame.color = Color(0.18, 0.14, 0.10)
+	frame.size = Vector2(80, 132)
+	frame.position = Vector2(-40, -132)
+	root.add_child(frame)
+	# Shader-driven mirror surface.
+	var glass := ColorRect.new()
+	glass.size = Vector2(68, 120)
+	glass.position = Vector2(-34, -126)
+	var mat := ShaderMaterial.new()
+	mat.shader = MIRROR_SHADER
+	glass.material = mat
+	root.add_child(glass)
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(-120, -168)
 	label.custom_minimum_size = Vector2(240, 0)
 	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.82))
@@ -145,6 +283,27 @@ func _open_wardrobe() -> void:
 	var ov := HERO_SELECT.new()
 	ov.closed.connect(func(): _overlay_open = false)
 	add_child(ov)
+
+
+func _open_mirror() -> void:
+	if _overlay_open:
+		return
+	_overlay_open = true
+	# Freeze the local player while the tree is open — clicking nodes uses the same mouse
+	# button as the basic attack, so without this you'd swing/move behind the overlay.
+	_set_player_locked(true)
+	var ov := META_TREE.new()
+	ov.closed.connect(
+		func():
+			_overlay_open = false
+			_set_player_locked(false)
+	)
+	add_child(ov)
+
+
+func _set_player_locked(locked: bool) -> void:
+	if _player != null and is_instance_valid(_player):
+		_player.set("control_locked", locked)
 
 
 func _enter_portal() -> void:

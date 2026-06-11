@@ -72,7 +72,9 @@ func _make_card(class_id: String, is_current: bool) -> Button:
 	var col: Color = CLASS_COLORS.get(class_id, Color(0.7, 0.7, 0.8))
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(150, 64)
-	b.text = ("★ " + display) if is_current else display
+	var lvl: int = MetaProgress.get_meta_level(class_id) if MetaProgress else 1
+	b.text = ("★ " + display if is_current else display) + "\nУр. %d" % lvl
+	b.autowrap_mode = TextServer.AUTOWRAP_OFF
 	b.add_theme_color_override("font_color", Color(1, 1, 1))
 	for sname in ["normal", "hover", "pressed"]:
 		var sb := StyleBoxFlat.new()
