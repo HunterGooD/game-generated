@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use axum::extract::ws::Message;
-use rand::{distributions::Alphanumeric, Rng};
+use rand::Rng;
 use tokio::sync::mpsc;
 
 use crate::router;
@@ -81,11 +81,11 @@ impl Room {
 }
 
 pub fn generate_room_code(len: usize) -> String {
+    // Digits-only codes ("Лобби 123456") — easy to read aloud and type. 10^len
+    // combinations; create_room retries on the rare collision.
     let mut rng = rand::thread_rng();
-    std::iter::repeat_with(|| rng.sample(Alphanumeric))
+    std::iter::repeat_with(|| rng.gen_range(b'0'..=b'9'))
         .map(char::from)
-        .filter(|c| c.is_ascii_alphanumeric())
-        .map(|c| c.to_ascii_uppercase())
         .take(len)
         .collect()
 }
@@ -98,7 +98,7 @@ mod tests {
     fn code_length_and_charset() {
         let code = generate_room_code(6);
         assert_eq!(code.len(), 6);
-        assert!(code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+        assert!(code.chars().all(|c| c.is_ascii_digit()));
     }
 
     #[test]

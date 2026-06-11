@@ -91,6 +91,11 @@ func _process(delta: float) -> void:
 	if _t < TICK:
 		return
 	_t = 0.0
+	# Host-authoritative damage: clients render the pool (the pulse above keeps running)
+	# but only the host applies its damage — to its local player and the puppets of
+	# clients (→ player_hit to the owner) — so a client never double-applies the pool.
+	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
+		return
 	var dmg: int = _dmg + 2 * difficulty
 	for p in get_tree().get_nodes_in_group("player"):
 		if not is_instance_valid(p) or not (p is Node2D):

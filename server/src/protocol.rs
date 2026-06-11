@@ -13,10 +13,10 @@ pub struct CreateRoomRequest {
 
 impl CreateRoomRequest {
     pub fn validate(&self) -> Result<(), String> {
-        if (2..=4).contains(&self.max_players) {
+        if (2..=10).contains(&self.max_players) {
             Ok(())
         } else {
-            Err("max_players must be between 2 and 4".to_string())
+            Err("max_players must be between 2 and 10".to_string())
         }
     }
 }
@@ -210,6 +210,47 @@ pub enum ClientMessage {
         dmg_mult: f64,
         speed_mult: f64,
     },
+    // ── Co-op run map ──────────────────────────────────────────────────────
+    // Host → all: begin a shared run. The map is generated deterministically from
+    // (seed, difficulty) so every peer rebuilds the identical DAG locally.
+    #[serde(rename = "run_start")]
+    RunStart { seed: i64, difficulty: i64 },
+    // Any player → all: cast/replace a vote for the next node (-1 clears it).
+    #[serde(rename = "run_vote")]
+    RunVote { node: i64 },
+    // Host → all: the party travels to this node now (resolved vote). Everyone
+    // enters the node together.
+    #[serde(rename = "run_travel")]
+    RunTravel { node: i64 },
+    // Host → all: a node finished — return everyone to the run map.
+    #[serde(rename = "run_return")]
+    RunReturn,
+    // Client → host: "my scene + NetSync are loaded and listening." The host waits
+    // for every client's node_ready before populating a dungeon, so nobody misses
+    // the burst of enemy_spawn messages sent at load.
+    #[serde(rename = "node_ready")]
+    NodeReady,
+    // Host → owner: "your character was hit for `amount` (pre-mitigation)." Player HP is
+    // owner-authoritative — the host forwards raw hits and the owner applies its own
+    // mitigation / i-frames / shields, then broadcasts the resulting HP (piggybacked on
+    // `pos`) for display. Replaces the old host-authoritative `rp_hp`.
+    #[serde(rename = "player_hit")]
+    PlayerHit { target: u8, amount: i64 },
+    // Host → all: spawn a VISUAL-only copy of a scene (e.g. an enemy projectile) at
+    // (x,y) travelling in (dx,dy), so clients can see + dodge incoming attacks. The copy
+    // deals no damage — the host adjudicates hits via player_hit.
+    #[serde(rename = "fx_spawn")]
+    FxSpawn {
+        path: String,
+        x: f64,
+        y: f64,
+        dx: f64,
+        dy: f64,
+    },
+    // Host → all: a dungeon boss died — every player opens their OWN reward reels and
+    // rolls loot for their own class (only the trigger is synced; the loot is per-player).
+    #[serde(rename = "boss_reward")]
+    BossReward { tier: String, wave: i64 },
 }
 
 impl ClientMessage {
@@ -248,13 +289,21 @@ impl ClientMessage {
             Self::MinionState { .. } => "minion_state",
             Self::MinionDeath { .. } => "minion_death",
             Self::BloodPact { .. } => "blood_pact",
+            Self::RunStart { .. } => "run_start",
+            Self::RunVote { .. } => "run_vote",
+            Self::RunTravel { .. } => "run_travel",
+            Self::RunReturn => "run_return",
+            Self::NodeReady => "node_ready",
+            Self::PlayerHit { .. } => "player_hit",
+            Self::FxSpawn { .. } => "fx_spawn",
+            Self::BossReward { .. } => "boss_reward",
         }
     }
 
     pub fn validate(&self) -> Result<(), String> {
         match self {
-            Self::RoomConfig { max_players } if !(2..=4).contains(max_players) => {
-                Err("room_config.max_players must be between 2 and 4".to_string())
+            Self::RoomConfig { max_players } if !(2..=10).contains(max_players) => {
+                Err("room_config.max_players must be between 2 and 10".to_string())
             }
             Self::ItemGift { item, .. } if !item.is_object() => {
                 Err("item_gift.item must be object".to_string())
@@ -281,7 +330,9 @@ mod tests {
         let v = String::new();
         assert!(CreateRoomRequest { max_players: 2, version: v.clone() }.validate().is_ok());
         assert!(CreateRoomRequest { max_players: 4, version: v.clone() }.validate().is_ok());
+        assert!(CreateRoomRequest { max_players: 10, version: v.clone() }.validate().is_ok());
         assert!(CreateRoomRequest { max_players: 1, version: v.clone() }.validate().is_err());
+        assert!(CreateRoomRequest { max_players: 11, version: v.clone() }.validate().is_err());
     }
 
     #[test]
@@ -320,6 +371,14 @@ mod tests {
             r#"{"t":"minion_state","minions":[]}"#,
             r#"{"t":"minion_death","id":1}"#,
             r#"{"t":"blood_pact","duration":10.0,"dmg_mult":1.75,"speed_mult":1.3}"#,
+            r#"{"t":"run_start","seed":12345,"difficulty":2}"#,
+            r#"{"t":"run_vote","node":7}"#,
+            r#"{"t":"run_travel","node":7}"#,
+            r#"{"t":"run_return"}"#,
+            r#"{"t":"node_ready"}"#,
+            r#"{"t":"player_hit","target":1,"amount":12}"#,
+            r#"{"t":"fx_spawn","path":"res://x.tscn","x":1.0,"y":2.0,"dx":1.0,"dy":0.0}"#,
+            r#"{"t":"boss_reward","tier":"legendary","wave":12}"#,
         ];
         for sample in samples {
             let parsed = parse_client_message(sample);
@@ -329,7 +388,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_message_schema() {
-        assert!(parse_client_message(r#"{"t":"room_config","max_players":8}"#).is_err());
+        assert!(parse_client_message(r#"{"t":"room_config","max_players":11}"#).is_err());
         assert!(parse_client_message(r#"{"t":"item_gift","to":1,"item":5}"#).is_err());
         assert!(parse_client_message(r#"{"t":"unknown"}"#).is_err());
     }

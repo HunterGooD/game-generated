@@ -7,8 +7,9 @@ extends Node
 # other droppers reuse the same behaviour.
 
 const DROP_GOLD_SCENE: PackedScene = preload("res://scenes/pickups/gold_drop.tscn")
-const DROP_XP_SCENE: PackedScene = preload("res://scenes/pickups/xp_drop.tscn")
 
+# xp_value is kept so the death handler can read the kill's XP (granted as a number
+# now — XP orbs were removed). Only gold is dropped as a pickup.
 @export var xp_value: int = 12
 @export var gold_min: int = 1
 @export var gold_max: int = 4
@@ -18,13 +19,6 @@ func drop_at(world_pos: Vector2) -> void:
 	var tree := get_tree()
 	if tree == null or tree.current_scene == null:
 		return
-	# XP orb (1).
-	var xp := DROP_XP_SCENE.instantiate()
-	tree.current_scene.call_deferred("add_child", xp)
-	xp.global_position = world_pos + Vector2(randf_range(-8, 8), randf_range(-8, 8))
-	if xp.has_method("setup"):
-		xp.call("setup", xp_value)
-
 	# Gold drops (small cluster).
 	var gold_amount: int = randi_range(gold_min, gold_max)
 	if gold_amount > 0:

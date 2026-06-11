@@ -29,6 +29,7 @@ var _edges: Node = null  # _EdgeCanvas
 var _root: Control = null
 var _banner: Label = null
 var _dungeon_warn: Dictionary = {}  # dungeon node id -> true when it has known negatives
+var _force_btn: Button = null  # co-op host: force-resolve the party vote
 
 
 # Edge layer — its own Control so _draw can render the DAG lines behind the node buttons.
@@ -54,6 +55,9 @@ func _ready() -> void:
 		GameManager.run_node_entered.connect(_on_node_entered)
 	if not GameManager.run_completed.is_connected(_on_completed):
 		GameManager.run_completed.connect(_on_completed)
+	# Co-op: repaint vote badges whenever the tally changes.
+	if RunFlow and not RunFlow.votes_changed.is_connected(_refresh):
+		RunFlow.votes_changed.connect(_refresh)
 	_rebuild()
 
 
@@ -86,6 +90,16 @@ func _build_difficulty_picker() -> void:
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	vb.add_theme_constant_override("separation", 14)
 	_root.add_child(vb)
+	# Co-op clients don't pick difficulty — the host does. Show a wait state; the
+	# run_start broadcast pulls them onto the map.
+	if RunFlow and RunFlow.is_coop_client():
+		var wait := Label.new()
+		wait.text = "Ждём, пока хост выберет сложность..."
+		wait.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		wait.add_theme_font_size_override("font_size", 26)
+		wait.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6))
+		vb.add_child(wait)
+		return
 	var title := Label.new()
 	title.text = "Choose Difficulty"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -102,7 +116,7 @@ func _build_difficulty_picker() -> void:
 			float(info.get("enemy_dmg_mult", 1.0)),
 			int(round(float(info.get("loot_rarity_bonus", 0.0)) * 100.0)),
 		]
-		b.pressed.connect(func(): GameManager.start_run(tier))
+		b.pressed.connect(func(): RunFlow.host_start_run(tier))
 		vb.add_child(b)
 
 
@@ -163,6 +177,8 @@ func _refresh() -> void:
 	if state == null:
 		return
 	var reachable: Array = state.reachable()
+	var vote_counts: Dictionary = _vote_counts()  # node id -> count (co-op)
+	var my_vote: int = _my_vote()
 	for node in state.map.all_nodes():
 		var id: int = int(node["id"])
 		var b: Button = _root.get_node_or_null("node_%d" % id)
@@ -173,7 +189,10 @@ func _refresh() -> void:
 		var col: Color = style[1]
 		var affix_mark: String = "*" if not (node["affixes"] as Array).is_empty() else ""
 		var warn_mark: String = "⚠" if _dungeon_warn.get(id, false) else ""
-		b.text = "%s%s%s" % [letter, affix_mark, warn_mark]
+		# Vote badge: how many party members are pointing here right now.
+		var vc: int = int(vote_counts.get(id, 0))
+		var vote_mark: String = ("  ●%d" % vc) if vc > 0 else ""
+		b.text = "%s%s%s%s" % [letter, affix_mark, warn_mark, vote_mark]
 		var is_current: bool = id == state.current_id
 		var is_reachable: bool = id in reachable
 		var is_visited: bool = state.visited.has(id)
@@ -181,6 +200,8 @@ func _refresh() -> void:
 		b.disabled = not is_reachable
 		if is_current:
 			tint = Color(0.30, 0.95, 1.0)
+		elif id == my_vote:
+			tint = Color(0.35, 1.0, 0.55)  # your pick stands out
 		elif is_visited:
 			tint = col.darkened(0.45)
 		elif not is_reachable:
@@ -188,6 +209,38 @@ func _refresh() -> void:
 		b.add_theme_color_override("font_color", Color(1, 1, 1))
 		_style_button(b, tint, is_reachable or is_current)
 	_redraw_edges(reachable, state)
+	_refresh_force_btn()
+
+
+# ── co-op vote helpers ──────────────────────────────────────────────────────────
+func _vote_counts() -> Dictionary:
+	var out: Dictionary = {}
+	if RunFlow == null or not RunFlow.is_coop():
+		return out
+	for pid in RunFlow.votes:
+		var node: int = int(RunFlow.votes[pid])
+		out[node] = int(out.get(node, 0)) + 1
+	return out
+
+
+func _my_vote() -> int:
+	if RunFlow == null or not RunFlow.is_coop() or NetManager == null:
+		return -1
+	return int(RunFlow.votes.get(NetManager.local_player_id, -1))
+
+
+func _refresh_force_btn() -> void:
+	if _force_btn == null:
+		return
+	var is_host: bool = RunFlow != null and RunFlow.is_coop_host()
+	_force_btn.visible = is_host
+	if is_host:
+		# The host can force the party onto the leading node as soon as anyone has
+		# voted — this is the escape hatch when players disagree (auto-travel needs a
+		# unanimous vote) or the party count is stale after a disconnect.
+		var voted: int = RunFlow._valid_votes().size()
+		_force_btn.disabled = voted < 1
+		_force_btn.text = "Travel ▶ (%d/%d)" % [voted, RunFlow.party_size()]
 
 
 func _style_button(b: Button, tint: Color, bright: bool) -> void:
@@ -244,6 +297,25 @@ func _build_chrome() -> void:
 	close.pressed.connect(_on_close)
 	_root.add_child(close)
 
+	# Co-op: vote hint + host's force-resolve button.
+	if RunFlow and RunFlow.is_coop() and GameManager.run_state != null and GameManager.run_state.is_active():
+		var hint := Label.new()
+		hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		hint.position = Vector2(0, 78)
+		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hint.text = "Голосуйте за ноду — отряд идёт, когда все согласны"
+		hint.add_theme_font_size_override("font_size", 15)
+		hint.add_theme_color_override("font_color", Color(0.8, 0.85, 0.6))
+		_root.add_child(hint)
+
+		_force_btn = Button.new()
+		_force_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		_force_btn.position = Vector2(-104, 60)
+		_force_btn.custom_minimum_size = Vector2(160, 36)
+		_force_btn.pressed.connect(func(): RunFlow.host_force_resolve())
+		_root.add_child(_force_btn)
+		_refresh_force_btn()
+
 
 func _on_close() -> void:
 	# As a scene root, freeing ourselves would leave an empty tree — return to the hub.
@@ -255,7 +327,9 @@ func _on_close() -> void:
 
 # ── interaction ───────────────────────────────────────────────────────────────
 func _on_node_pressed(id: int) -> void:
-	GameManager.run_travel_to(id)  # host-auth; refresh happens via run_node_entered
+	# Solo travels immediately; co-op casts a vote (the party travels when all agree
+	# or the host force-resolves). Refresh follows via run_node_entered / votes_changed.
+	RunFlow.cast_vote(id)
 
 
 func _on_node_entered(node: Dictionary) -> void:

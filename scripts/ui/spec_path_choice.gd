@@ -15,13 +15,46 @@ const ROLE_TINT := {
 }
 
 
+var _did_pause: bool = false
+var _locked: bool = false
+
+
 func _ready() -> void:
 	layer = 31
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Safe to pause in co-op: offered at a fixed level with shared (flat) party XP,
-	# so all players reach it together → the pause is synchronized.
-	get_tree().paused = true
+	# Mandatory pick. In SOLO we pause the tree. In CO-OP we must NOT freeze the tree
+	# (players don't always reach level 7 on the same kill, and a tree pause would
+	# stall the host sim + stop this player's damage for everyone). Instead give the
+	# local player a personal pause — invulnerable + control-locked — so the choice is
+	# safe and can't be abused, exactly like the boss-reward reels.
+	if NetManager and NetManager.is_multiplayer:
+		_locked = true
+		_apply_lock(true)
+	else:
+		get_tree().paused = true
+		_did_pause = true
 	_build()
+
+
+# Freeze + protect ONLY the local player (remote puppets take no local input).
+func _apply_lock(locked: bool) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for p in tree.get_nodes_in_group("player"):
+		if not is_instance_valid(p) or p.is_in_group("remote_player"):
+			continue
+		if p.get("control_locked") != null:
+			p.set("control_locked", locked)
+		if p.get("invuln_t") != null:
+			p.set("invuln_t", 99999.0 if locked else 1.0)
+
+
+func _exit_tree() -> void:
+	# Backstop: never strand the player frozen/invuln if freed without _choose().
+	if _locked:
+		_apply_lock(false)
+		_locked = false
 
 
 func _build() -> void:
@@ -145,5 +178,9 @@ func _choose(choice_id: String) -> void:
 		GameManager.choose_spec_path(choice_id)
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/player/player_level_up.mp3", -6.0)
-	get_tree().paused = false
+	if _did_pause:
+		get_tree().paused = false
+	if _locked:
+		_apply_lock(false)
+		_locked = false
 	queue_free()

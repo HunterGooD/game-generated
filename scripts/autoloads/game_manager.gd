@@ -497,6 +497,20 @@ func run_travel_to(id: int) -> bool:
 	return true
 
 
+# Host-sanctioned travel for co-op clients. The host resolves the party vote and
+# broadcasts `run_travel`; every peer (clients included) applies it here, bypassing
+# the client gate in run_travel_to. Same effects: enters the node, completes at boss.
+func coop_apply_travel(id: int) -> bool:
+	if run_state == null:
+		return false
+	if not run_state.travel(id):
+		return false
+	run_node_entered.emit(run_state.current_node())
+	if run_state.is_complete():
+		run_completed.emit()
+	return true
+
+
 # ── Hero preference (persisted) ───────────────────────────────────────────────
 func _ready() -> void:
 	_load_prefs()

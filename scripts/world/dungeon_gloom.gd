@@ -48,6 +48,10 @@ func _process(delta: float) -> void:
 
 
 func _tick_damage() -> void:
+	# Host-authoritative: the client's visual cloud drifts + ticks visually but deals no
+	# damage (the host adjudicates → player_hit). Solo always applies.
+	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
+		return
 	var dmg: int = BASE_TICK_DAMAGE + 2 * difficulty
 	var tree := get_tree()
 	if tree == null:

@@ -511,6 +511,17 @@ func _spawn_telegraph(
 	var t: Node2D = TELEGRAPH_SCENE.instantiate()
 	get_tree().current_scene.add_child(t)
 	t.call("setup", shape, pos, radius, duration, damage, rotation_deg, self)
+	# Co-op: replicate the telegraph so clients can see + dodge the boss AoE.
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_fx"):
+			ns.call(
+				"broadcast_fx",
+				TELEGRAPH_SCENE.resource_path,
+				pos,
+				Vector2.RIGHT,
+				{"shape": shape, "radius": radius, "dur": duration, "rot": rotation_deg}
+			)
 	return t
 
 
@@ -525,6 +536,17 @@ func _spawn_projectile(
 	get_tree().current_scene.add_child(p)
 	p.global_position = global_position
 	p.call("setup", dir, damage, homing, tex_path, tint)
+	# Co-op: replicate the bolt to clients as a visual (host adjudicates the hit).
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_fx"):
+			ns.call(
+				"broadcast_fx",
+				PROJECTILE_SCENE.resource_path,
+				p.global_position,
+				dir,
+				{"homing": homing, "tex": tex_path, "tr": tint.r, "tg": tint.g, "tb": tint.b}
+			)
 	return p
 
 

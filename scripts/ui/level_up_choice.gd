@@ -4,6 +4,9 @@ extends CanvasLayer
 # 3 cards: stat boost, skill modifier, sometimes a transforming unique.
 
 signal choice_made(choice_id: String)
+# Closed WITHOUT picking — the player minimised the overlay to deal with the fight.
+# game_world keeps the level-up pending and re-shows the HUD button.
+signal collapsed
 
 const RARITY_COLORS := {
 	"common": Color(0.8, 0.8, 0.85, 1),
@@ -16,20 +19,62 @@ const RARITY_COLORS := {
 
 var current_offers: Array = []
 var chosen_id: String = ""
+var _did_pause: bool = false
 
 
 func _ready() -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Pause for the upgrade choice. In CO-OP this is safe (unlike character sheet /
-	# merchant, which stay unpaused) because XP is shared — enemy._die and
-	# net_sync grant identical party XP, so ALL players level up on the same kill
-	# and open this overlay together → the pause is synchronized. The host's pause
-	# also freezes the authoritative enemy sim for everyone, and the transport
-	# (NetManager) is PROCESS_MODE_ALWAYS so it never stalls.
-	get_tree().paused = true
+	# Pause ONLY in solo. In co-op the tree must NOT be frozen by a per-player UI
+	# (see the co-op pause/transport invariant): players don't always hit the same
+	# level on the exact same kill, so one player's level-up pause would freeze the
+	# host's authoritative sim and stall damage to allies for everyone — the rare
+	# "damage stops after a level-up" bug. Co-op keeps running like the character
+	# sheet / merchant do; you pick your upgrade while the fight continues.
+	if not (NetManager and NetManager.is_multiplayer):
+		get_tree().paused = true
+		_did_pause = true
 	current_offers = _roll_offers()
 	_build_cards()
+	_add_collapse_button()
+
+
+# A "minimise" button so you can dismiss the choice and keep fighting, then reopen
+# it from the HUD button when it's safe — handy in co-op where the world keeps
+# running. The level-up stays unspent until you actually pick a card.
+func _add_collapse_button() -> void:
+	var holder := Control.new()
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(holder)
+	var btn := Button.new()
+	btn.text = "Свернуть — выбрать позже"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(300, 46)
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.anchor_left = 0.5
+	btn.anchor_right = 0.5
+	btn.anchor_top = 1.0
+	btn.anchor_bottom = 1.0
+	btn.offset_left = -150
+	btn.offset_right = 150
+	btn.offset_top = -86
+	btn.offset_bottom = -40
+	btn.pressed.connect(_collapse)
+	holder.add_child(btn)
+
+
+func _collapse() -> void:
+	if TooltipManager:
+		TooltipManager.hide_tooltip()
+	collapsed.emit()
+	_close()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_collapse()
+		get_viewport().set_input_as_handled()
 
 
 func _roll_offers() -> Array:
@@ -429,5 +474,8 @@ func _apply_unique(slot: int, transform_id: String, _src_id: String) -> void:
 
 
 func _close() -> void:
-	get_tree().paused = false
+	# Only lift the pause we actually set (solo). In co-op we never paused, so leave
+	# the tree alone — touching it here would fight NetSync's pause arbitration.
+	if _did_pause:
+		get_tree().paused = false
 	queue_free()

@@ -25,6 +25,10 @@ const MOVING_PROJECTILE_PATHS: Dictionary = {
 var game_world: Node = null
 var remote_players: Dictionary = {}  # player_id (int) -> RemotePlayer
 var pending_classes: Dictionary = {}  # player_id -> class_id
+# World-space anchor remote players spawn around. game_world keeps the default
+# (its arena centre); the hub sets it to its own origin via the setter so party
+# puppets materialise next to you instead of off in the arena coordinates.
+var spawn_center: Vector2 = Vector2(1344, 864)
 var enemy_registry: Dictionary = {}  # network_id (int) -> Node (enemy or boss)
 # Host-authoritative summons. On the host: real minions/pets (run AI + combat).
 # On every other peer: visual puppets driven by host minion_state broadcasts.
@@ -59,8 +63,17 @@ func bind_world(world: Node) -> void:
 			NetManager.message_received.connect(_on_net_message)
 		if not NetManager.player_disconnected.is_connected(_on_peer_disconnected):
 			NetManager.player_disconnected.connect(_on_peer_disconnected)
+		# Re-announce our class whenever a new peer joins — a one-shot lobby_class
+		# they may have missed (they connected after our initial broadcast). Without
+		# this, a late hub walk-in renders existing players as the default class.
+		if not NetManager.player_joined.is_connected(_on_peer_joined_announce):
+			NetManager.player_joined.connect(_on_peer_joined_announce)
 	# Once bound, broadcast our class so peers' remote_players configure right.
 	call_deferred("_broadcast_local_class")
+
+
+func _on_peer_joined_announce(_pid: int, _total: int) -> void:
+	_broadcast_local_class()
 
 
 func _broadcast_local_class() -> void:
@@ -72,27 +85,70 @@ func _broadcast_local_class() -> void:
 
 
 func spawn_remote_players() -> void:
+	# Lazy model: only pre-spawn peers we already have evidence of (a class cached
+	# during the lobby handshake). Everyone else materialises on first contact in
+	# ensure_remote_player(), so an under-full lobby — common now that the hub lets
+	# the host start with fewer than max_players — never shows ghost puppets for
+	# slots that nobody ever joined.
 	if NetManager == null:
 		return
-	for pid in NetManager.max_players:
-		if pid == NetManager.local_player_id:
-			continue
-		var rp: CharacterBody2D = REMOTE_PLAYER_SCENE.instantiate()
-		rp.set_player_id(pid)
-		game_world.add_child(rp)
-		rp.call("set_initial_position", _spawn_offset_for(pid))
-		remote_players[pid] = rp
-		# If we already know their class (cached during lobby), apply now.
-		if pending_classes.has(pid):
-			rp.apply_class(String(pending_classes[pid]))
+	for pid in pending_classes.keys():
+		ensure_remote_player(int(pid))
+
+
+# Idempotently spawn (and return) the puppet for a remote player. Safe to call on
+# every inbound pos/class message — that's how late joiners and hub walk-ins appear.
+func ensure_remote_player(pid: int) -> Node:
+	if NetManager == null or game_world == null:
+		return null
+	if pid < 0 or pid == NetManager.local_player_id:
+		return null
+	if remote_players.has(pid):
+		return remote_players[pid]
+	var rp: CharacterBody2D = REMOTE_PLAYER_SCENE.instantiate()
+	rp.set_player_id(pid)
+	game_world.add_child(rp)
+	rp.call("set_initial_position", _spawn_offset_for(pid))
+	remote_players[pid] = rp
+	# If we already know their class (cached during lobby / hub), apply now.
+	if pending_classes.has(pid):
+		rp.apply_class(String(pending_classes[pid]))
+	# First time we notice this peer: the relay never told existing players about
+	# the join, so re-announce our own class (they may have missed our one-shot
+	# broadcast) and refresh the observed party size. player_joined now fires on
+	# the host too, which the hub banner / co-op panel listen to.
+	call_deferred("_broadcast_local_class")
+	_update_party_count()
+	if NetManager:
+		NetManager.player_joined.emit(pid, NetManager.connected_players)
+	return rp
 
 
 func _spawn_offset_for(pid: int) -> Vector2:
-	var center := Vector2(1344, 864)
-	var offsets: Array = [Vector2(0, 0), Vector2(140, 0), Vector2(-140, 0), Vector2(0, 140)]
-	if pid < offsets.size():
-		return center + offsets[pid]
-	return center
+	# Ring layout so up to 10 party members fan out around the spawn anchor
+	# instead of stacking. The first puppet sits at the anchor; the rest spread
+	# evenly. Cosmetic only — puppets lerp to their real position on first pos.
+	if pid <= 0:
+		return spawn_center
+	var ang: float = TAU * float(pid) / 10.0
+	return spawn_center + Vector2(cos(ang), sin(ang)) * 150.0
+
+
+func clear_remote_players() -> void:
+	for pid in remote_players.keys():
+		var rp = remote_players[pid]
+		if is_instance_valid(rp):
+			rp.queue_free()
+	remote_players.clear()
+	_update_party_count()
+
+
+# Keep NetManager.connected_players equal to the party size THIS peer observes
+# (puppets + self). The relay only tells the joining peer about a join, so without
+# this the host's count would stay stuck at 1.
+func _update_party_count() -> void:
+	if NetManager:
+		NetManager.connected_players = remote_players.size() + 1
 
 
 func remove_remote_player(pid: int) -> void:
@@ -101,6 +157,7 @@ func remove_remote_player(pid: int) -> void:
 		if is_instance_valid(rp):
 			rp.queue_free()
 		remote_players.erase(pid)
+		_update_party_count()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +191,14 @@ func _broadcast_local_state() -> void:
 	var facing: bool = true
 	if p.get("facing_right") != null:
 		facing = bool(p.get("facing_right"))
+	# hp/mhp ride along on pos so every peer's HP bar tracks the OWNER's authoritative
+	# HP (heals/shields/damage), since player HP is owner-authoritative now. The relay's
+	# Pos schema ignores the extra fields but forwards the original JSON, so no protocol
+	# change is needed.
+	var hp_v: int = int(GameManager.player_hp) if GameManager else 0
+	var mhp_v: int = int(GameManager.player_max_hp) if GameManager else 0
+	# Shield rides along too so allies see the blue shield overlay on our HP bar.
+	var sh_v: int = int(p.get("shield_hp")) if p.get("shield_hp") != null else 0
 	(
 		NetManager
 		. send(
@@ -143,6 +208,9 @@ func _broadcast_local_state() -> void:
 				"y": (p as Node2D).global_position.y,
 				"fr": facing,
 				"a": anim_state,
+				"hp": hp_v,
+				"mhp": mhp_v,
+				"sh": sh_v,
 			}
 		)
 	)
@@ -504,30 +572,28 @@ func host_apply_blood_pact(
 func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 	match type:
 		"pos":
-			var rp = remote_players.get(from_player, null)
+			var rp = ensure_remote_player(from_player)
 			if rp and is_instance_valid(rp):
 				rp.update_target(msg)
 		"lobby_class", "class_pick":
 			var class_id: String = String(msg.get("class_id", "mage"))
 			pending_classes[from_player] = class_id
-			var rp = remote_players.get(from_player, null)
+			var rp = ensure_remote_player(from_player)
 			if rp and is_instance_valid(rp):
 				rp.apply_class(class_id)
-		"rp_hp":
+		"player_hit":
+			# Owner-authoritative HP: the host forwarded a raw hit aimed at us. Run it
+			# through our REAL player so all mitigation / i-frames / shields apply and we
+			# (the owner) decide downed/dead. Our resulting HP rides back on pos.
 			var target: int = int(msg.get("target", -1))
-			var hp: int = int(msg.get("hp", 0))
-			if target == NetManager.local_player_id:
-				if GameManager:
-					GameManager.player_hp = hp
-					# Host-authoritative damage drove us to 0 → go downed
-					# (co-op) instead of silently sitting at 0 HP.
-					if hp <= 0:
-						GameManager.register_lethal_blow()
-					GameManager.player_stats_changed.emit()
-			else:
-				var rp2 = remote_players.get(target, null)
-				if rp2 and is_instance_valid(rp2):
-					rp2.apply_state({"hp": hp})
+			if NetManager and target == NetManager.local_player_id and game_world:
+				var amt: int = int(msg.get("amount", 0))
+				var lp = game_world.get_node_or_null("Player")
+				if amt > 0 and lp and lp.has_method("receive_damage_payload"):
+					lp.call(
+						"receive_damage_payload",
+						DamageInstance.new(float(amt), null, null, [&"enemy"], [])
+					)
 		"chest_spawn":
 			var owner_id: int = int(msg.get("owner", 0))
 			var wave: int = int(msg.get("wave", 1))
@@ -544,6 +610,8 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 					chest.set_meta("forced_rarity", forced_rar)
 		"skill_cast":
 			_replicate_skill_cast(msg)
+		"fx_spawn":
+			_spawn_visual_fx(msg)
 		"enemy_spawn":
 			_spawn_puppet_enemy(msg)
 		"enemy_state":
@@ -733,6 +801,68 @@ func _disable_damage_areas(node: Node) -> void:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Visual-only attack FX (enemy projectiles) — so clients can see + dodge incoming
+# attacks. The host adjudicates the real hit via player_hit; these copies deal nothing.
+func broadcast_fx(path: String, pos: Vector2, dir: Vector2, extra: Dictionary = {}) -> void:
+	if NetManager == null or not NetManager.is_multiplayer or not NetManager.is_host:
+		return
+	# Extra fields (homing / tex / tint / shape / radius …) ride along — the relay's
+	# FxSpawn schema ignores them but forwards the original JSON, so each FX's
+	# setup_visual() can read whatever it needs without a protocol change.
+	var m: Dictionary = {"path": path, "x": pos.x, "y": pos.y, "dx": dir.x, "dy": dir.y}
+	for k in extra:
+		m[k] = extra[k]
+	NetManager.send("fx_spawn", m)
+
+
+func _spawn_visual_fx(msg: Dictionary) -> void:
+	if game_world == null:
+		return
+	var path: String = String(msg.get("path", ""))
+	if path == "" or not ResourceLoader.exists(path):
+		return
+	# Replicable FX are either a packed scene (projectiles/telegraph) or a code-built
+	# node (script .gd, e.g. the volatile orb hazard).
+	var node: Node = null
+	if path.ends_with(".gd"):
+		var scr: Script = load(path) as Script
+		if scr == null:
+			return
+		node = scr.new()
+	else:
+		var packed: PackedScene = load(path) as PackedScene
+		if packed == null:
+			return
+		node = packed.instantiate()
+	if node == null:
+		return
+	game_world.add_child(node)
+	(node as Node2D).global_position = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
+	node.set_meta("visual_only", true)
+	# Each replicable FX configures its own visuals from the message dict via
+	# setup_visual(); simple straight projectiles fall back to setup(dir, 0).
+	if node.has_method("setup_visual"):
+		node.call("setup_visual", msg)
+	elif node.has_method("setup"):
+		var dir: Vector2 = Vector2(float(msg.get("dx", 1.0)), float(msg.get("dy", 0.0)))
+		node.call("setup", dir, 0)  # 0 damage — purely visual
+	# Belt-and-suspenders: kill ALL collision so the copy can't touch the local player
+	# (the host already adjudicates this hit). It still animates + auto-expires on its own.
+	_disable_fx_collision(node)
+
+
+func _disable_fx_collision(node: Node) -> void:
+	if node is Area2D:
+		var area := node as Area2D
+		area.set_deferred("monitoring", false)
+		area.set_deferred("monitorable", false)
+		area.collision_mask = 0
+		area.collision_layer = 0
+	for child in node.get_children():
+		_disable_fx_collision(child)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Puppet enemy management (clients).
 func _spawn_puppet_enemy(msg: Dictionary) -> void:
 	if game_world == null:
@@ -868,29 +998,19 @@ func _apply_enemy_death(msg: Dictionary) -> void:
 	# the same order → all peers stay on the same level and level up in sync.
 	if GameManager:
 		GameManager.add_xp(int(msg.get("xp", 0)), false)  # flat: matches host's grant
-	# Local gold + cosmetic XP visual at the death position — each player gets
-	# their own drop (gold is per-player; the XP drop is visual-only in co-op).
+	# Local gold + coins at the death position — each player gets
+	# their own coins (gold is per-player). XP is granted as a number, not an orb.
 	_spawn_local_drops(
-		pos, int(msg.get("gold_min", 0)), int(msg.get("gold_max", 0)), int(msg.get("xp", 0))
+		pos, int(msg.get("gold_min", 0)), int(msg.get("gold_max", 0))
 	)
 
 
-func _spawn_local_drops(pos: Vector2, gold_min: int, gold_max: int, xp: int) -> void:
+func _spawn_local_drops(pos: Vector2, gold_min: int, gold_max: int) -> void:
 	if game_world == null:
 		return
-	if xp > 0:
-		var xp_scene: PackedScene = load("res://scenes/pickups/xp_drop.tscn") as PackedScene
-		if xp_scene:
-			var xp_node: Node2D = xp_scene.instantiate()
-			# CRITICAL: set position BEFORE add_child so _ready() reads the correct
-			# global_position when it captures its bob/arc tween targets. Setting
-			# global_position after add_child causes the drop to start tweening
-			# from (0,0) — visible bug on clients where drops landed in the
-			# upper-left corner.
-			xp_node.position = pos + Vector2(randf_range(-8, 8), randf_range(-8, 8))
-			if xp_node.has_method("setup"):
-				xp_node.call("setup", xp)
-			game_world.add_child(xp_node)
+	# CRITICAL: set position BEFORE add_child so gold_drop._ready() reads the correct
+	# global_position when it captures its arc/bob tween targets — otherwise the coin
+	# starts tweening from (0,0) and lands in the upper-left corner on clients.
 	var amount: int = randi_range(max(0, gold_min), max(gold_min, gold_max))
 	if amount > 0:
 		var gold_scene: PackedScene = load("res://scenes/pickups/gold_drop.tscn") as PackedScene

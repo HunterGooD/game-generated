@@ -39,7 +39,7 @@ async fn create_room_rejects_invalid_max_players() {
         .method("POST")
         .uri("/lobby/create")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"max_players":9}"#))
+        .body(Body::from(r#"{"max_players":11}"#))
         .unwrap();
 
     let res = app.oneshot(req).await.unwrap();
