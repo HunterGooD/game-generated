@@ -14,6 +14,9 @@ const ROLE_TINT := {
 	"support": Color(0.3, 0.92, 0.8),
 }
 
+# Minimised WITHOUT choosing — game_world keeps the awakening pending and re-shows its HUD
+# button (mirrors the level-up overlay). The choice itself reports via GameManager.spec_path_chosen.
+signal collapsed
 
 var _did_pause: bool = false
 var _locked: bool = false
@@ -109,6 +112,35 @@ func _build() -> void:
 	row.add_child(
 		_make_card("Remain Mortal", mortal_body, Color(0.62, 0.64, 0.72), 1.0, SpecPaths.MORTAL_ID)
 	)
+
+	# Minimise button — dismiss the choice and keep fighting; reopen from the HUD button when
+	# it's safe. The awakening stays unspent until a card is actually picked.
+	var collapse_btn := Button.new()
+	collapse_btn.text = "Свернуть — выбрать позже"
+	collapse_btn.focus_mode = Control.FOCUS_NONE
+	collapse_btn.custom_minimum_size = Vector2(320, 44)
+	collapse_btn.add_theme_font_size_override("font_size", 18)
+	collapse_btn.pressed.connect(_collapse)
+	vb.add_child(collapse_btn)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_collapse()
+		get_viewport().set_input_as_handled()
+
+
+func _collapse() -> void:
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_button_click.mp3", -8.0)
+	if _did_pause:
+		get_tree().paused = false
+		_did_pause = false
+	if _locked:
+		_apply_lock(false)
+		_locked = false
+	collapsed.emit()
+	queue_free()
 
 
 func _make_card(title: String, body: String, tint: Color, grey: float, choice_id: String) -> Control:

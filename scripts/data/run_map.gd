@@ -20,6 +20,7 @@ const TYPE_MERCHANT := "merchant"
 const TYPE_CAMPFIRE := "campfire"
 const TYPE_ELITE := "elite"
 const TYPE_BOSS := "boss"
+const TYPE_EVENT := "event"  # non-combat "shrine bargain" node — Faustian risk/reward choices
 
 # Optional per-node modifiers (the "node affixes" — extra reward/risk on that node).
 const NODE_AFFIXES := ["bonus_xp", "extra_chest", "elite_pack", "treasure_vault"]
@@ -40,7 +41,7 @@ static func combat_plan(node: Dictionary) -> Dictionary:
 	var plan: Dictionary = {"waves": 0, "elite_chance": -1.0}
 	match String(node.get("type", "")):
 		TYPE_ARENA:
-			plan = {"waves": 10, "elite_chance": -1.0}  # arena cycle = 10 waves → finale boss
+			plan = {"waves": 5, "elite_chance": -1.0}  # arena cycle = 5 survival waves → finale boss (wave 6)
 		TYPE_ELITE:
 			plan = {"waves": 3, "elite_chance": 0.6}
 		TYPE_DUNGEON:
@@ -164,6 +165,7 @@ static func _pick_type(
 		TYPE_ELITE: elite_w,
 		TYPE_MERCHANT: 8.0,
 		TYPE_CAMPFIRE: 8.0,
+		TYPE_EVENT: 12.0,  # a decision beat between fights — keeps runs varied
 	}
 	return _weighted_pick(rng, weights)
 

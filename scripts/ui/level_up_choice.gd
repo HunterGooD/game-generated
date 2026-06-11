@@ -18,6 +18,9 @@ const RARITY_COLORS := {
 @export var card_row: HBoxContainer
 
 var current_offers: Array = []
+# Offers handed in by game_world so a minimised → reopened overlay shows the SAME three cards
+# instead of re-rolling (which was a free skill re-roll). Empty = roll a fresh set.
+var preset_offers: Array = []
 var chosen_id: String = ""
 var _did_pause: bool = false
 
@@ -34,7 +37,8 @@ func _ready() -> void:
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = true
 		_did_pause = true
-	current_offers = _roll_offers()
+	# Reuse the saved roll when reopened; only roll fresh for a brand-new level-up.
+	current_offers = preset_offers if not preset_offers.is_empty() else _roll_offers()
 	_build_cards()
 	_add_collapse_button()
 

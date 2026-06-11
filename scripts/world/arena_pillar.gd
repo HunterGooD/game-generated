@@ -17,11 +17,13 @@ const KIND_COLOR := {
 	"green": Color(0.32, 0.88, 0.42),
 	"red": Color(0.95, 0.28, 0.24),
 	"purple": Color(0.72, 0.36, 0.98),
+	"mutator": Color(1.0, 0.66, 0.18),
 }
 const KIND_TEXT := {
 	"green": "GREEN — boon",
 	"red": "RED — empower foes",
 	"purple": "★ PURPLE — brutal, huge reward ★",
+	"mutator": "◆ MUTATOR — risk for double reward ◆",
 }
 
 signal chosen(kind: String, effect: String)

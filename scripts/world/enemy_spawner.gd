@@ -174,7 +174,16 @@ const ARENA_BATCH_TYPES: Array = ["skeleton", "cultist", "wraith", "succubus"]
 const ARENA_EVENT_CURRENCY: int = 40  # bonus for clearing a kill-counter event (mini-boss/tower)
 const ARENA_PURPLE_CHANCE: float = 0.22  # chance a 5th rare purple pillar also appears
 const ARENA_PURPLE_BOSS_CURRENCY: int = 35  # per purple-wave mini-boss
-const ARENA_PILLAR_CURRENCY := {"green": 8, "red": 22, "purple": 55}
+const ARENA_PILLAR_CURRENCY := {"green": 8, "red": 22, "purple": 55, "mutator": 10}
+# Wave MUTATORS — a risk/reward pillar offered alongside the green/red boons. Picking one
+# warps the rules of the NEXT wave only (enemy buff / hazard) and pays a big survival bonus
+# when you clear it. They wear off at wave end, so every wave is a fresh gamble — this is the
+# core of arena replayability. Each entry: human label shown on the pillar.
+const MUTATORS := {
+	"frenzied": "⚡ Бешенство — враги быстрее и злее · награда ×2",
+	"armored": "🛡 Каменная шкура — враги живучее · награда ×2",
+	"volatile": "💥 Нестабильность — враги взрываются при смерти · награда ×2",
+}
 # Three effect sub-types each for green (player boons) and red (enemy escalation). A pillar
 # of that colour rolls one. Effects ACCUMULATE across the whole arena (GameManager fields).
 const GREEN_EFFECTS := {
@@ -193,6 +202,10 @@ var _arena_tick_timer: Timer = null
 var _arena_batches_left: int = 0
 var _wave_end_msec: int = 0
 var _wave_purple: bool = false  # current wave is a purple boss-swarm wave
+# Active wave mutator (one of MUTATORS) and the enemy-speed multiplier it implies. Both reset
+# at wave end. "" = no mutator this wave.
+var _wave_mutator: String = ""
+var _wave_speed_mult: float = 1.0
 var _wave_kills: int = 0
 # Captured at the first arena wave = the player's spawn point (the middle of the arena).
 var _arena_center: Vector2 = Vector2.ZERO
@@ -344,6 +357,9 @@ func _spawn_one(
 	if not ENEMY_TYPES.has(type_id):
 		return null
 	var cfg: Dictionary = ENEMY_TYPES[type_id].duplicate(true)
+	# "frenzied" wave mutator speeds every foe up (set on the active arena wave only).
+	if arena_mode and _wave_speed_mult != 1.0 and cfg.has("move_speed"):
+		cfg["move_speed"] = float(cfg["move_speed"]) * _wave_speed_mult
 	cfg["max_hp"] = int(round(float(cfg["max_hp"]) * hp_mult))
 	cfg["attack_damage"] = int(round(float(cfg["attack_damage"]) * dmg_mult))
 	cfg["xp_value"] = int(round(float(cfg["xp_value"]) * xp_mult))
@@ -633,6 +649,8 @@ func _arena_open_pillars() -> void:
 	kinds.shuffle()
 	if randf() < ARENA_PURPLE_CHANCE:
 		kinds.append("purple")
+	# Always offer ONE wave mutator — the risk/reward gamble that keeps each wave fresh.
+	kinds.append("mutator")
 	var count: int = kinds.size()
 	for i in count:
 		var k: String = String(kinds[i])
@@ -644,6 +662,9 @@ func _arena_open_pillars() -> void:
 		elif k == "red":
 			eff = String((RED_EFFECTS.keys() as Array)[randi() % RED_EFFECTS.size()])
 			desc = String(RED_EFFECTS[eff])
+		elif k == "mutator":
+			eff = String((MUTATORS.keys() as Array)[randi() % MUTATORS.size()])
+			desc = String(MUTATORS[eff])
 		else:
 			desc = "★ PURPLE — boss swarm, huge coin ★"
 		var pillar := ArenaPillar.new()
@@ -674,6 +695,9 @@ func _arena_on_pillar_chosen(kind: String, effect: String) -> void:
 			p.queue_free()
 	_arena_pillars.clear()
 	_wave_purple = kind == "purple"
+	# A mutator pillar arms this wave's gamble; speed bump (if any) is read at spawn time.
+	_wave_mutator = effect if kind == "mutator" else ""
+	_wave_speed_mult = 1.6 if _wave_mutator == "frenzied" else 1.0
 	if GameManager:
 		match kind:
 			"green":
@@ -772,9 +796,12 @@ func _arena_wave_mults() -> Dictionary:
 	var d_dmg: float = Difficulty.value(diff, "enemy_dmg_mult", 1.0)
 	var d_reward: float = Difficulty.value(diff, "reward_mult", 1.0)
 	var power: float = GameManager.arena_enemy_power if GameManager else 1.0
+	# Wave mutators stack on top of the normal scaling for this wave only.
+	var mut_hp: float = 1.8 if _wave_mutator == "armored" else 1.0
+	var mut_dmg: float = 1.35 if _wave_mutator == "frenzied" else 1.0
 	return {
-		"hp": (1.0 + 0.08 * float(current_wave - 1)) * d_hp * power,
-		"dmg": (1.0 + 0.05 * float(int(floor(float(current_wave - 1) / 2.0)))) * d_dmg * power,
+		"hp": (1.0 + 0.08 * float(current_wave - 1)) * d_hp * power * mut_hp,
+		"dmg": (1.0 + 0.05 * float(int(floor(float(current_wave - 1) / 2.0)))) * d_dmg * power * mut_dmg,
 		"xp": (1.0 + 0.12 * float(current_wave - 1)) * d_reward,
 		"gold": (1.0 + 0.10 * float(current_wave - 1)) * d_reward,
 	}
@@ -841,12 +868,40 @@ func _on_any_enemy_died(ev) -> void:
 	if not arena_mode or ev == null:
 		return
 	var actor = ev.actor
+	# "volatile" wave mutator: every foe detonates on death, hurting the LOCAL player if they're
+	# standing too close. Keeps damage client-local (each peer hits only its own player) so it
+	# never fights co-op HP authority — the gamble pays off in the wave-clear bonus below.
+	if _wave_mutator == "volatile" and actor and is_instance_valid(actor) and actor is Node2D:
+		_volatile_burst((actor as Node2D).global_position)
 	if actor and is_instance_valid(actor) and actor.has_meta("arena_event_reward"):
 		var reward: int = int(actor.get_meta("arena_event_reward", 0))
 		actor.remove_meta("arena_event_reward")
 		if GameManager:
 			GameManager.arena_award(reward)
 			GameManager.notice.emit("Event cleared!  +%d coin" % reward, Color(0.45, 0.9, 0.5))
+
+
+# Volatile death blast: a VFX pop plus splash damage to the local player if they're inside the
+# radius. Damage scales with the wave so late mutator waves bite.
+func _volatile_burst(pos: Vector2) -> void:
+	const BURST_RADIUS: float = 150.0
+	if VfxManager:
+		VfxManager.spawn_explosion(pos, 0.85, Color(1.0, 0.55, 0.18))
+	var pl := _local_player()
+	if pl == null:
+		return
+	if pl.global_position.distance_to(pos) <= BURST_RADIUS and pl.has_method("take_damage"):
+		pl.call("take_damage", 6 + 2 * current_wave)
+
+
+func _local_player() -> Node2D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for p in tree.get_nodes_in_group("player"):
+		if is_instance_valid(p) and p is Node2D and not p.is_in_group("remote_player"):
+			return p as Node2D
+	return null
 
 
 func _end_arena_wave() -> void:
@@ -862,6 +917,14 @@ func _end_arena_wave() -> void:
 	if GameManager:
 		GameManager.wave_cleared.emit(current_wave)
 		GameManager.arena_timer.emit(-1)  # hide the countdown
+		# Cleared a mutator wave → pay the double-reward gamble (scales with wave depth).
+		if _wave_mutator != "":
+			var bonus: int = 40 + 20 * current_wave
+			GameManager.arena_award(bonus)
+			GameManager.notice.emit("◆ Мутатор выдержан!  +%d coin" % bonus, Color(1.0, 0.7, 0.25))
+	# Mutators wear off after their wave — next pillar choice is a fresh gamble.
+	_wave_mutator = ""
+	_wave_speed_mult = 1.0
 	# Enemy power / buffs PERSIST for the whole arena — not reset between waves.
 	_broadcast_wave_cleared(current_wave)
 	_despawn_arena_survivors()  # leftover enemies vanish and give nothing — kill them in time

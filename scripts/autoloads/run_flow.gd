@@ -210,7 +210,7 @@ func target_for_node(node: Dictionary) -> String:
 		return SCENE_DUNGEON  # graph-built explorable dungeon (own scene)
 	if RunMap.is_combat_type(t):
 		return SCENE_COMBAT
-	if t == RunMap.TYPE_MERCHANT or t == RunMap.TYPE_CAMPFIRE:
+	if t == RunMap.TYPE_MERCHANT or t == RunMap.TYPE_CAMPFIRE or t == RunMap.TYPE_EVENT:
 		return SCENE_NODE_ROOM
 	return ""
 

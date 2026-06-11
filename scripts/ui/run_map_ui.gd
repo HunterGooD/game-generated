@@ -22,6 +22,7 @@ const TYPE_STYLE := {
 	RunMap.TYPE_CAMPFIRE: ["C", Color(0.96, 0.62, 0.28)],
 	RunMap.TYPE_ELITE: ["E", Color(0.92, 0.30, 0.82)],
 	RunMap.TYPE_BOSS: ["B", Color(0.86, 0.16, 0.20)],
+	RunMap.TYPE_EVENT: ["?", Color(0.40, 0.85, 0.70)],
 }
 
 var _positions: Dictionary = {}  # node id -> Vector2 centre

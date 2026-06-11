@@ -12,6 +12,7 @@ const VALID_TYPES := [
 	RunMap.TYPE_CAMPFIRE,
 	RunMap.TYPE_ELITE,
 	RunMap.TYPE_BOSS,
+	RunMap.TYPE_EVENT,
 ]
 
 

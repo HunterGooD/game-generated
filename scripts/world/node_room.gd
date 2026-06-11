@@ -7,6 +7,7 @@ const FLOOR_TEX: String = "res://assets/textures/floors/ruins_floor.webp"
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
 const REST_CHOICE := preload("res://scripts/ui/rest_choice.gd")
+const SHRINE_EVENT := preload("res://scripts/ui/shrine_event.gd")
 const INTERACT_RANGE: float = 96.0
 
 @onready var _player: Node2D = $Player
@@ -18,6 +19,13 @@ var _campfire_used: bool = false
 var _campfire_in_range: bool = false
 var _rest_open: bool = false
 
+# Event "shrine" — mirrors the campfire interaction pattern (walk up, press E once).
+var _shrine: Node2D = null
+var _shrine_label: Label = null
+var _shrine_used: bool = false
+var _shrine_in_range: bool = false
+var _shrine_open: bool = false
+
 
 func _ready() -> void:
 	_build_floor()
@@ -27,6 +35,8 @@ func _ready() -> void:
 			_build_merchant()
 		"campfire":
 			_build_campfire()
+		"event":
+			_build_shrine()
 	_spawn_exit_portal()
 	if AudioManager:
 		var music: AudioStream = load("res://assets/audio/music/music_exploration_dungeon_explore.mp3") as AudioStream
@@ -90,6 +100,39 @@ func _build_campfire() -> void:
 	_campfire.add_child(_campfire_label)
 
 
+func _build_shrine() -> void:
+	# A teal altar prop built from glow rects (matches the run-map "?" event colour). Walk up
+	# and press E to open the bargain overlay.
+	_shrine = Node2D.new()
+	_shrine.position = Vector2(-180, 0)
+	add_child(_shrine)
+	var glow := ColorRect.new()
+	glow.color = Color(0.35, 0.95, 0.8, 0.45)
+	glow.size = Vector2(80, 110)
+	glow.position = Vector2(-40, -110)
+	_shrine.add_child(glow)
+	var body := ColorRect.new()
+	body.color = Color(0.5, 0.9, 0.78)
+	body.size = Vector2(44, 80)
+	body.position = Vector2(-22, -80)
+	_shrine.add_child(body)
+	var gem := ColorRect.new()
+	gem.color = Color(0.85, 1.0, 0.95)
+	gem.size = Vector2(20, 20)
+	gem.position = Vector2(-10, -70)
+	_shrine.add_child(gem)
+	_shrine_label = Label.new()
+	_shrine_label.text = "Алтарь сделки"
+	_shrine_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_shrine_label.position = Vector2(-120, -140)
+	_shrine_label.custom_minimum_size = Vector2(240, 0)
+	_shrine_label.add_theme_font_size_override("font_size", 15)
+	_shrine_label.add_theme_color_override("font_color", Color(0.55, 0.97, 0.85))
+	_shrine_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_shrine_label.add_theme_constant_override("outline_size", 4)
+	_shrine.add_child(_shrine_label)
+
+
 func _spawn_exit_portal() -> void:
 	var portal: Node2D = PORTAL_SCENE.instantiate()
 	add_child(portal)
@@ -104,7 +147,14 @@ func _on_exit_portal() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _campfire == null or _campfire_used or _rest_open or _player == null or not is_instance_valid(_player):
+	if _player == null or not is_instance_valid(_player):
+		return
+	_process_campfire()
+	_process_shrine()
+
+
+func _process_campfire() -> void:
+	if _campfire == null or _campfire_used or _rest_open:
 		return
 	var in_range: bool = _player.global_position.distance_to(_campfire.global_position) <= INTERACT_RANGE
 	if in_range != _campfire_in_range:
@@ -112,6 +162,35 @@ func _process(_delta: float) -> void:
 		_campfire_label.text = "Campfire — rest   [E]" if in_range else "Campfire — rest"
 	if in_range and Input.is_action_just_pressed("interact"):
 		_open_rest()
+
+
+func _process_shrine() -> void:
+	if _shrine == null or _shrine_used or _shrine_open:
+		return
+	var in_range: bool = _player.global_position.distance_to(_shrine.global_position) <= INTERACT_RANGE
+	if in_range != _shrine_in_range:
+		_shrine_in_range = in_range
+		_shrine_label.text = "Алтарь сделки   [E]" if in_range else "Алтарь сделки"
+	if in_range and Input.is_action_just_pressed("interact"):
+		_open_shrine()
+
+
+func _open_shrine() -> void:
+	if _shrine_open or _shrine_used:
+		return
+	_shrine_open = true
+	var ov := SHRINE_EVENT.new()
+	ov.closed.connect(_on_shrine_closed)
+	add_child(ov)
+
+
+func _on_shrine_closed() -> void:
+	_shrine_open = false
+	_shrine_used = true
+	if _shrine and is_instance_valid(_shrine):
+		_shrine.modulate = Color(0.45, 0.45, 0.5)
+	if _shrine_label:
+		_shrine_label.text = "Алтарь — использован"
 
 
 func _open_rest() -> void:

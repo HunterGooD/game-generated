@@ -138,9 +138,9 @@ func test_batch_size_grows_per_wave() -> void:
 	sp.free()
 
 
-func test_arena_node_runs_ten_waves() -> void:
+func test_arena_node_runs_five_waves() -> void:
 	var node := {"type": RunMap.TYPE_ARENA, "affixes": []}
-	assert_eq(int(RunMap.combat_plan(node)["waves"]), 10, "arena cycle = 10 waves")
+	assert_eq(int(RunMap.combat_plan(node)["waves"]), 5, "arena cycle = 5 waves → finale boss")
 
 
 func test_combat_node_modes() -> void:

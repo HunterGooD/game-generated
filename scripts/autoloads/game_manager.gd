@@ -668,6 +668,13 @@ func add_xp(amount: int, apply_mult: bool = true) -> void:
 
 # Apply a chosen spec path's flat stat profile (V1). Per-player in co-op — each
 # player picks their own role. Idempotent guard: only the first valid choice sticks.
+# True while the level-7 ascension has been OFFERED but not yet chosen. Lives on the autoload
+# (not the per-node game_world) so a pending awakening survives the scene change after a boss —
+# the next game_world re-arms its HUD button from this instead of losing the choice.
+func has_pending_spec_path() -> bool:
+	return _spec_path_offered and player_spec_path == ""
+
+
 func choose_spec_path(path_id: String) -> void:
 	if player_spec_path != "":
 		return

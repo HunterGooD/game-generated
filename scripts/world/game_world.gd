@@ -38,6 +38,7 @@ const CLASS_SELECTOR_SCENE: PackedScene = preload("res://scenes/ui/class_selecto
 const LEVEL_UP_SCENE: PackedScene = preload("res://scenes/ui/level_up_choice.tscn")
 const GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over.tscn")
 const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
+const WORLD_BACKDROP_SCRIPT: Script = preload("res://scripts/world/world_backdrop.gd")
 
 var pending_level_ups: int = 0
 var level_up_active: bool = false
@@ -45,8 +46,14 @@ var level_up_active: bool = false
 # open the 3-card overlay when it's safe (it can be minimised + reopened). Much kinder
 # in co-op where the world keeps running.
 var _level_up_btn: Button = null
+# The current level-up's rolled cards, kept so minimising + reopening shows the SAME offer
+# (no free re-roll). Cleared only when a card is actually taken — the next level rolls fresh.
+var _saved_offers: Array = []
 var spec_path_pending: bool = false
 var spec_path_active: bool = false
+# Bottom-left "AWAKENING" button (mirrors the level-up button) — appears whenever an ascension
+# is owed but not open, so the choice can never be lost behind a roulette or a scene change.
+var _spec_btn: Button = null
 var game_over_shown: bool = false
 var net_sync: Node = null
 
@@ -103,18 +110,27 @@ func _ready() -> void:
 	if GameManager and GameManager.run_node_active.is_empty():
 		GameManager.reset_run()
 
+	# Dark backdrop + dust behind the world so the engine clear-colour never shows past map
+	# edges (arena borders, dungeon gaps). World-anchored — sized/themed once the map bounds
+	# are final (after build), so it must come from the camera limits below.
+	var backdrop: Node2D = WORLD_BACKDROP_SCRIPT.new()
+	add_child(backdrop)
+
 	# A graph-built dungeon node carries a DungeonRunner child that lays out the rooms
 	# itself; skip the default arena floor/walls/decor and hand off to it.
 	var dungeon_runner: Node = get_node_or_null("DungeonRunner")
 	if dungeon_runner:
 		_setup_camera_limits()  # runner overrides limits to the dungeon bounds
 		dungeon_runner.call("build")
+		var biome: String = String(dungeon_runner.get("_biome")) if dungeon_runner.get("_biome") != null else "ruins"
+		backdrop.call("setup_from_camera", camera, biome)
 	else:
 		_build_floor()
 		_build_walls()
 		_place_decorations()
 	#	_place_activities()
 		_setup_camera_limits()
+		backdrop.call("setup_from_camera", camera, "ruins")
 
 #	call_deferred("_build_ambient_particles")
 
@@ -145,8 +161,15 @@ func _ready() -> void:
 	if GameManager:
 		GameManager.player_levelled_up.connect(_on_player_levelled_up)
 		GameManager.spec_path_offered.connect(_on_spec_path_offered)
+		GameManager.spec_path_chosen.connect(_on_spec_path_chosen)
 		GameManager.player_revived.connect(_on_player_revived_retry_spec)
 		GameManager.player_died.connect(_on_player_died)
+		# Re-arm a pending awakening that carried over from a previous node (e.g. levelled up
+		# on the boss kill, then the scene changed before picking). GameManager holds the
+		# persistent state; we just re-surface the HUD button.
+		if GameManager.has_method("has_pending_spec_path") and GameManager.has_pending_spec_path():
+			spec_path_pending = true
+			call_deferred("_refresh_spec_button")
 
 	# Multiplayer fork — spawn NetSync + N-1 remote players.
 	if NetManager and NetManager.is_multiplayer:
@@ -227,6 +250,8 @@ func _refresh_level_up_button() -> void:
 		_level_up_btn.text = (
 			"⬆ LEVEL UP ×%d" % pending_level_ups if pending_level_ups > 1 else "⬆ LEVEL UP"
 		)
+	# Keep the awakening button in sync (it hides while a level-up overlay is open).
+	_refresh_spec_button()
 
 
 func _open_level_up_choice() -> void:
@@ -235,9 +260,13 @@ func _open_level_up_choice() -> void:
 	level_up_active = true
 	_refresh_level_up_button()  # hide the button while the overlay is open
 	var ov := LEVEL_UP_SCENE.instantiate()
+	ov.preset_offers = _saved_offers  # empty → overlay rolls; non-empty → reuse the saved cards
 	ov.choice_made.connect(_on_level_up_picked)
 	ov.collapsed.connect(_on_level_up_collapsed)
 	add_child(ov)
+	# Capture whatever ended up on offer (fresh roll or the reused set) so it survives a
+	# minimise/reopen cycle.
+	_saved_offers = (ov.current_offers as Array).duplicate()
 
 
 # A card was taken — spend one level-up, then re-show the button if more remain or
@@ -245,9 +274,15 @@ func _open_level_up_choice() -> void:
 func _on_level_up_picked(_id: String) -> void:
 	level_up_active = false
 	pending_level_ups = max(0, pending_level_ups - 1)
+	_saved_offers.clear()  # spent → the next level-up rolls a fresh set of cards
 	_refresh_level_up_button()
-	if pending_level_ups <= 0:
-		call_deferred("_try_show_spec_path")
+	if pending_level_ups > 0:
+		# Still owed choices → immediately chain into the next one (fresh roll) without making
+		# the player reopen the HUD button. They can minimise to stop the chain whenever.
+		call_deferred("_open_level_up_choice")
+	else:
+		# Level-ups done — surface the awakening button if one is owed (no forced modal).
+		_refresh_spec_button()
 
 
 # Minimised without picking — keep the level-up pending and re-show the button.
@@ -257,33 +292,91 @@ func _on_level_up_collapsed() -> void:
 
 
 func _on_spec_path_offered() -> void:
+	# Like a level-up: surface the HUD button rather than slamming a modal over the fight (or the
+	# boss-reward roulette). The player opens the ascension when it's safe.
 	spec_path_pending = true
-	call_deferred("_try_show_spec_path")
+	_refresh_spec_button()
 
 
 func _try_show_spec_path() -> void:
-	# Mandatory choice: wait until level-up overlays clear AND the player isn't
-	# downed/dead (offer re-opens on revive — see _ready's player_revived hook),
-	# so a player who hit level 7 mid-chaos still gets to pick.
+	# Try to auto-open once it's safe: wait until level-up overlays clear AND the player isn't
+	# downed/dead. The choice stays PENDING (not cleared here) until a card is actually picked,
+	# so a minimise, a roulette, or a scene change can never lose it — the HUD button persists.
 	if spec_path_active or not spec_path_pending or level_up_active or pending_level_ups > 0:
+		_refresh_spec_button()
 		return
 	if GameManager and (GameManager.player_downed or GameManager.game_over):
+		_refresh_spec_button()
 		return
 	spec_path_active = true
-	spec_path_pending = false
+	_refresh_spec_button()  # hide the button while the overlay is open
 	var ov := SpecPathChoice.new()
+	ov.collapsed.connect(_on_spec_path_collapsed)
 	ov.tree_exited.connect(_on_spec_path_closed)
 	add_child(ov)
 
 
+# Build (once) the bottom-left "AWAKENING" button — sits just above the level-up button.
+func _ensure_spec_button() -> void:
+	if _spec_btn != null and is_instance_valid(_spec_btn):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 25
+	add_child(layer)
+	_spec_btn = Button.new()
+	_spec_btn.focus_mode = Control.FOCUS_NONE
+	_spec_btn.custom_minimum_size = Vector2(220, 56)
+	_spec_btn.text = "✦ ПРОБУЖДЕНИЕ"
+	_spec_btn.add_theme_font_size_override("font_size", 20)
+	_spec_btn.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+	_spec_btn.add_theme_color_override("font_outline_color", Color(0.12, 0.05, 0.0))
+	_spec_btn.add_theme_constant_override("outline_size", 4)
+	_spec_btn.anchor_left = 0.0
+	_spec_btn.anchor_right = 0.0
+	_spec_btn.anchor_top = 1.0
+	_spec_btn.anchor_bottom = 1.0
+	_spec_btn.offset_left = 24
+	_spec_btn.offset_right = 244
+	_spec_btn.offset_top = -258
+	_spec_btn.offset_bottom = -202
+	_spec_btn.visible = false
+	_spec_btn.pressed.connect(_try_show_spec_path)
+	layer.add_child(_spec_btn)
+	var pulse := _spec_btn.create_tween().set_loops()
+	pulse.tween_property(_spec_btn, "modulate", Color(1.3, 1.1, 0.6, 1.0), 0.6)
+	pulse.tween_property(_spec_btn, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.6)
+
+
+func _refresh_spec_button() -> void:
+	_ensure_spec_button()
+	if _spec_btn == null:
+		return
+	_spec_btn.visible = spec_path_pending and not spec_path_active and not level_up_active
+
+
+# A path was actually chosen (GameManager.spec_path_chosen) — clear the pending awakening.
+func _on_spec_path_chosen(_path_id: String) -> void:
+	spec_path_pending = false
+	spec_path_active = false
+	_refresh_spec_button()
+
+
+# Minimised without choosing — keep the awakening pending and re-show the button.
+func _on_spec_path_collapsed() -> void:
+	spec_path_active = false
+	_refresh_spec_button()
+
+
 func _on_spec_path_closed() -> void:
 	spec_path_active = false
+	_refresh_spec_button()
 
 
 func _on_player_revived_retry_spec() -> void:
-	# A pending ascension choice deferred because the player was downed at level 7.
+	# A pending ascension choice deferred because the player was downed at level 7 — just make
+	# sure the button is showing again now that they're back up.
 	if spec_path_pending:
-		call_deferred("_try_show_spec_path")
+		_refresh_spec_button()
 
 
 func _on_player_died() -> void:

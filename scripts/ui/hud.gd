@@ -422,6 +422,14 @@ func _build_hotbar() -> void:
 		inner.add_child(key_label)
 		key_label.position = Vector2(4, 4)
 
+		var mana_label := _make_mana_label()
+		inner.add_child(mana_label)
+		mana_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		mana_label.offset_left = -40
+		mana_label.offset_top = -26
+		mana_label.offset_right = -4
+		mana_label.offset_bottom = -4
+
 		(
 			skill_slots
 			. append(
@@ -431,11 +439,32 @@ func _build_hotbar() -> void:
 					"cd_overlay": cd_overlay,
 					"cd_label": cd_label,
 					"key_label": key_label,
+					"mana_label": mana_label,
 				}
 			)
 		)
 
 	_build_ult_slot()
+
+
+# A small mana-cost tag pinned to a slot's bottom-right corner. Blue when affordable,
+# red when the player can't pay for it (see _update_mana_labels). Skills with no mana
+# cost hide the tag entirely.
+const MANA_COLOR_OK := Color(0.55, 0.85, 1.0, 1)
+const MANA_COLOR_LOW := Color(1.0, 0.32, 0.3, 1)
+const SLOT_DIM := Color(0.42, 0.42, 0.5, 1)
+
+
+func _make_mana_label() -> Label:
+	var lbl := Label.new()
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	lbl.add_theme_color_override("font_color", MANA_COLOR_OK)
+	lbl.add_theme_color_override("font_outline_color", Color(0.0, 0.03, 0.08, 1))
+	lbl.add_theme_constant_override("outline_size", 4)
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return lbl
 
 
 # The ultimate (R) slot lives at the end of the hotbar. It mirrors a normal slot
@@ -489,11 +518,20 @@ func _build_ult_slot() -> void:
 	inner.add_child(key_label)
 	key_label.position = Vector2(4, 4)
 
+	var mana_label := _make_mana_label()
+	inner.add_child(mana_label)
+	mana_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	mana_label.offset_left = -40
+	mana_label.offset_top = -26
+	mana_label.offset_right = -4
+	mana_label.offset_bottom = -4
+
 	ult_slot = {
 		"root": slot_root,
 		"icon": icon,
 		"cd_overlay": cd_overlay,
 		"cd_label": cd_label,
+		"mana_label": mana_label,
 	}
 	slot_root.visible = false
 	_update_ult_slot()
@@ -750,6 +788,7 @@ func _process(_delta: float) -> void:
 				"%d / %d" % [int(GameManager.player_mana), int(GameManager.player_max_mana)]
 			)
 	if skill_system_ref:
+		var cur_mana: float = float(GameManager.player_mana) if GameManager else 0.0
 		for i in skill_slots.size():
 			var slot: Dictionary = skill_slots[i]
 			var remaining: float = skill_system_ref.call("get_cooldown_remaining", i)
@@ -761,7 +800,42 @@ func _process(_delta: float) -> void:
 			else:
 				cd_overlay.visible = false
 				cd_label.text = ""
+			var cost: float = float(skill_system_ref.call("get_skill_mana_cost", i))
+			_update_slot_mana(slot, cost, cur_mana)
 		_update_ult_cooldown()
+		_update_ult_mana(cur_mana)
+
+
+# Show a slot's mana cost (bottom-right) and grey the icon when it's unaffordable.
+# A zero-cost skill hides the tag and is never greyed for mana.
+func _update_slot_mana(slot: Dictionary, cost: float, cur_mana: float) -> void:
+	var mana_label: Label = slot.get("mana_label")
+	var icon: TextureRect = slot.get("icon")
+	if mana_label == null:
+		return
+	if cost <= 0.0:
+		mana_label.visible = false
+		if icon:
+			icon.modulate = Color.WHITE
+		return
+	mana_label.visible = true
+	mana_label.text = "%d" % int(round(cost))
+	var affordable: bool = cur_mana >= cost
+	mana_label.add_theme_color_override("font_color", MANA_COLOR_OK if affordable else MANA_COLOR_LOW)
+	if icon:
+		icon.modulate = Color.WHITE if affordable else SLOT_DIM
+
+
+func _update_ult_mana(cur_mana: float) -> void:
+	if ult_slot.is_empty() or skill_system_ref == null:
+		return
+	var root: Control = ult_slot["root"]
+	if not root.visible:
+		return
+	if not skill_system_ref.has_method("get_ascension_mana_cost"):
+		return
+	var cost: float = float(skill_system_ref.call("get_ascension_mana_cost"))
+	_update_slot_mana(ult_slot, cost, cur_mana)
 
 
 # Drive the ultimate slot's cooldown overlay from the SkillSystem's ascension CD.

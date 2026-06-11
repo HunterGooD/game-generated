@@ -672,7 +672,7 @@ func _do_barbarian_dash(dir: Vector2) -> void:
 	is_dashing = true
 	invuln_t = max(invuln_t, dur + 0.05)
 	var start: Vector2 = global_position
-	var end: Vector2 = start + dir * dist
+	var end: Vector2 = _dash_clamp_target(start, start + dir * dist)
 
 	if AudioManager:
 		AudioManager.play_sfx_path(
@@ -697,7 +697,7 @@ func _do_rogue_dash(dir: Vector2) -> void:
 	var dur: float = 0.22
 	is_dashing = true
 	invuln_t = max(invuln_t, dur + 0.1)
-	var end: Vector2 = global_position + dir * dist
+	var end: Vector2 = _dash_clamp_target(global_position, global_position + dir * dist)
 
 	if AudioManager:
 		AudioManager.play_sfx_path(
@@ -716,7 +716,7 @@ func _do_mage_dash(dir: Vector2) -> void:
 	# Short instant teleport with smoke puffs at both ends.
 	var dist: float = 150.0
 	var start: Vector2 = global_position
-	var end: Vector2 = start + dir * dist
+	var end: Vector2 = _dash_clamp_target(start, start + dir * dist)
 	is_dashing = true
 	invuln_t = max(invuln_t, 0.15)
 
@@ -735,6 +735,36 @@ func _do_mage_dash(dir: Vector2) -> void:
 
 func _end_dash() -> void:
 	is_dashing = false
+
+
+# Walls sit on physics layer 1 (StaticBody2D). A dash/teleport must never cross them, or the
+# mage can blink straight through a wall and out of the dungeon. Raycast from start→end and, if
+# a wall is in the way, stop just short of it. Called in _physics_process where space queries
+# are valid.
+const DASH_WALL_MASK: int = 1
+const DASH_WALL_MARGIN: float = 26.0
+
+
+func _dash_clamp_target(start: Vector2, end: Vector2) -> Vector2:
+	var world := get_world_2d()
+	if world == null:
+		return end
+	var space := world.direct_space_state
+	if space == null:
+		return end
+	var q := PhysicsRayQueryParameters2D.create(start, end, DASH_WALL_MASK)
+	q.exclude = [get_rid()]
+	q.collide_with_areas = false
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return end
+	# Pull back from the wall by a margin so the player doesn't end embedded in it.
+	var dir: Vector2 = (end - start).normalized()
+	var safe: Vector2 = (hit.position as Vector2) - dir * DASH_WALL_MARGIN
+	# Never let the clamp push us behind the start point.
+	if (safe - start).dot(dir) < 0.0:
+		return start
+	return safe
 
 
 func _spawn_dash_trail(color: Color, count: int = 3) -> void:

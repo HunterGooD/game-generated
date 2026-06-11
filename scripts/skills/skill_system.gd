@@ -231,6 +231,18 @@ func get_cooldown_total(slot: int) -> float:
 	return d.cooldown if d else 1.0
 
 
+# Mana cost the HUD shows in each slot corner (and uses to grey out slots the player can't
+# afford). Mirrors the cost actually charged in try_cast (get_slot_def().mana_cost).
+func get_skill_mana_cost(slot: int) -> float:
+	var d: SkillDefinition = get_slot_def(slot)
+	return d.mana_cost if d else 0.0
+
+
+func get_ascension_mana_cost() -> float:
+	var d: SkillDefinition = SkillCatalog.get_def(ascension_skill_id)
+	return d.mana_cost if d else 0.0
+
+
 func get_skill_icon(slot: int) -> Texture2D:
 	# Honor unique transforms — show the bone-spear / curse-field / hurricane
 	# / dire-wolf icon when the corresponding unique is equipped.

@@ -13,6 +13,10 @@ const DEFS := {
 		"wall": Color(0.5, 0.5, 0.72),
 		"light": Color(0.62, 0.6, 0.78),
 		"hazard": "",
+		# `backdrop` fills the space beyond the map (see world_backdrop.gd). A soft, slightly
+		# tinted dark — never pure black, which reads as a harsh hole in the world.
+		"backdrop": Color(0.10, 0.10, 0.14),
+		"backdrop_edge": Color(0.05, 0.05, 0.08),
 	},
 	"crypt":
 	{
@@ -21,6 +25,8 @@ const DEFS := {
 		"wall": Color(0.34, 0.36, 0.5),
 		"light": Color(0.34, 0.36, 0.46),  # darker → oppressive crypt gloom
 		"hazard": "fog",  # screen-space vignette limiting vision
+		"backdrop": Color(0.07, 0.08, 0.12),
+		"backdrop_edge": Color(0.03, 0.04, 0.07),
 	},
 	"frost":
 	{
@@ -29,6 +35,8 @@ const DEFS := {
 		"wall": Color(0.5, 0.62, 0.82),
 		"light": Color(0.66, 0.74, 0.9),
 		"hazard": "ice",  # frostbite floor pools
+		"backdrop": Color(0.09, 0.13, 0.18),
+		"backdrop_edge": Color(0.04, 0.07, 0.11),
 	},
 	"garden":
 	{
@@ -37,6 +45,8 @@ const DEFS := {
 		"wall": Color(0.42, 0.58, 0.46),
 		"light": Color(0.6, 0.74, 0.58),
 		"hazard": "spore",  # poison spore pools
+		"backdrop": Color(0.08, 0.13, 0.09),
+		"backdrop_edge": Color(0.04, 0.07, 0.05),
 	},
 	"infernal":
 	{
@@ -45,8 +55,18 @@ const DEFS := {
 		"wall": Color(0.66, 0.4, 0.4),
 		"light": Color(0.85, 0.55, 0.45),
 		"hazard": "lava",  # damaging lava patches dot the rooms
+		"backdrop": Color(0.15, 0.08, 0.07),
+		"backdrop_edge": Color(0.08, 0.04, 0.04),
 	},
 }
+
+
+static func backdrop_color(biome: String) -> Color:
+	return get_def(biome).get("backdrop", Color(0.10, 0.10, 0.14))
+
+
+static func backdrop_edge_color(biome: String) -> Color:
+	return get_def(biome).get("backdrop_edge", Color(0.05, 0.05, 0.08))
 
 
 static func get_def(biome: String) -> Dictionary:

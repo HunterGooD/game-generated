@@ -122,6 +122,10 @@ func _damage_players() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	# The boss that spawned this telegraph may have died before it fires (its AoE still lands).
+	# A freed `attacker` passed into DamageInstance's typed Node arg crashes the constructor —
+	# fall back to null when it's gone.
+	var atk: Node = attacker if is_instance_valid(attacker) else null
 	for p in tree.get_nodes_in_group("player"):
 		if not is_instance_valid(p):
 			continue
@@ -130,7 +134,7 @@ func _damage_players() -> void:
 			if p.has_method("receive_damage_payload"):
 				p.call(
 					"receive_damage_payload",
-					DamageInstance.new(float(damage), attacker, self, [&"boss", &"telegraph", StringName(shape)], [])
+					DamageInstance.new(float(damage), atk, self, [&"boss", &"telegraph", StringName(shape)], [])
 				)
 			elif p.has_method("take_damage"):
 				p.take_damage(damage)
