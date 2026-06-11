@@ -14,6 +14,8 @@ var hp: int = 100
 var max_hp: int = 100
 var is_dead: bool = false
 var is_downed: bool = false
+var shield: int = 0  # ally's shield amount (synced via pos) — drives the blue overlay
+var _shield_mat: ShaderMaterial = null
 var _target_pos: Vector2 = Vector2.ZERO
 var _facing_right: bool = true
 var _anim_state: String = "idle"
@@ -37,8 +39,26 @@ func _ready() -> void:
 		hp_bar.max_value = max_hp
 		hp_bar.value = hp
 		hp_bar.visible = true
+		_setup_shield_overlay()
 	if name_label:
 		name_label.text = name_label_text
+
+
+# Blue shield overlay over this ally's HP bar (same shader the HUD uses for the local
+# player), so it's obvious when a teammate is shielded.
+func _setup_shield_overlay() -> void:
+	if hp_bar == null:
+		return
+	var ov := ColorRect.new()
+	ov.name = "ShieldOverlay"
+	ov.color = Color(1, 1, 1, 1)
+	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_mat = ShaderMaterial.new()
+	_shield_mat.shader = load("res://assets/shaders/shield_bar.gdshader")
+	_shield_mat.set_shader_parameter("shield_frac", 0.0)
+	ov.material = _shield_mat
+	hp_bar.add_child(ov)
+	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func set_initial_position(pos: Vector2) -> void:
@@ -90,6 +110,22 @@ func update_target(msg: Dictionary) -> void:
 	_target_pos = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
 	_facing_right = bool(msg.get("fr", true))
 	_anim_state = String(msg.get("a", "idle"))
+	# Owner-authoritative HP for display — piggybacked on the pos broadcast so every
+	# peer's HP bar tracks heals/shields/damage, not just host-dealt damage.
+	if msg.has("hp"):
+		hp = int(msg.get("hp", hp))
+		if hp_bar:
+			hp_bar.value = hp
+	if msg.has("mhp"):
+		max_hp = maxi(1, int(msg.get("mhp", max_hp)))
+		if hp_bar:
+			hp_bar.max_value = max_hp
+	if msg.has("sh"):
+		shield = int(msg.get("sh", 0))
+		if _shield_mat:
+			_shield_mat.set_shader_parameter(
+				"shield_frac", clampf(float(shield) / float(maxi(1, max_hp)), 0.0, 1.0)
+			)
 
 
 func apply_druid_form(form_id: String) -> void:
@@ -193,21 +229,16 @@ func _die() -> void:
 	died.emit(player_id)
 
 
-# Remote players act like enemies to enemies — they CAN be hit by enemy attacks
-# (the host runs this code on its side), but a non-host instance just forwards
-# the damage as a network message.
+# Remote players act like enemies to enemies — they CAN be hit by host-side attacks.
+# Owner-authoritative HP: the host does NOT apply damage to the puppet. It forwards the
+# raw hit to the owning client, who runs its real receive_damage_payload (full
+# mitigation / i-frames / shields), decides downed/dead, and broadcasts the resulting
+# HP (piggybacked on pos) which drives this puppet's bar via update_target().
 func take_damage(amount: int) -> void:
 	if is_dead or is_downed:
 		return
-	if NetManager and NetManager.is_host:
-		# Host applies and broadcasts. It does NOT decide death here — once HP
-		# reaches 0 the owning client goes downed and echoes player_downed /
-		# player_dead back, which drives set_downed() / mark_dead().
-		hp = max(0, hp - amount)
-		if hp_bar:
-			hp_bar.value = hp
-		NetManager.send("rp_hp", {"target": player_id, "hp": hp})
-	# Non-host: do nothing locally; host will broadcast new HP via apply_state.
+	if NetManager and NetManager.is_host and amount > 0:
+		NetManager.send("player_hit", {"target": player_id, "amount": int(amount)})
 
 
 func set_downed(downed: bool) -> void:
@@ -232,9 +263,9 @@ func mark_dead() -> void:
 		_die()
 
 
-# Enemy hitboxes route here via this puppet's HurtBoxComponent. Only the host
-# adjudicates damage to remote players; other peers ignore it (they receive the
-# resulting HP through the host's rp_hp broadcast).
+# Enemy hitboxes route here via this puppet's HurtBoxComponent. Only the host runs
+# this; it forwards the raw hit to the owning client (player_hit) rather than applying
+# it — the owner mitigates and broadcasts the resulting HP (on pos) for display.
 func receive_damage_payload(payload: DamageInstance) -> bool:
 	if payload == null or is_dead or is_downed:
 		return false

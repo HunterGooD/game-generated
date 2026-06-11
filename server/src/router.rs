@@ -33,7 +33,9 @@ pub fn route_message(
         }
         // Revive is addressed to the downed player who owns their own life
         // state; deliver only to that target (they then broadcast revived).
-        ClientMessage::Revive { target } => {
+        // player_hit is likewise addressed to the owner, who applies it with their
+        // own mitigation — deliver only to that target.
+        ClientMessage::Revive { target } | ClientMessage::PlayerHit { target, .. } => {
             let t = *target;
             if recipients.contains(&t) && t != from {
                 vec![RoutedMessage {

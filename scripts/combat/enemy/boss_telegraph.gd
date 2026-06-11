@@ -101,7 +101,24 @@ func _fire() -> void:
 	)
 
 
+# Co-op client visual copy: same warning shape + timing, zero damage.
+func setup_visual(msg: Dictionary) -> void:
+	setup(
+		String(msg.get("shape", "circle")),
+		global_position,
+		float(msg.get("radius", 120.0)),
+		float(msg.get("dur", 1.2)),
+		0,
+		float(msg.get("rot", 0.0)),
+		null
+	)
+
+
 func _damage_players() -> void:
+	# Host-authoritative: the client's visual copy flashes + fades but deals no damage
+	# (the host adjudicates the hit → player_hit). Solo always applies.
+	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
+		return
 	var tree := get_tree()
 	if tree == null:
 		return

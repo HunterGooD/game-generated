@@ -41,8 +41,11 @@ func _process(delta: float) -> void:
 func _detonate() -> void:
 	_detonated = true
 	var dmg: int = BASE_DAMAGE + 8 * difficulty
+	# Host-authoritative damage: the client's visual copy shows the blast but deals no
+	# damage (the host adjudicates → player_hit). Solo always applies.
+	var is_client: bool = NetManager != null and NetManager.is_multiplayer and not NetManager.is_host
 	var tree := get_tree()
-	if tree:
+	if tree and not is_client:
 		for p in tree.get_nodes_in_group("player"):
 			if not is_instance_valid(p) or not (p is Node2D):
 				continue

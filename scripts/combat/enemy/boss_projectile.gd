@@ -44,6 +44,16 @@ func set_homing_target(target_in: Node2D) -> void:
 	target = target_in
 
 
+# Co-op client visual copy: configure from the fx_spawn message, zero damage.
+func setup_visual(msg: Dictionary) -> void:
+	var dir := Vector2(float(msg.get("dx", 1.0)), float(msg.get("dy", 0.0)))
+	var tex := String(msg.get("tex", "res://assets/sprites/effects/hellbolt_projectile.png"))
+	var tint := Color(
+		float(msg.get("tr", 1.0)), float(msg.get("tg", 0.5)), float(msg.get("tb", 0.25)), 1.0
+	)
+	setup(dir, 0, bool(msg.get("homing", false)), tex, tint)
+
+
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2  # player hurtbox

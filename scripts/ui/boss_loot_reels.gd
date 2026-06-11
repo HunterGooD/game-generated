@@ -59,9 +59,11 @@ func start(award_candidates: Array, wave: int, class_id: String) -> void:
 	# Co-op keeps simulating while one player browses (see loot_roulette).
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = true
-	# Belt-and-suspenders: make players invulnerable while choosing, so you can't be killed
-	# during the reveal regardless of pause / co-op / stray attackers.
+	# Make players invulnerable while choosing so you can't be killed during the reveal
+	# regardless of pause / co-op / stray attackers — AND freeze the local player's
+	# control so an invuln player can't run around nuking enemies while the pick is open.
 	_set_players_invuln(99999.0)
+	_set_local_control_lock(true)
 	_build_ui(wave, class_id)
 	_spin()
 
@@ -70,6 +72,25 @@ func _set_players_invuln(t: float) -> void:
 	for p in get_tree().get_nodes_in_group("player"):
 		if is_instance_valid(p) and p.get("invuln_t") != null:
 			p.set("invuln_t", t)
+
+
+# Freeze ONLY the local player (remote puppets take no local input). Pairs with invuln
+# to make the reward pick a true personal pause that can't be abused.
+func _set_local_control_lock(locked: bool) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for p in tree.get_nodes_in_group("player"):
+		if not is_instance_valid(p) or p.is_in_group("remote_player"):
+			continue
+		if p.get("control_locked") != null:
+			p.set("control_locked", locked)
+
+
+func _exit_tree() -> void:
+	# Backstop: never leave the player frozen if we're freed without _close()
+	# (e.g. a scene change pulls the party out mid-reveal).
+	_set_local_control_lock(false)
 
 
 func _build_ui(wave: int, class_id: String) -> void:
@@ -270,6 +291,7 @@ func _close() -> void:
 	if not (NetManager and NetManager.is_multiplayer):
 		get_tree().paused = false
 	_set_players_invuln(1.0)  # short grace, then back to normal
+	_set_local_control_lock(false)  # hand control back
 	queue_free()
 
 

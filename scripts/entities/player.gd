@@ -33,6 +33,10 @@ var basic_attack_kind: String = "bolt"
 # already exposes these; the local player did not.
 var is_downed: bool = false
 var is_dead: bool = false
+# Personal "pause" for co-op pick screens (e.g. boss-reward reels): the player is
+# frozen and can't move/dash/attack/cast while a mandatory choice is open. Pairs with
+# invulnerability so an invuln player can't run around nuking enemies during the pick.
+var control_locked: bool = false
 
 # Co-op revive — hold "interact" near a downed ally to bring them back.
 const REVIVE_RANGE: float = 80.0
@@ -520,6 +524,12 @@ func _physics_process(delta: float) -> void:
 	# Downed (co-op bleed-out): no movement, dash, attacks, or skills until a
 	# teammate revives. Just decelerate to a stop and wait.
 	if GameManager and GameManager.player_downed:
+		velocity = velocity.move_toward(Vector2.ZERO, 1200.0 * delta)
+		move_and_slide()
+		return
+
+	# Locked for a mandatory pick screen (boss-reward reels): frozen, no actions.
+	if control_locked:
 		velocity = velocity.move_toward(Vector2.ZERO, 1200.0 * delta)
 		move_and_slide()
 		return

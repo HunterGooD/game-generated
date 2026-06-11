@@ -24,7 +24,12 @@ var server_port: int = 7777
 # ?v= on the ws URL. The relay rejects a join whose version != the room's host
 # version (error code "version_mismatch") so old clients can't connect to a room
 # hosted by a newer build. BUMP THIS whenever the netcode/protocol changes.
-const APP_VERSION: String = "0.0.01-alpha.2"
+const APP_VERSION: String = "0.0.01-alpha.5"
+
+# Co-op party cap. The relay enforces the same ceiling (server/src/protocol.rs);
+# keep them in sync. Hosts pick a size in [MIN_PLAYERS, MAX_PLAYERS] at the hub NPC.
+const MIN_PLAYERS: int = 2
+const MAX_PLAYERS: int = 10
 
 var _ws: WebSocketPeer = null
 var _ping_timer: float = 0.0
@@ -51,7 +56,7 @@ func get_server_http_url() -> String:
 
 
 func create_room(player_count: int = 2) -> void:
-	max_players = clamp(player_count, 2, 4)
+	max_players = clamp(player_count, MIN_PLAYERS, MAX_PLAYERS)
 	is_host = true
 	local_player_id = 0
 	var http := HTTPRequest.new()
@@ -139,6 +144,11 @@ func _process(delta: float) -> void:
 						all_players_joined.emit()
 				"player_disconnected":
 					var dc_id: int = int(msg.get("player_id", -1))
+					# Keep the party count correct even in scenes without a NetSync (the
+					# run map): a leave is the only count change there. NetSync's absolute
+					# recompute overrides this in scenes that have one.
+					if dc_id >= 0:
+						connected_players = max(1, connected_players - 1)
 					player_disconnected.emit(dc_id)
 				"error":
 					# Relay rejected us (room_not_found / room_full / version_mismatch).

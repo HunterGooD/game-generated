@@ -6,8 +6,12 @@ extends Area2D
 signal opened
 
 const ROULETTE_SCENE: PackedScene = preload("res://scenes/ui/loot_roulette.tscn")
+const MINI_REVEAL_SCRIPT: Script = preload("res://scripts/ui/loot_reveal_mini.gd")
 const OPEN_RANGE: float = 60.0
 const AUTO_OPEN_DELAY: float = 4.0
+# A live enemy within this range = "in combat" → use the compact, non-blocking
+# corner reveal so opening a chest never gets you killed.
+const COMBAT_RANGE: float = 600.0
 
 @export var sprite: Sprite2D
 @export var prompt: Label
@@ -62,6 +66,24 @@ func _process(delta: float) -> void:
 				prompt.visible = false
 
 
+# "In combat" = any live enemy near the opener. Drives compact vs full-screen reveal.
+func _in_combat() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var origin: Vector2 = global_position
+	if player != null and is_instance_valid(player):
+		origin = (player as Node2D).global_position
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e):
+			continue
+		if e.get("dead") == true:
+			continue
+		if (e as Node2D).global_position.distance_to(origin) <= COMBAT_RANGE:
+			return true
+	return false
+
+
 func _on_body_entered(body: Node) -> void:
 	if body and body.is_in_group("player") and not body.is_in_group("remote_player"):
 		player = body as Node2D
@@ -101,10 +123,18 @@ func open() -> void:
 	if item == null:
 		queue_free()
 		return
-	var roulette: CanvasLayer = ROULETTE_SCENE.instantiate()
-	get_tree().current_scene.add_child(roulette)
-	if roulette.has_method("start"):
-		roulette.call("start", item, wave_number, class_id)
+	# In combat → compact non-blocking corner reveal (can't get you killed, auto-takes
+	# the item, sped up). Out of combat → the full-screen roulette with Take/Salvage.
+	if _in_combat():
+		var mini := CanvasLayer.new()
+		mini.set_script(MINI_REVEAL_SCRIPT)
+		get_tree().current_scene.add_child(mini)
+		mini.call("start", item, wave_number, class_id, 1.3)
+	else:
+		var roulette: CanvasLayer = ROULETTE_SCENE.instantiate()
+		get_tree().current_scene.add_child(roulette)
+		if roulette.has_method("start"):
+			roulette.call("start", item, wave_number, class_id)
 	opened.emit()
 	# Fade chest out after revealing.
 	var tw := create_tween()

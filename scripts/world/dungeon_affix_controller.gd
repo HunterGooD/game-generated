@@ -89,6 +89,18 @@ func _activate_hazards() -> void:
 				var g := GLOOM.new()
 				g.difficulty = _difficulty
 				_add_hazard(g)
+				# Co-op: replicate the drifting cloud (host-gated damage); it spawns at a
+				# random spot off the player, so broadcast the host's actual position and
+				# both peers drift it toward the (synced) nearest player from there.
+				if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+					var gns := _find_net_sync()
+					if gns and gns.has_method("broadcast_fx"):
+						gns.call(
+							"broadcast_fx",
+							"res://scripts/world/dungeon_gloom.gd",
+							(g as Node2D).global_position,
+							Vector2.ZERO
+						)
 			"heavens_wrath":
 				var w := WRATH.new()
 				w.difficulty = _difficulty
@@ -112,6 +124,13 @@ func _start_orb_emitter() -> void:
 	_orb_timer.timeout.connect(_spawn_orb)
 
 
+func _find_net_sync() -> Node:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	return tree.current_scene.get_node_or_null("NetSync")
+
+
 func _spawn_orb() -> void:
 	if GameManager and GameManager.game_over:
 		return
@@ -125,6 +144,17 @@ func _spawn_orb() -> void:
 	var parent: Node = get_parent() if get_parent() else self
 	parent.add_child(orb)
 	orb.global_position = player.global_position + offset
+	# Co-op: replicate the orb so clients see the blast telegraph and can move clear
+	# (host adjudicates the detonation → player_hit).
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_fx"):
+			ns.call(
+				"broadcast_fx",
+				"res://scripts/world/dungeon_volatile_orb.gd",
+				orb.global_position,
+				Vector2.ZERO
+			)
 
 
 # ── positive affixes ─────────────────────────────────────────────────────────

@@ -58,6 +58,15 @@ var _boss_room_id: int = -1
 var _boss_spawned: bool = false
 var _boss_done: bool = false
 var _portals_spawned: bool = false
+var _node_seed: int = 0  # this node's deterministic seed (shared by all co-op peers)
+
+# Co-op population handshake: the host holds the enemy spawn burst until every client
+# has reported node_ready (its NetSync is bound + listening), so nobody misses the
+# enemy_spawn messages. A timeout guards against a client that never reports.
+const NODE_READY_TIMEOUT: float = 6.0
+var _ready_acks: Dictionary = {}  # client player_id -> true
+var _ready_expected: int = 0
+var _populated: bool = false
 
 
 func build() -> void:
@@ -75,6 +84,7 @@ func build() -> void:
 
 	var node: Dictionary = GameManager.run_node_active if GameManager else {}
 	var seed_value: int = DungeonAffixes.node_seed(int(GameManager.run_seed), int(node.get("id", 0)))
+	_node_seed = seed_value
 	_layer = DungeonAffixes.generate_node_layer(seed_value, GameManager.run_difficulty, GameManager.dungeon_depth)
 
 	if _layer == null:
@@ -88,12 +98,15 @@ func build() -> void:
 	_render_floor()
 	_render_walls()        # collision walls hugging the walkable boundary
 	_populate_rooms()
-	_populate_enemies()    # enemies everywhere — rooms AND corridors (Diablo-style)
+	_begin_population()     # enemies everywhere — rooms AND corridors (Diablo-style); co-op waits for clients
 	_spawn_biome_hazards()
 	_place_player_at_entry()
 	_fit_camera()
 	_spawn_map_ui()
 	_announce()
+	# Co-op clients open their own boss-reward reels when the host's boss dies.
+	if NetManager and not NetManager.message_received.is_connected(_on_boss_reward_msg):
+		NetManager.message_received.connect(_on_boss_reward_msg)
 	set_process(true)
 
 
@@ -291,20 +304,26 @@ func _spawn_biome_hazards() -> void:
 	if hz == "fog":
 		add_child(FOG.new())  # one screen-space vignette for the whole crypt
 		return
-	# Floor pools (lava/ice/spore) scattered through the non-entry/boss rooms.
+	# Floor pools (lava/ice/spore) scattered through the non-entry/boss rooms. Placement
+	# is SEEDED off the node seed so every co-op peer spawns identical pools at identical
+	# positions — pools render on all peers, but only the host applies their damage (see
+	# dungeon_floor_hazard.gd), so there's no double/conflicting hazard damage.
 	var entry_id: int = int(_layer.call("entry_id"))
 	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _node_seed ^ 0x48415A52  # "HAZR"
 	for r in _layer.call("rooms"):
 		var id: int = int(r["id"])
 		var kind: String = String(r["kind"])
 		if id == entry_id or kind in ["boss", "exit", "descent", "entry", "merchant"]:
 			continue
-		if randf() < 0.5:
+		if rng.randf() < 0.5:
 			var pool := FLOOR_HAZARD.new()
 			pool.kind = hz
 			pool.difficulty = diff
 			add_child(pool)
-			var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(60.0, 150.0)
+			var ang: float = rng.randf() * TAU
+			var off := Vector2(cos(ang), sin(ang)) * rng.randf_range(60.0, 150.0)
 			pool.global_position = _room_world.get(id, Vector2.ZERO) + off
 
 
@@ -316,17 +335,55 @@ func _process(_delta: float) -> void:
 		return
 	if GameManager and GameManager.game_over:
 		return
-	if (
-		not _boss_spawned
-		and _boss_room_id >= 0
-		and _player.global_position.distance_to(_room_world.get(_boss_room_id, Vector2.ZERO)) <= ACTIVATE_RADIUS
-	):
+	# ANY party member reaching the boss chamber wakes it — not just the host. On the
+	# host the "player" group includes the remote-player puppets (driven by each
+	# client's pos sync), so a client arriving first triggers the host-authoritative
+	# spawn, which NetSync then replicates to everyone as a boss puppet.
+	if not _boss_spawned and _boss_room_id >= 0 and _any_player_near_boss():
 		_spawn_boss()
 
 
 # Diablo-style population: enemies stand throughout the whole dungeon (rooms AND corridors)
 # from the start, idle until the player draws near, so you fight your way through to explore.
 # Host/solo-gated, with an entry safe-zone and a global cap. Built once at load.
+# Decide whether to populate now or wait for the party. Solo and clients run straight
+# through (clients no-op inside _populate_enemies via host_auth); a co-op host with
+# clients holds the spawn until everyone reports node_ready (or the timeout fires).
+func _begin_population() -> void:
+	var coop_host: bool = NetManager != null and NetManager.is_multiplayer and NetManager.is_host
+	if not coop_host:
+		_do_populate()
+		return
+	_ready_expected = maxi(0, NetManager.connected_players - 1)  # clients we wait for
+	if _ready_expected <= 0:
+		_do_populate()
+		return
+	if not NetManager.message_received.is_connected(_on_ready_message):
+		NetManager.message_received.connect(_on_ready_message)
+	var t := get_tree().create_timer(NODE_READY_TIMEOUT)
+	t.timeout.connect(_do_populate)
+	if GameManager:
+		GameManager.notice.emit("Ждём отряд...", Color(0.7, 0.85, 1.0))
+
+
+func _on_ready_message(type: String, _msg: Dictionary, from_player: int) -> void:
+	if type != "node_ready":
+		return
+	_ready_acks[from_player] = true
+	if _ready_acks.size() >= _ready_expected:
+		_do_populate()
+
+
+# Populate exactly once (whether triggered by the last ack or the safety timeout).
+func _do_populate() -> void:
+	if _populated:
+		return
+	_populated = true
+	if NetManager and NetManager.message_received.is_connected(_on_ready_message):
+		NetManager.message_received.disconnect(_on_ready_message)
+	_populate_enemies()
+
+
 func _populate_enemies() -> void:
 	var host_auth: bool = NetManager == null or not NetManager.is_multiplayer or NetManager.is_host
 	if not host_auth or _spawner == null or not _spawner.has_method("spawn_room_pack"):
@@ -390,6 +447,14 @@ func _scatter_corridor(a: Vector2, b: Vector2, types: Array, entry_c: Vector2) -
 			_spawn_pack(types, p, 60.0, 1 + (1 if randf() < 0.4 else 0), 0)
 
 
+func _any_player_near_boss() -> bool:
+	var bc: Vector2 = _room_world.get(_boss_room_id, Vector2.ZERO)
+	for p in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(p) and (p as Node2D).global_position.distance_to(bc) <= ACTIVATE_RADIUS:
+			return true
+	return false
+
+
 func _spawn_boss() -> void:
 	_boss_spawned = true
 	var host_auth: bool = NetManager == null or not NetManager.is_multiplayer or NetManager.is_host
@@ -435,11 +500,33 @@ func _clear_enemies() -> void:
 # plain chest. Candidates are at least the boss's reward rarity. The reels overlay handles
 # its own pause (solo) and the 4th reel from `dungeon_extra_reel`.
 func _award_boss_reels(reward: String) -> void:
+	var wave: int = _loot_wave()
+	# Open our own reels, then tell every client to open theirs — loot is per-player
+	# (each rolls for their own class), so only the trigger (tier + wave) is synced.
+	_spawn_reels_for_reward(reward, wave)
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		NetManager.send("boss_reward", {"tier": reward, "wave": wave})
+
+
+# Client: the host's boss died — open our OWN reels and roll our OWN loot.
+func _on_boss_reward_msg(type: String, msg: Dictionary, _from: int) -> void:
+	if type != "boss_reward":
+		return
+	if NetManager and NetManager.is_host:
+		return  # host already opened its reels in _award_boss_reels
+	if _boss_done:
+		return
+	_boss_done = true
+	_spawn_reels_for_reward(String(msg.get("tier", "")), int(msg.get("wave", 1)))
+
+
+# Roll this player's 3 candidates and open the reward reels. Runs on the host (its boss
+# died) and on every client (via the boss_reward message) — each gets their own loot.
+func _spawn_reels_for_reward(reward: String, wave: int) -> void:
 	var class_id: String = "mage"
 	if GameManager and GameManager.player_class != "":
 		class_id = GameManager.player_class
 	var diff: int = GameManager.run_difficulty if GameManager else 0
-	var wave: int = _loot_wave()
 	var min_rarity: String = reward if reward != "" else "legendary"
 	var candidates: Array = []
 	for _i in 3:

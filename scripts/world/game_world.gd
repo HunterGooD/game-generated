@@ -41,6 +41,10 @@ const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
 
 var pending_level_ups: int = 0
 var level_up_active: bool = false
+# Level-up is opt-in now: a HUD button appears when you have pending choices, and you
+# open the 3-card overlay when it's safe (it can be minimised + reopened). Much kinder
+# in co-op where the world keeps running.
+var _level_up_btn: Button = null
 var spec_path_pending: bool = false
 var spec_path_active: bool = false
 var game_over_shown: bool = false
@@ -152,6 +156,11 @@ func _ready() -> void:
 		add_child(net_sync)
 		net_sync.call_deferred("bind_world", self)
 		net_sync.call_deferred("spawn_remote_players")
+		# Clients announce readiness AFTER NetSync is bound + listening, so the host
+		# waits for everyone before populating a dungeon (no missed enemy_spawn burst).
+		# Queued after bind_world above, so we're already receiving when the host fires.
+		if not NetManager.is_host:
+			NetManager.call_deferred("send", "node_ready", {})
 		# Gate the spawner — only host generates enemy waves; clients spectate
 		# enemies indirectly (host's enemies are simulated locally too in v1 —
 		# acceptable desync for v1; full enemy sync is future work).
@@ -169,26 +178,82 @@ func _spawn_class_selector() -> void:
 
 func _on_player_levelled_up(_lv: int) -> void:
 	pending_level_ups += 1
-	call_deferred("_try_show_level_up")
+	# Don't slam a modal in the player's face mid-fight — surface a HUD button they
+	# open when it's safe.
+	_refresh_level_up_button()
 
 
-func _try_show_level_up() -> void:
+# Build (once) a bottom-left "LEVEL UP" button that opens the choice overlay.
+func _ensure_level_up_button() -> void:
+	if _level_up_btn != null and is_instance_valid(_level_up_btn):
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 25  # under the choice overlay (30), above the world
+	add_child(layer)
+	_level_up_btn = Button.new()
+	_level_up_btn.focus_mode = Control.FOCUS_NONE
+	_level_up_btn.custom_minimum_size = Vector2(220, 56)
+	_level_up_btn.add_theme_font_size_override("font_size", 20)
+	_level_up_btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.6))
+	_level_up_btn.add_theme_color_override("font_outline_color", Color(0.15, 0.08, 0.0))
+	_level_up_btn.add_theme_constant_override("outline_size", 4)
+	# Bottom-left, above the hotbar / to the left of the skills.
+	_level_up_btn.anchor_left = 0.0
+	_level_up_btn.anchor_right = 0.0
+	_level_up_btn.anchor_top = 1.0
+	_level_up_btn.anchor_bottom = 1.0
+	_level_up_btn.offset_left = 24
+	_level_up_btn.offset_right = 244
+	_level_up_btn.offset_top = -190
+	_level_up_btn.offset_bottom = -134
+	_level_up_btn.visible = false
+	_level_up_btn.pressed.connect(_open_level_up_choice)
+	layer.add_child(_level_up_btn)
+	# Single looping pulse bound to the button (dies with it) — draws the eye without
+	# stacking a new tween on every refresh.
+	var pulse := _level_up_btn.create_tween().set_loops()
+	pulse.tween_property(_level_up_btn, "modulate", Color(1.25, 1.15, 0.7, 1.0), 0.6)
+	pulse.tween_property(_level_up_btn, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.6)
+
+
+# Show/hide + label the button based on how many choices are queued.
+func _refresh_level_up_button() -> void:
+	_ensure_level_up_button()
+	if _level_up_btn == null:
+		return
+	var show: bool = pending_level_ups > 0 and not level_up_active
+	_level_up_btn.visible = show
+	if show:
+		_level_up_btn.text = (
+			"⬆ LEVEL UP ×%d" % pending_level_ups if pending_level_ups > 1 else "⬆ LEVEL UP"
+		)
+
+
+func _open_level_up_choice() -> void:
 	if level_up_active or pending_level_ups <= 0:
 		return
 	level_up_active = true
+	_refresh_level_up_button()  # hide the button while the overlay is open
 	var ov := LEVEL_UP_SCENE.instantiate()
-	ov.tree_exited.connect(_on_level_up_overlay_closed)
+	ov.choice_made.connect(_on_level_up_picked)
+	ov.collapsed.connect(_on_level_up_collapsed)
 	add_child(ov)
 
 
-func _on_level_up_overlay_closed() -> void:
+# A card was taken — spend one level-up, then re-show the button if more remain or
+# fall through to a pending spec-path choice.
+func _on_level_up_picked(_id: String) -> void:
 	level_up_active = false
 	pending_level_ups = max(0, pending_level_ups - 1)
-	if pending_level_ups > 0:
-		call_deferred("_try_show_level_up")
-	else:
-		# Level-ups cleared — a pending spec-path choice (level 5) can show now.
+	_refresh_level_up_button()
+	if pending_level_ups <= 0:
 		call_deferred("_try_show_spec_path")
+
+
+# Minimised without picking — keep the level-up pending and re-show the button.
+func _on_level_up_collapsed() -> void:
+	level_up_active = false
+	_refresh_level_up_button()
 
 
 func _on_spec_path_offered() -> void:

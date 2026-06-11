@@ -901,6 +901,12 @@ func _perform_ranged_attack() -> void:
 	proj.global_position = global_position + dir * 24.0
 	if proj.has_method("setup"):
 		proj.call("setup", dir, attack_damage)
+	# Co-op: replicate the bolt to clients as a visual-only copy so they can see and
+	# dodge it. The host still adjudicates the actual hit (→ player_hit).
+	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_fx"):
+			ns.call("broadcast_fx", ENEMY_PROJECTILE_SCENE.resource_path, proj.global_position, dir)
 
 
 func _on_attack_hit_body(_body: Node) -> void:
@@ -1533,15 +1539,18 @@ func _die() -> void:
 				xp_value
 			)
 		# Shared party XP: the host grants this kill's XP authoritatively; clients
-		# grant the SAME amount when they receive enemy_death (net_sync). XP drops
-		# are cosmetic in co-op (see xp_drop.gd), so this is the single source —
+		# grant the SAME amount when they receive enemy_death (net_sync). XP is a
+		# number now (orbs removed), so the kill is the single grant point —
 		# everyone ends on the same level and levels up in sync.
 		if GameManager:
 			GameManager.add_xp(xp_value, false)  # flat: same amount on every peer
-		# Also drop locally (host is also a player) — gold + cosmetic XP visual.
+		# Also drop locally (host is also a player) — gold only.
 		_drop_loot()
 	else:
-		# Solo or weird state — local drops as usual (xp_drop grants XP in solo).
+		# Solo: grant XP on the kill (XP orbs were removed — XP is a number now),
+		# then drop gold.
+		if GameManager:
+			GameManager.add_xp(xp_value)  # apply_mult=true: solo keeps XP-gain gear bonus
 		_drop_loot()
 
 	# Notify GameManager (so spawner can track waves).

@@ -32,6 +32,9 @@ var ult_slot: Dictionary = {}
 var skill_system_ref: Node = null
 var player_ref: Node = null
 var status_row: StatusIcons = null
+# Blue shield overlay drawn over the HP bar (shield_bar.gdshader); its shield_frac is
+# updated each frame from the local player's shield_hp.
+var _shield_mat: ShaderMaterial = null
 var pause_menu_open: bool = false
 
 # Boss bar — built on demand.
@@ -77,6 +80,7 @@ func _ready() -> void:
 	_build_low_hp_overlay()
 	_build_static_charge_counter()
 	_build_status_row()
+	_setup_shield_overlay()
 	call_deferred("_find_skill_system")
 
 
@@ -707,7 +711,33 @@ func _update_static_charge_counter() -> void:
 			return
 
 
+func _update_shield_overlay() -> void:
+	if _shield_mat == null:
+		return
+	var sh: float = 0.0
+	if player_ref and is_instance_valid(player_ref) and player_ref.get("shield_hp") != null:
+		sh = float(player_ref.get("shield_hp"))
+	var mhp: float = float(GameManager.player_max_hp) if GameManager else 100.0
+	_shield_mat.set_shader_parameter("shield_frac", clampf(sh / maxf(1.0, mhp), 0.0, 1.0))
+
+
+func _setup_shield_overlay() -> void:
+	if hp_bar == null:
+		return
+	var ov := ColorRect.new()
+	ov.name = "ShieldOverlay"
+	ov.color = Color(1, 1, 1, 1)  # the shader overwrites COLOR; just needs to draw the quad
+	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_mat = ShaderMaterial.new()
+	_shield_mat.shader = load("res://assets/shaders/shield_bar.gdshader")
+	_shield_mat.set_shader_parameter("shield_frac", 0.0)
+	ov.material = _shield_mat
+	hp_bar.add_child(ov)
+	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
 func _process(_delta: float) -> void:
+	_update_shield_overlay()
 	_update_low_hp_overlay()
 	_update_static_charge_counter()
 	_update_downed_banner()

@@ -2,7 +2,7 @@ extends GutTest
 
 # Hub flow: last-played hero persistence (GameManager.set_last_class), the wardrobe
 # hero-select overlay applying + remembering a hero, and the hub scene spawning the player
-# as the last hero with its two props (wardrobe + portal).
+# as the last hero with its three props (wardrobe + portal + co-op beacon).
 
 const HUB_SCENE := "res://scenes/world/hub.tscn"
 
@@ -65,7 +65,7 @@ func test_hub_spawns_last_hero_with_props() -> void:
 	add_child_autofree(hub)
 	assert_not_null(hub.get_node_or_null("Player"), "player spawned in the hub")
 	assert_eq(GameManager.player_class, "rogue", "spawned as the last-played hero")
-	assert_eq(hub._props.size(), 2, "wardrobe + portal props present")
+	assert_eq(hub._props.size(), 3, "wardrobe + portal + co-op beacon props present")
 
 
 func _all(n: Node) -> Array:
