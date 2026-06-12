@@ -12,11 +12,15 @@ static func roll_item(wave_number: int, class_id: String, difficulty: int = -1) 
 	var ilvl: int = max(1, 1 + int(float(wave_number) / 2.0))
 	var rarity: String = _roll_rarity(wave_number, difficulty)
 	if rarity == ItemDatabase.RARITY_UNIQUE:
-		var uniq := _roll_unique(class_id)
+		var uniq := _roll_unique(class_id, ilvl)
 		if uniq != null:
-			uniq.ilvl = ilvl
 			return uniq
 		# Fallback to legendary if no uniques exist for this class.
+		rarity = ItemDatabase.RARITY_LEGENDARY
+	if rarity == ItemDatabase.RARITY_SET:
+		var set_item := _roll_set(ilvl, class_id)
+		if set_item != null:
+			return set_item
 		rarity = ItemDatabase.RARITY_LEGENDARY
 	return _roll_base(rarity, ilvl, class_id)
 
@@ -27,7 +31,7 @@ static func roll_at_least(wave_number: int, class_id: String, difficulty: int, m
 	var item: ItemInstance = roll_item(wave_number, class_id, difficulty)
 	if item == null:
 		return null
-	var ranks := {"common": 0, "rare": 1, "legendary": 2, "unique": 3}
+	var ranks := {"common": 0, "rare": 1, "legendary": 2, "set": 3, "unique": 4}
 	var target: int = int(ranks.get(min_rarity, 0))
 	for _i in 12:
 		if int(ranks.get(item.rarity, 0)) >= target:
@@ -61,12 +65,14 @@ static func _roll_rarity(wave_number: int, difficulty: int = -1) -> String:
 	var w_leg: float = (
 		ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_LEGENDARY] * (1.0 + bonus * 3.0)
 	)
+	# Sets sit between legendary and unique in desirability — their luck scaling does too.
+	var w_set: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_SET] * (1.0 + bonus * 3.5)
 	var w_uni: float = ItemDatabase.RARITY_WEIGHTS[ItemDatabase.RARITY_UNIQUE] * (1.0 + bonus * 4.0)
 	# Slight common→rare migration as waves climb.
 	var migrate: float = float(min(wave_number - 1, 20)) * 0.5
 	w_common = max(15.0, w_common - migrate)
 	w_rare = w_rare + migrate * 0.6
-	var total: float = w_common + w_rare + w_leg + w_uni
+	var total: float = w_common + w_rare + w_leg + w_set + w_uni
 	var r: float = randf() * total
 	if r < w_common:
 		return ItemDatabase.RARITY_COMMON
@@ -76,12 +82,15 @@ static func _roll_rarity(wave_number: int, difficulty: int = -1) -> String:
 	r -= w_rare
 	if r < w_leg:
 		return ItemDatabase.RARITY_LEGENDARY
+	r -= w_leg
+	if r < w_set:
+		return ItemDatabase.RARITY_SET
 	return ItemDatabase.RARITY_UNIQUE
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Unique rolling
-static func _roll_unique(class_id: String) -> ItemInstance:
+static func _roll_unique(class_id: String, ilvl: int = 1) -> ItemInstance:
 	var pool: Array = ItemDatabase.get_uniques_for_class(class_id)
 	if pool.is_empty():
 		return null
@@ -90,8 +99,10 @@ static func _roll_unique(class_id: String) -> ItemInstance:
 	inst.is_unique = true
 	inst.unique_id = String(pick.get("id", ""))
 	inst.rarity = ItemDatabase.RARITY_UNIQUE
+	inst.ilvl = max(1, ilvl)
 	# Copy fixed affixes (deep) and append title/suffix from the affix pool.
 	var fixed: Array = pick.get("fixed_affixes", [])
+	var used: Dictionary = {}
 	for f in fixed:
 		var aid: String = String(f.get("id", ""))
 		var ameta: Dictionary = ItemDatabase.find_affix(aid)
@@ -102,7 +113,57 @@ static func _roll_unique(class_id: String) -> ItemInstance:
 			"suffix": String(ameta.get("suffix", "")),
 		}
 		inst.affixes.append(entry)
+		used[aid] = true
+	# Uniques carry 5 affixes: the fixed identity + one rolled from the slot
+	# pool, so two copies of the same unique are never quite identical.
+	var slot: int = int(pick.get("slot", -1))
+	var want: int = int(ItemDatabase.RARITY_AFFIX_COUNT.get(ItemDatabase.RARITY_UNIQUE, 5))
+	var extra: int = max(0, want - inst.affixes.size())
+	if extra > 0:
+		inst.affixes += _roll_affixes_excluding(extra, inst.ilvl, inst.rarity, slot, used)
 	return inst
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Set item rolling — armor + jewelry only; the set_id lands on the INSTANCE.
+static func _roll_set(ilvl: int, class_id: String) -> ItemInstance:
+	var sets: Array = ItemDatabase.sets_for_class(class_id)
+	if sets.is_empty():
+		return null
+	var slots: Array = ItemDatabase.set_eligible_slots()
+	var slot: int = int(slots[randi() % slots.size()])
+	var pool: Array = ItemDatabase.get_base_items_for_slot(slot, class_id)
+	if pool.is_empty():
+		pool = ItemDatabase.get_base_items_for_slot(ItemDatabase.SLOT_HELMET, class_id)
+		if pool.is_empty():
+			return null
+	var pick: Dictionary = pool[randi() % pool.size()]
+	var inst := ItemInstance.new()
+	inst.is_unique = false
+	inst.base_id = String(pick.get("id", ""))
+	inst.rarity = ItemDatabase.RARITY_SET
+	inst.set_id = String(sets[randi() % sets.size()])
+	inst.ilvl = ilvl
+	inst.affixes = roll_set_affixes(inst.set_id, int(pick.get("slot", slot)), ilvl)
+	return inst
+
+
+# 3 affixes: 2 distinct from the set's theme pool + 1 from the slot pool.
+# The theme picks ignore slot legality on purpose — that's the chase: a set
+# ring can carry an affix its slot could never roll.
+static func roll_set_affixes(set_id: String, slot: int, ilvl: int) -> Array:
+	var theme: Array = ItemDatabase.find_set(set_id).get("theme_affixes", []).duplicate()
+	theme.shuffle()
+	var out: Array = []
+	var used: Dictionary = {}
+	for i in min(2, theme.size()):
+		var meta: Dictionary = ItemDatabase.find_affix(String(theme[i]))
+		if meta.is_empty():
+			continue
+		out.append(roll_affix_entry(meta, ilvl, ItemDatabase.RARITY_SET))
+		used[String(theme[i])] = true
+	out += _roll_affixes_excluding(3 - out.size(), ilvl, ItemDatabase.RARITY_SET, slot, used)
+	return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -133,48 +194,57 @@ static func _roll_base(rarity: String, ilvl: int, class_id: String) -> ItemInsta
 	inst.base_id = String(pick.get("id", ""))
 	inst.rarity = rarity
 	inst.ilvl = ilvl
-	# Roll affix_count distinct affixes.
+	# Roll affix_count distinct affixes from the item's SLOT pool.
 	var n: int = int(ItemDatabase.RARITY_AFFIX_COUNT.get(rarity, 1))
-	inst.affixes = _roll_affixes(n, ilvl, rarity)
+	inst.affixes = _roll_affixes(n, ilvl, rarity, int(pick.get("slot", -1)))
 	return inst
 
 
-static func _roll_affixes(count: int, ilvl: int, rarity: String) -> Array:
-	var pool: Array = ItemDatabase.AFFIX_POOL.duplicate()
+static func _roll_affixes(count: int, ilvl: int, rarity: String, slot: int = -1) -> Array:
+	return _roll_affixes_excluding(count, ilvl, rarity, slot, {})
+
+
+# Slot-aware affix rolling. `slot` < 0 = no slot restriction (full pool);
+# `exclude` maps affix ids that must not roll (already on the item).
+static func _roll_affixes_excluding(
+	count: int, ilvl: int, rarity: String, slot: int, exclude: Dictionary
+) -> Array:
+	var pool: Array = ItemDatabase.affixes_for_slot(slot)
 	# In co-op the XP-gain affix does nothing — party XP is shared and granted
 	# flat at the kill (see enemy._die / net_sync), ignoring per-player multipliers.
 	# Drop it from the pool so it never rolls in co-op; this also makes solo vs
 	# co-op gear meaningfully different (XP-gain is a singleplayer-only perk).
 	if NetManager and NetManager.is_multiplayer:
 		pool = pool.filter(func(a): return String(a.get("id", "")) != "xp_gain")
+	if not exclude.is_empty():
+		pool = pool.filter(func(a): return not exclude.has(String(a.get("id", ""))))
 	pool.shuffle()
 	var out: Array = []
 	for i in min(count, pool.size()):
 		var a: Dictionary = pool[i]
-		var min_v: float = float(a.get("min", 1))
-		var max_v: float = float(a.get("max", 1))
-		var per_ilvl: float = float(a.get("per_ilvl", 0.5))
-		var base: float = randf_range(min_v, max_v)
-		var ilvl_bonus: float = per_ilvl * float(ilvl - 1)
-		var v: float = base + ilvl_bonus
-		# Legendary gets +30% on rolled values to feel meaningfully stronger.
-		if rarity == ItemDatabase.RARITY_LEGENDARY:
-			v *= 1.3
-		# Round armor/hp/mana/damage to integers — feels cleaner.
-		var suffix: String = String(a.get("suffix", ""))
-		if suffix == "":
-			v = float(round(v))
-		else:
-			v = float(round(v * 10.0) / 10.0)
-		(
-			out
-			. append(
-				{
-					"id": String(a.get("id", "")),
-					"value": v,
-					"title": String(a.get("title", "?")),
-					"suffix": suffix,
-				}
-			)
-		)
+		out.append(roll_affix_entry(a, ilvl, rarity))
 	return out
+
+
+# Roll one affix value entry from its pool meta (shared by drop rolls and the
+# merchant's add-affix service).
+static func roll_affix_entry(meta: Dictionary, ilvl: int, rarity: String) -> Dictionary:
+	var min_v: float = float(meta.get("min", 1))
+	var max_v: float = float(meta.get("max", 1))
+	var per_ilvl: float = float(meta.get("per_ilvl", 0.5))
+	var v: float = randf_range(min_v, max_v) + per_ilvl * float(ilvl - 1)
+	# Legendary gets +30% on rolled values to feel meaningfully stronger.
+	if rarity == ItemDatabase.RARITY_LEGENDARY:
+		v *= 1.3
+	# Round flat stats to integers — feels cleaner.
+	var suffix: String = String(meta.get("suffix", ""))
+	if suffix == "":
+		v = float(round(v))
+	else:
+		v = float(round(v * 10.0) / 10.0)
+	return {
+		"id": String(meta.get("id", "")),
+		"value": v,
+		"title": String(meta.get("title", "?")),
+		"suffix": suffix,
+	}

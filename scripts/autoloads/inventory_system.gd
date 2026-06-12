@@ -23,6 +23,9 @@ var has_berserker_grip: bool = false
 # Cache transform_ids for fast lookup (rebuilt on equipment_changed).
 var _active_transforms: Dictionary = {}
 
+# Cache of active 5-piece set effect ids (rebuilt with the transform cache).
+var _active_set_effects: Dictionary = {}
+
 
 func _ready() -> void:
 	if GameManager:
@@ -73,16 +76,21 @@ func remove_item(item: ItemInstance) -> void:
 		inventory_changed.emit()
 
 
-func salvage_item(item: ItemInstance) -> int:
+# Disassemble an item into crafting materials (scrap/cloth + essence; set items
+# additionally yield one stone of their set). Returns the granted materials dict.
+func salvage_item(item: ItemInstance) -> Dictionary:
 	if item == null:
-		return 0
-	var gold: int = item.get_salvage_gold()
+		return {}
+	var mats: Dictionary = item.get_salvage_preview()
 	remove_item(item)
 	if GameManager:
-		GameManager.add_gold(gold)
+		GameManager.add_materials(mats)
+		# Set items also break down into one stone of their set (craft fuel).
+		if item.rarity == ItemDatabase.RARITY_SET and item.get_set_id() != "":
+			GameManager.add_set_stone(item.get_set_id())
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_salvage_dust.mp3", -8.0)
-	return gold
+	return mats
 
 
 func _auto_salvage_one_common() -> void:
@@ -287,44 +295,67 @@ func get_total(stat_id: String) -> float:
 	return float(compute_stat_totals().get(stat_id, 0.0)) + _set_bonus(stat_id)
 
 
-# Counts equipped pieces of each set and adds 2-pc / 4-pc threshold bonuses.
+# Adds the 2-piece flat stat bonuses of every worn set to the totals.
+# (4pc = talent node ranks, 5pc = combat effects — neither flows through here.)
 func _set_bonus(stat_id: String) -> float:
 	var counts: Dictionary = get_set_piece_counts()
 	var total: float = 0.0
 	for set_id in counts.keys():
-		var n: int = int(counts[set_id])
-		var def: Dictionary = ItemDatabase.SET_BONUSES.get(set_id, {})
-		if def.is_empty():
+		if int(counts[set_id]) < 2:
 			continue
-		if n >= 2:
-			total += float(def.get("2pc", {}).get(stat_id, 0))
-		if n >= 4:
-			total += float(def.get("4pc", {}).get(stat_id, 0))
+		var def: Dictionary = ItemDatabase.find_set(String(set_id))
+		total += float(def.get("bonus2", {}).get("stats", {}).get(stat_id, 0))
 	return total
 
 
-# Public — returns {set_id: equipped_count}. Used by character sheet UI too.
+# Public — returns {set_id: equipped_count}. Armor slots (helmet/chest/gloves/
+# boots) count 1 each; ALL jewelry (amulet + both rings) contributes at most 1
+# per set, so the maximum is 5 — the 5th piece is "any one jewelry" by design.
 func get_set_piece_counts() -> Dictionary:
 	var counts: Dictionary = {}
+	var jewelry_seen: Dictionary = {}
+	var jewelry_slots: Array = [
+		ItemDatabase.SLOT_AMULET, ItemDatabase.SLOT_RING_1, ItemDatabase.SLOT_RING_2
+	]
 	for slot in equipment.keys():
 		var it = equipment.get(slot, null)
-		if it is ItemInstance:
-			var tpl: Dictionary = (it as ItemInstance).get_template()
-			var sid: String = String(tpl.get("set_id", ""))
-			if sid != "":
-				counts[sid] = int(counts.get(sid, 0)) + 1
+		if not (it is ItemInstance):
+			continue
+		var sid: String = (it as ItemInstance).get_set_id()
+		if sid == "":
+			continue
+		if jewelry_slots.has(int(slot)):
+			if jewelry_seen.has(sid):
+				continue
+			jewelry_seen[sid] = true
+		counts[sid] = int(counts.get(sid, 0)) + 1
 	return counts
 
 
-# Returns ready-to-display set bonus info for the character sheet.
+# Returns ready-to-display set bonus info for the character sheet / tooltips:
+# {set_id, name, flavor, pieces, bonuses: [{threshold, label, active}]}.
 func get_active_set_bonuses() -> Array:
 	var out: Array = []
 	var counts: Dictionary = get_set_piece_counts()
 	for set_id in counts.keys():
-		var def: Dictionary = ItemDatabase.SET_BONUSES.get(set_id, {})
+		var def: Dictionary = ItemDatabase.find_set(String(set_id))
 		if def.is_empty():
 			continue
 		var n: int = int(counts[set_id])
+		var bonuses: Array = []
+		for pair in [[2, "bonus2"], [4, "bonus4"], [5, "bonus5"]]:
+			var threshold: int = int(pair[0])
+			var b: Dictionary = def.get(String(pair[1]), {})
+			(
+				bonuses
+				. append(
+					{
+						"threshold": threshold,
+						"label": String(b.get("label", "")),
+						"active": n >= threshold,
+					}
+				)
+			)
 		(
 			out
 			. append(
@@ -333,14 +364,17 @@ func get_active_set_bonuses() -> Array:
 					"name": String(def.get("name", set_id)),
 					"flavor": String(def.get("flavor", "")),
 					"pieces": n,
-					"two_pc_active": n >= 2,
-					"four_pc_active": n >= 4,
-					"two_pc_label": String(def.get("2pc", {}).get("label", "")),
-					"four_pc_label": String(def.get("4pc", {}).get("label", "")),
+					"bonuses": bonuses,
 				}
 			)
 		)
 	return out
+
+
+# 5-piece set effect check — the set analogue of has_unique(). Cache rebuilt by
+# _rebuild_transform_cache on every equip/unequip.
+func has_set_effect(effect_id: String) -> bool:
+	return _active_set_effects.has(effect_id)
 
 
 # Total armor (flat add).
@@ -415,10 +449,39 @@ func _rebuild_transform_cache() -> void:
 			var tid: String = (it as ItemInstance).get_transform_id()
 			if tid != "":
 				_active_transforms[tid] = true
+	# 5-piece set effects (NOTE co-op: evaluated against the LOCAL inventory —
+	# remote visual-only skill copies skip damage, so this stays cosmetic-safe).
+	_active_set_effects.clear()
+	var counts: Dictionary = get_set_piece_counts()
+	for set_id in counts.keys():
+		if int(counts[set_id]) < 5:
+			continue
+		var eff: String = String(
+			ItemDatabase.find_set(String(set_id)).get("bonus5", {}).get("effect", "")
+		)
+		if eff != "":
+			_active_set_effects[eff] = true
 
 
+# True when the EFFECT identified by `transform_id` is active — either the
+# unique item carrying it is equipped, or the matching talent-tree transform
+# node was bought (several tree nodes deliberately reuse unique effect ids:
+# hexen_bloodmoon, storm_stormveil, stone_armor_grinder, …). Remote player
+# puppets carry no SkillSystem child, so only the LOCAL player ever matches.
 func has_unique(transform_id: String) -> bool:
-	return _active_transforms.has(transform_id)
+	if _active_transforms.has(transform_id):
+		return true
+	var tree := get_tree()
+	if tree == null:
+		return false
+	for p in tree.get_nodes_in_group("player"):
+		var ss = p.get_node_or_null("SkillSystem")
+		if ss == null:
+			continue
+		var at = ss.get("active_transforms")
+		if at is Array and (at as Array).has(transform_id):
+			return true
+	return false
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -431,37 +494,59 @@ const _RARITY_MULT: Dictionary = {
 }
 
 
-static func upgrade_cost(item: ItemInstance) -> int:
+# Rarity rank used to scale material costs (common 0 … unique 3).
+static func _rarity_rank(rarity: String) -> int:
+	match rarity:
+		ItemDatabase.RARITY_RARE:
+			return 1
+		ItemDatabase.RARITY_LEGENDARY:
+			return 2
+		ItemDatabase.RARITY_SET:
+			return 2
+		ItemDatabase.RARITY_UNIQUE:
+			return 3
+	return 0
+
+
+# Merchant operation costs are cost dicts ({"gold", "scrap", "cloth", "essence"});
+# an EMPTY dict means the operation is unavailable for this item. Spend via
+# GameManager.spend_cost (atomic), afford-check via GameManager.can_afford_cost.
+static func upgrade_cost(item: ItemInstance) -> Dictionary:
 	if item == null or item.is_unique:
-		return -1
+		return {}
 	var m: float = float(_RARITY_MULT.get(item.rarity, 1.0))
-	return int(30.0 * float(item.ilvl) * m)
+	return {
+		"gold": int(15.0 * float(item.ilvl) * m),
+		"scrap": 2 + int(float(item.ilvl) / 3.0),
+	}
 
 
-static func reroll_cost(item: ItemInstance) -> int:
+static func reroll_cost(item: ItemInstance) -> Dictionary:
 	if item == null or item.is_unique:
-		return -1
-	var m: float = float(_RARITY_MULT.get(item.rarity, 1.0))
-	return int(20.0 * float(item.ilvl) * m)
+		return {}
+	return {
+		"cloth": 2 + int(float(item.ilvl) / 4.0),
+		"essence": maxi(1, _rarity_rank(item.rarity)),
+	}
 
 
-static func add_affix_cost(item: ItemInstance) -> int:
+static func add_affix_cost(item: ItemInstance) -> Dictionary:
 	if item == null or item.is_unique:
-		return -1
-	if item.affixes.size() >= 3:
-		return -1
-	var m: float = float(_RARITY_MULT.get(item.rarity, 1.0))
-	return int(60.0 * float(max(1, item.ilvl)) * m)
+		return {}
+	# Set items are locked at 3 affixes — their power is the set bonus.
+	if item.rarity == ItemDatabase.RARITY_SET:
+		return {}
+	if item.affixes.size() >= 4:
+		return {}
+	return {"essence": 3 + 2 * _rarity_rank(item.rarity) + int(float(max(1, item.ilvl)) / 4.0)}
 
 
 func upgrade_item(item: ItemInstance) -> bool:
 	if item == null or item.is_unique:
 		return false
-	var cost: int = upgrade_cost(item)
-	if cost < 0 or GameManager == null or GameManager.gold < cost:
+	var cost: Dictionary = upgrade_cost(item)
+	if GameManager == null or not GameManager.spend_cost(cost):
 		return false
-	GameManager.gold -= cost
-	GameManager.gold_changed.emit(GameManager.gold)
 	item.ilvl += 1
 	_rescale_affixes(item)
 	inventory_changed.emit()
@@ -474,11 +559,9 @@ func upgrade_item(item: ItemInstance) -> bool:
 func reroll_item(item: ItemInstance) -> bool:
 	if item == null or item.is_unique:
 		return false
-	var cost: int = reroll_cost(item)
-	if cost < 0 or GameManager == null or GameManager.gold < cost:
+	var cost: Dictionary = reroll_cost(item)
+	if GameManager == null or not GameManager.spend_cost(cost):
 		return false
-	GameManager.gold -= cost
-	GameManager.gold_changed.emit(GameManager.gold)
 	_rescale_affixes(item)
 	inventory_changed.emit()
 	equipment_changed.emit()
@@ -490,49 +573,62 @@ func reroll_item(item: ItemInstance) -> bool:
 func add_affix_to(item: ItemInstance) -> bool:
 	if item == null or item.is_unique:
 		return false
-	var cost: int = add_affix_cost(item)
-	if cost < 0 or GameManager == null or GameManager.gold < cost:
+	var cost: Dictionary = add_affix_cost(item)
+	if GameManager == null or not GameManager.can_afford_cost(cost):
 		return false
-	# Pick a new affix not already on the item.
+	# Pick a new affix legal for the item's SLOT and not already on it.
 	var used: Dictionary = {}
 	for a in item.affixes:
 		used[String(a.get("id", ""))] = true
 	var pool: Array = []
-	for ameta in ItemDatabase.AFFIX_POOL:
+	for ameta in ItemDatabase.affixes_for_slot(item.get_slot()):
 		var aid: String = String(ameta.get("id", ""))
 		if not used.has(aid):
 			pool.append(ameta)
 	if pool.is_empty():
 		return false
-	GameManager.gold -= cost
-	GameManager.gold_changed.emit(GameManager.gold)
+	if not GameManager.spend_cost(cost):
+		return false
 	var pick: Dictionary = pool[randi() % pool.size()]
-	var min_v: float = float(pick.get("min", 1))
-	var max_v: float = float(pick.get("max", 1))
-	var per_ilvl: float = float(pick.get("per_ilvl", 0.5))
-	var v: float = randf_range(min_v, max_v) + per_ilvl * float(item.ilvl - 1)
-	var suffix: String = String(pick.get("suffix", ""))
-	if suffix == "":
-		v = float(round(v))
-	else:
-		v = float(round(v * 10.0) / 10.0)
-	(
-		item
-		. affixes
-		. append(
-			{
-				"id": String(pick.get("id", "")),
-				"value": v,
-				"title": String(pick.get("title", "?")),
-				"suffix": suffix,
-			}
-		)
-	)
-	# Bump rarity tier as affix count grows.
-	if item.affixes.size() == 2 and item.rarity == ItemDatabase.RARITY_COMMON:
+	item.affixes.append(LootRoller.roll_affix_entry(pick, item.ilvl, item.rarity))
+	# Bump rarity tier as affix count grows (mirrors RARITY_AFFIX_COUNT: rare
+	# carries 2 affixes, legendary 4).
+	if item.affixes.size() >= 2 and item.rarity == ItemDatabase.RARITY_COMMON:
 		item.rarity = ItemDatabase.RARITY_RARE
-	elif item.affixes.size() == 3 and item.rarity == ItemDatabase.RARITY_RARE:
+	elif item.affixes.size() >= 4 and item.rarity == ItemDatabase.RARITY_RARE:
 		item.rarity = ItemDatabase.RARITY_LEGENDARY
+	inventory_changed.emit()
+	equipment_changed.emit()
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_merchant_upgrade.mp3", -6.0)
+	return true
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Set crafting: 2 stones of a set + any non-unique, non-set armor/jewelry item
+# + essence → the item BECOMES that set's piece (slot preserved, affixes
+# re-rolled by the set's rules).
+static func craft_cost(item: ItemInstance, set_id: String) -> Dictionary:
+	if item == null or item.is_unique or item.rarity == ItemDatabase.RARITY_SET:
+		return {}
+	if not ItemDatabase.SETS.has(set_id):
+		return {}
+	if not ItemDatabase.set_eligible_slots().has(item.get_slot()):
+		return {}
+	return {
+		"essence": 6 + int(float(item.ilvl) / 2.0),
+		"stones": {set_id: 2},
+	}
+
+
+func craft_set_item(item: ItemInstance, set_id: String) -> bool:
+	var cost: Dictionary = craft_cost(item, set_id)
+	if GameManager == null or not GameManager.spend_cost(cost):
+		return false
+	item.rarity = ItemDatabase.RARITY_SET
+	item.set_id = set_id
+	item.affixes = LootRoller.roll_set_affixes(set_id, item.get_slot(), item.ilvl)
+	_rebuild_transform_cache()
 	inventory_changed.emit()
 	equipment_changed.emit()
 	if AudioManager:
@@ -581,10 +677,9 @@ func buy_item(rarity: String, wave_hint: int = 1, class_id: String = "") -> bool
 		actual_class = String(GameManager.player_class)
 	var item: ItemInstance = null
 	if rarity == ItemDatabase.RARITY_UNIQUE:
-		item = LootRoller._roll_unique(actual_class)
+		item = LootRoller._roll_unique(actual_class, max(1, 1 + int(float(wave_hint) / 2.0)))
 		if item == null:
 			return false
-		item.ilvl = max(1, 1 + int(float(wave_hint) / 2.0))
 	else:
 		item = LootRoller._roll_base(rarity, max(1, 1 + int(float(wave_hint) / 2.0)), actual_class)
 		if item == null:

@@ -7,6 +7,7 @@ const RARITY_COLORS := {
 	"common": Color(0.85, 0.85, 0.9, 1),
 	"rare": Color(0.45, 0.75, 1.0, 1),
 	"legendary": Color(1.0, 0.65, 0.25, 1),
+	"set": Color(0.35, 0.9, 0.35, 1),
 	"unique": Color(1.0, 0.4, 0.3, 1),
 }
 

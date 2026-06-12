@@ -184,7 +184,7 @@ func _build_branch_column(cls: String, branch_index: int, branch: Dictionary) ->
 func _build_node_button(node: Dictionary) -> Button:
 	var node_id: String = String(node["id"])
 	var rank: int = int(GameManager.talents.get(node_id, 0))
-	var free_ranks: int = TalentTrees.item_grant_ranks(node_id)
+	var free_ranks: int = TalentTrees.set_grant_ranks(node_id)
 	var max_r: int = TalentTrees.max_ranks(node)
 	var kind: String = String(node["kind"])
 
@@ -250,9 +250,9 @@ func _refresh_footer() -> void:
 	_stats_label.text = (
 		"Str %d  •  Dex %d  •  Int %d      respec at any campfire"
 		% [
-			GameManager.player_strength,
-			GameManager.player_dexterity,
-			GameManager.player_intelligence,
+			GameManager.get_effective_strength(),
+			GameManager.get_effective_dexterity(),
+			GameManager.get_effective_intelligence(),
 		]
 	)
 

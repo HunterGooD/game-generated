@@ -8,6 +8,8 @@ var base_id: String = ""
 var unique_id: String = ""  # Non-empty for unique items.
 var is_unique: bool = false
 var rarity: String = ItemDatabase.RARITY_COMMON
+# Set membership — rolled at drop time (rarity == "set"), "" otherwise.
+var set_id: String = ""
 var ilvl: int = 1
 # Each affix is {"id": "armor", "value": 12, "title": "Armor", "suffix": ""}.
 var affixes: Array = []
@@ -70,12 +72,36 @@ func get_transform_desc() -> String:
 	return String(get_template().get("transform_desc", ""))
 
 
+# Some uniques only do something while a specific talent transform is taken
+# (e.g. Bone Spear splinters require the Bone Spear talent). Tooltip line.
+func get_requires_label() -> String:
+	if not is_unique:
+		return ""
+	return String(get_template().get("requires_label", ""))
+
+
 func get_class_lock() -> String:
 	return String(get_template().get("class_lock", ""))
 
 
+func get_set_id() -> String:
+	return set_id
+
+
+func get_set_name() -> String:
+	if set_id == "":
+		return ""
+	return String(ItemDatabase.find_set(set_id).get("name", set_id))
+
+
 func get_salvage_gold() -> int:
 	return ItemDatabase.rarity_salvage_gold(rarity, ilvl)
+
+
+# Materials this item disassembles into (does NOT include the set stone a set
+# item also yields — see InventorySystem.salvage_item).
+func get_salvage_preview() -> Dictionary:
+	return ItemDatabase.salvage_materials_for(get_slot(), rarity, ilvl)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,6 +145,7 @@ func to_dict() -> Dictionary:
 		"unique_id": unique_id,
 		"is_unique": is_unique,
 		"rarity": rarity,
+		"set_id": set_id,
 		"ilvl": ilvl,
 		"affixes": affixes.duplicate(true),
 	}
@@ -132,6 +159,8 @@ static func from_dict(data: Dictionary) -> ItemInstance:
 	inst.unique_id = String(data.get("unique_id", ""))
 	inst.is_unique = bool(data.get("is_unique", false))
 	inst.rarity = String(data.get("rarity", ItemDatabase.RARITY_COMMON))
+	# Back-compat default: items gifted by older clients carry no set_id.
+	inst.set_id = String(data.get("set_id", ""))
 	inst.ilvl = int(data.get("ilvl", 1))
 	var affs: Array = data.get("affixes", [])
 	for a in affs:

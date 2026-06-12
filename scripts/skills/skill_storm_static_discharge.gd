@@ -67,5 +67,38 @@ func _ready() -> void:
 			var ss = caster.get_node_or_null("SkillSystem")
 			if ss and ss.cooldowns.size() > 3:
 				ss.cooldowns[3] = ss.cooldowns[3] * 0.5
+		# Stormcage Array 5pc — a big discharge calls a free Sky Strike on the
+		# nearest enemy (no mana, no cooldown).
+		if (
+			stacks >= REFUND_THRESHOLD
+			and InventorySystem
+			and InventorySystem.has_method("has_set_effect")
+			and InventorySystem.has_set_effect("storm_overcharge")
+		):
+			_fire_overcharge_sky_strike()
 	var done := get_tree().create_timer(0.7)
 	done.timeout.connect(queue_free)
+
+
+func _fire_overcharge_sky_strike() -> void:
+	if caster == null or not is_instance_valid(caster):
+		return
+	var def: SkillDefinition = SkillCatalog.get_def("storm_sky_strike")
+	if def == null:
+		return
+	# Nearest live enemy anywhere on screen-ish range.
+	var best: Node2D = null
+	var best_d: float = 900.0
+	var tree := get_tree()
+	if tree == null:
+		return
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or e.get("dead") == true:
+			continue
+		var d: float = global_position.distance_to((e as Node2D).global_position)
+		if d < best_d:
+			best_d = d
+			best = e as Node2D
+	if best == null:
+		return
+	SkillCaster.spawn(def, caster as Node2D, best.global_position, damage, {"caster": caster})

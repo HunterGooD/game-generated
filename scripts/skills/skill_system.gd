@@ -306,10 +306,10 @@ func get_modifier(slot: int, modifier_id: String) -> int:
 	if slot < 0 or slot >= modifiers.size():
 		return 0
 	var own: int = int(modifiers[slot].get(modifier_id, 0))
-	# Unique items grant FREE ranks of talent modifier nodes while equipped
-	# (they no longer replace skills) — fold those in live, no syncing.
+	# 4-piece set bonuses grant FREE ranks of talent modifier nodes while worn —
+	# fold those in live, no syncing.
 	if GameManager and GameManager.use_talent_tree:
-		own += TalentTrees.item_grant_ranks(modifier_id)
+		own += TalentTrees.set_grant_ranks(modifier_id)
 	return own
 
 
@@ -327,11 +327,9 @@ func clear_run_upgrades() -> void:
 func get_transform(slot: int) -> String:
 	if slot < 0 or slot >= transforms.size():
 		return ""
-	# Level-up-applied transform wins; otherwise honor a slot-swap transform
-	# granted by an EQUIPPED unique item.
+	# Transforms come from the talent tree (and spec paths) only — equipped
+	# uniques never replace skills; they conditionally MODIFY them instead.
 	var t: String = transforms[slot]
-	if t == "":
-		t = _equipped_item_transform_for_slot(slot)
 	if t == "":
 		return ""
 	# Form-aware guard: a slot-swap transform with a known base skill only applies
@@ -344,24 +342,6 @@ func get_transform(slot: int) -> String:
 	):
 		return ""
 	return t
-
-
-# Returns the slot-swap transform id granted by an equipped unique item for this
-# slot, or "" if none. LEGACY-ONLY: under the talent tree, equipped uniques grant
-# free node ranks instead of replacing skills (skill replacement is a deliberate
-# tree choice now) — see TalentTrees.ITEM_NODE_GRANTS.
-func _equipped_item_transform_for_slot(slot: int) -> String:
-	if GameManager and GameManager.use_talent_tree:
-		return ""
-	if InventorySystem == null or not InventorySystem.has_method("has_unique"):
-		return ""
-	for tid in SkillCatalog.ITEM_TRANSFORM_SLOT:
-		if (
-			int(SkillCatalog.ITEM_TRANSFORM_SLOT[tid]) == slot
-			and InventorySystem.call("has_unique", String(tid))
-		):
-			return String(tid)
-	return ""
 
 
 func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
@@ -405,11 +385,11 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	var stack_bonus: float = 0.0
 	if slot >= 0 and slot < modifiers.size():
 		var counts: Dictionary = modifiers[slot].duplicate()
-		# Item-granted free ranks count too (the player may never have bought the node).
+		# Set-granted free ranks count too (the player may never have bought the node).
 		if GameManager and GameManager.use_talent_tree:
-			var granted: Dictionary = TalentTrees.item_granted_modifiers(slot)
-			for mod_id in granted:
-				counts[mod_id] = int(counts.get(mod_id, 0)) + int(granted[mod_id])
+			var set_granted: Dictionary = TalentTrees.set_granted_modifiers(slot)
+			for mod_id in set_granted:
+				counts[mod_id] = int(counts.get(mod_id, 0)) + int(set_granted[mod_id])
 		for mod_id in counts:
 			if String(mod_id).ends_with("_damage"):
 				stack_bonus += 0.3 * float(counts[mod_id])

@@ -74,6 +74,10 @@ var slow_t: float = 0.0
 var slow_mult: float = 1.0
 var dead: bool = false
 
+# Hunter's Oath 5pc — player hits stack a hunt mark: +4% damage taken per stack.
+var hunt_stacks: int = 0
+var hunt_t: float = 0.0
+
 # ── Elemental status (shared by the Mage ascensions) ──────────────────────────
 # Burn: a damage-over-time that also tags the "fire" element for Fracture.
 var burn_t: float = 0.0
@@ -542,6 +546,10 @@ func _physics_process(delta: float) -> void:
 		if slow_t <= 0.0:
 			slow_mult = 1.0
 			modulate = Color(1, 1, 1, 1)
+	if hunt_t > 0.0:
+		hunt_t -= delta
+		if hunt_t <= 0.0:
+			hunt_stacks = 0
 	_tick_status(delta)
 	# Refresh the floating debuff icons a few times a second (host/solo only —
 	# puppets carry no authoritative status to show).
@@ -1072,11 +1080,21 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 
 
 func take_damage(amount: int, source_position: Vector2 = Vector2.ZERO) -> void:
+	var dmg: int = amount
+	# Hunter's Oath 5pc: amplify by existing hunt stacks, then add a stack.
+	if (
+		InventorySystem
+		and InventorySystem.has_method("has_set_effect")
+		and InventorySystem.has_set_effect("hunt_mark")
+	):
+		dmg = int(round(float(dmg) * (1.0 + 0.04 * float(hunt_stacks))))
+		hunt_stacks = mini(hunt_stacks + 1, 5)
+		hunt_t = 4.0
 	var knockback: Vector2 = Vector2.ZERO
 	if source_position != Vector2.ZERO:
 		knockback = (global_position - source_position).normalized() * 110.0
 	receive_damage_payload(
-		DamageInstance.new(float(amount), null, self, [&"player_hit"], [], false, knockback)
+		DamageInstance.new(float(dmg), null, self, [&"player_hit"], [], false, knockback)
 	)
 
 

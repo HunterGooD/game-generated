@@ -47,17 +47,6 @@ const ULT_NODES := [
 	},
 ]
 
-# Equipped unique items no longer replace skills — they grant FREE ranks of a
-# related modifier node while worn (keyed by ItemInstance.unique_id). Free ranks
-# ignore tier gates (early access to power) and vanish on unequip.
-const ITEM_NODE_GRANTS := {
-	"bone_spear_unique": {"node": "necro_pact_power", "ranks": 2},
-	"curse_field_unique": {"node": "necro_knight_armor", "ranks": 2},
-	"druid_hurricane_unique": {"node": "wolf_duration", "ranks": 2},
-	"druid_dire_wolf_unique": {"node": "bear_duration", "ranks": 2},
-}
-
-
 # Shorthand builders keep the tree tables readable.
 static func _stat(branch_id: String, stat: String) -> Dictionary:
 	const NAMES := {"strength": "Might", "dexterity": "Finesse", "intelligence": "Insight"}
@@ -394,39 +383,44 @@ static func tier_unlocked(cls: String, branch_index: int, tier_index: int, talen
 	return points_in_branch(cls, branch_index, talents) >= POINTS_PER_TIER * tier_index
 
 
-# node_id → free ranks from currently equipped unique items.
-static func _equipped_grants() -> Dictionary:
+# ── Set 4-piece node grants ──────────────────────────────────────────────────
+# node_id → free ranks from worn 4+/5-piece sets (the set analogue of the
+# unique-item grants above; driven by ItemDatabase.SETS bonus4).
+static func _set_grants() -> Dictionary:
 	var loop = Engine.get_main_loop()
 	if loop == null or not loop.has_method("get_root"):
 		return {}
-	var inv = loop.call("get_root").get_node_or_null("InventorySystem")
-	if inv == null:
+	var root = loop.call("get_root")
+	var inv = root.get_node_or_null("InventorySystem")
+	var gm = root.get_node_or_null("GameManager")
+	if inv == null or gm == null or not inv.has_method("get_set_piece_counts"):
 		return {}
+	var class_id: String = String(gm.get("player_class")) if gm.get("player_class") != null else ""
 	var out: Dictionary = {}
-	var equipment: Dictionary = inv.get("equipment") if inv.get("equipment") != null else {}
-	for slot in equipment:
-		var it = equipment[slot]
-		if it == null:
+	var counts: Dictionary = inv.call("get_set_piece_counts")
+	for set_id in counts:
+		if int(counts[set_id]) < 4:
 			continue
-		var uid: String = String(it.get("unique_id")) if it.get("unique_id") != null else ""
-		if uid == "" or not ITEM_NODE_GRANTS.has(uid):
+		var grant: Dictionary = ItemDatabase.set_node_grant(String(set_id), class_id)
+		if grant.is_empty():
 			continue
-		var grant: Dictionary = ITEM_NODE_GRANTS[uid]
-		var node_id: String = String(grant["node"])
-		out[node_id] = int(out.get(node_id, 0)) + int(grant["ranks"])
+		var node_id: String = String(grant.get("node", ""))
+		if node_id == "":
+			continue
+		out[node_id] = int(out.get(node_id, 0)) + int(grant.get("ranks", 0))
 	return out
 
 
-# Free ranks granted to one node by currently equipped unique items.
-static func item_grant_ranks(node_id: String) -> int:
-	return int(_equipped_grants().get(node_id, 0))
+# Free ranks granted to one node by worn set bonuses.
+static func set_grant_ranks(node_id: String) -> int:
+	return int(_set_grants().get(node_id, 0))
 
 
-# modifier_id → equipped-item free ranks, filtered to one skill slot. Used by
-# SkillSystem's generic "_damage" stacking so item-granted ranks count even when
+# modifier_id → set-granted free ranks, filtered to one skill slot. Used by
+# SkillSystem's generic "_damage" stacking so granted ranks count even when
 # the player never bought the node.
-static func item_granted_modifiers(slot: int) -> Dictionary:
-	var grants: Dictionary = _equipped_grants()
+static func set_granted_modifiers(slot: int) -> Dictionary:
+	var grants: Dictionary = _set_grants()
 	var out: Dictionary = {}
 	for node_id in grants:
 		var m: Dictionary = RewardData.find_modifier(String(node_id))

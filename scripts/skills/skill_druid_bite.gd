@@ -9,6 +9,8 @@ var damage: int = 24
 var direction: Vector2 = Vector2.RIGHT
 var visual_only: bool = false
 var hit_set: Dictionary = {}
+# "Alpha Predator" unique (dire_wolf_rend): bites bleed while in Dire Wolf form.
+var _rend: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -20,6 +22,12 @@ func setup_context(ctx: SkillContext) -> void:
 	if visual_only:
 		set_meta("visual_only", true)
 	rotation = direction.angle()
+	# Rend is conditional: the unique must be worn AND the druid must actually
+	# be in Dire Wolf form (the talent transform of Bear Form).
+	if InventorySystem and InventorySystem.has_unique("dire_wolf_rend") and ctx.caster:
+		var ss = ctx.caster.get("skill_system")
+		if ss != null and String(ss.get("druid_form")) == "dire_wolf":
+			_rend = true
 
 
 func _ready() -> void:
@@ -71,6 +79,9 @@ func _apply_damage() -> void:
 		hit_set[id] = true
 		if e.has_method("take_damage"):
 			e.take_damage(damage, origin)
+		# Alpha Predator rend — 60% of bite damage bleeding out over 3s.
+		if _rend and e.has_method("apply_poison"):
+			e.call("apply_poison", 1, 3.0, float(damage) * 0.2)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(origin + direction * 70.0, Color(1.0, 0.5, 0.4, 1), 8)
 		VfxManager.hit_stop(0.04)

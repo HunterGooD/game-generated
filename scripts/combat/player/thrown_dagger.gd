@@ -89,8 +89,15 @@ func _on_body_entered(body: Node) -> void:
 func _impact() -> void:
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/player/player_dagger_hit.mp3", -10.0)
-	# Venomweave unique — leave a poison puddle at the impact point.
-	if has_meta("venomweave"):
+	# Venomweave unique / Nightshade Silks 5pc — poison puddle at the impact point.
+	if (
+		has_meta("venomweave")
+		or (
+			InventorySystem
+			and InventorySystem.has_method("has_set_effect")
+			and InventorySystem.has_set_effect("rogue_toxin")
+		)
+	):
 		_spawn_poison_puddle()
 	_die()
 

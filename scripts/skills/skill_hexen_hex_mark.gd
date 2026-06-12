@@ -140,6 +140,30 @@ func detonate() -> void:
 				# Light damage to chained targets.
 				if e.has_method("take_damage"):
 					e.call("take_damage", int(round(float(damage) * 0.6)), pos)
+		# Covenant Threads 5pc — the detonation echoes onto the nearest enemy
+		# that is still UNMARKED, even beyond the chain radius.
+		if (
+			InventorySystem
+			and InventorySystem.has_method("has_set_effect")
+			and InventorySystem.has_set_effect("hexen_echo_mark")
+		):
+			var echo: Node2D = null
+			var best_d: float = 420.0
+			for e in tree.get_nodes_in_group("enemy"):
+				if not is_instance_valid(e) or e == marked_enemy or e.get("dead") == true:
+					continue
+				if e.has_meta("hex_marked"):
+					continue
+				var d: float = pos.distance_to((e as Node2D).global_position)
+				if d < best_d:
+					best_d = d
+					echo = e as Node2D
+			if echo != null:
+				echo.set_meta("hex_marked", true)
+				if echo.has_method("take_damage"):
+					echo.call("take_damage", int(round(float(damage) * 0.6)), pos)
+				if VfxManager:
+					VfxManager.spawn_hit_sparks(echo.global_position, Color(0.85, 0.3, 0.9, 1), 8)
 	_finish(true)
 
 

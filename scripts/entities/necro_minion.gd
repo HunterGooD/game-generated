@@ -131,3 +131,31 @@ func _apply_sprite_frames() -> void:
 	sprite.scale = Vector2(s, s)
 	# Subtle violet tint for the undead.
 	sprite.modulate = _base_modulate()
+
+
+# Gravewrought Regalia 5pc — minions detonate in a small bone nova on death.
+func _die() -> void:
+	if (
+		not dead
+		and not is_puppet
+		and InventorySystem
+		and InventorySystem.has_method("has_set_effect")
+		and InventorySystem.has_set_effect("necro_grave_burst")
+	):
+		_grave_burst()
+	super._die()
+
+
+func _grave_burst() -> void:
+	var burst_dmg: int = max(8, int(round(float(damage) * 1.5)))
+	if VfxManager:
+		VfxManager.spawn_explosion(global_position, 0.9, Color(0.85, 0.8, 0.7, 1))
+	var tree := get_tree()
+	if tree == null:
+		return
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or e.get("dead") == true:
+			continue
+		if global_position.distance_to((e as Node2D).global_position) <= 120.0:
+			if e.has_method("take_damage"):
+				e.call("take_damage", burst_dmg, global_position)

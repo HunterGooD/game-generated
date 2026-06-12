@@ -15,18 +15,27 @@ var current_target: Node2D = null
 var retarget_t: float = 0.0
 var damage_t: float = 0.0
 var sprite: Sprite2D = null
+# "Eye of the Storm" unique (hurricane_twin): a second, smaller hurricane.
+var _is_twin: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
+	_is_twin = bool(ctx.get_mod("twin_child", false))
+	if _is_twin:
+		damage = int(round(float(damage) * 0.6))
+		scale = Vector2(0.6, 0.6)
 	if visual_only:
 		set_meta("visual_only", true)
 
 
 func _ready() -> void:
 	z_index = 50
+	# Eye of the Storm — the lead hurricane spawns its twin sister.
+	if not _is_twin and InventorySystem and InventorySystem.has_unique("hurricane_twin"):
+		_spawn_twin()
 	sprite = Sprite2D.new()
 	var path := "res://assets/sprites/effects/hurricane_vfx.png"
 	if ResourceLoader.exists(path):
@@ -98,6 +107,28 @@ func _find_nearest_enemy() -> Node2D:
 			best_d = d
 			best = e as Node2D
 	return best
+
+
+func _spawn_twin() -> void:
+	var packed: PackedScene = load(scene_file_path) as PackedScene
+	if packed == null:
+		return
+	var twin: Node2D = packed.instantiate()
+	twin.position = global_position + Vector2(randf_range(-130, 130), randf_range(-130, 130))
+	var ctx := SkillContext.from_mods(
+		Vector2.RIGHT, damage, {"twin_child": true, "visual_only": visual_only}
+	)
+	SkillContext.apply(twin, ctx)
+	# Deferred: _ready runs before we're in the tree ourselves.
+	call_deferred("_add_twin_to_scene", twin)
+
+
+func _add_twin_to_scene(twin: Node2D) -> void:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		twin.queue_free()
+		return
+	tree.current_scene.add_child(twin)
 
 
 func _finish() -> void:

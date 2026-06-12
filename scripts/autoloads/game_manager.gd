@@ -15,6 +15,7 @@ signal talents_changed
 signal spec_path_offered
 signal spec_path_chosen(path_id: String)
 signal gold_changed(new_gold: int)
+signal materials_changed
 signal enemy_defeated
 signal wave_started(wave: int)
 signal wave_cleared(wave: int)
@@ -359,8 +360,8 @@ var player_intelligence: int = 5
 # In-run talent tree (V2 level-ups). When the flag is on, a level-up grants a
 # talent point spent in the TalentTrees UI instead of opening the 3-card overlay
 # (legacy path kept intact behind the flag for future modes). `talents` maps
-# node_id → ranks bought (item-granted free ranks are NOT stored here — they're
-# read live from equipment via TalentTrees.item_grant_ranks).
+# node_id → ranks bought (set-bonus free ranks are NOT stored here — they're
+# read live from equipment via TalentTrees.set_grant_ranks).
 var use_talent_tree: bool = true
 var talent_points: int = 0
 var talents: Dictionary = {}
@@ -370,6 +371,16 @@ var talents: Dictionary = {}
 const META_XP_PER_CHAR_LEVEL: int = 12
 const META_XP_RUN_COMPLETE_BONUS: int = 150
 var gold: int = 0
+# Run-scoped crafting wallet (resets with gold in reset_run). Keys are
+# ItemDatabase.MATERIAL_IDS: "scrap" / "cloth" / "essence". Like gold, materials
+# are purely local in co-op — each peer salvages and spends their own.
+var materials: Dictionary = {"scrap": 0, "cloth": 0, "essence": 0}
+# Set stones: set_id → count. Salvaging a set item yields one stone of its set;
+# two stones + an item craft that set (see InventorySystem.craft_set_item).
+var set_stones: Dictionary = {}
+# Bastion Vow 5pc shield state (absorbs damage before HP; 30s internal cooldown).
+var bastion_shield_hp: int = 0
+var _bastion_ready_at_ms: int = 0
 
 # Run state.
 var current_floor: int = 1
@@ -487,6 +498,10 @@ func reset_run() -> void:
 			player_max_hp = int(round(float(player_max_hp) * (1.0 + hp_pct)))
 			player_hp = player_max_hp
 	gold = 0
+	materials = {"scrap": 0, "cloth": 0, "essence": 0}
+	set_stones = {}
+	bastion_shield_hp = 0
+	_bastion_ready_at_ms = 0
 	total_gold_earned = 0
 	highest_wave = 0
 	enemies_killed = 0
@@ -498,6 +513,7 @@ func reset_run() -> void:
 	run_node_active = {}
 	player_stats_changed.emit()
 	gold_changed.emit(gold)
+	materials_changed.emit()
 
 
 # ── Run-map flow ──────────────────────────────────────────────────────────────
@@ -656,6 +672,70 @@ func add_gold_with_bonus(amount: int) -> void:
 	add_gold(int(round(float(amount) * mult)))
 
 
+# ── Crafting materials (run-scoped wallet, same lifecycle as gold) ────────────
+func add_materials(mats: Dictionary) -> void:
+	for id in mats:
+		var key := String(id)
+		materials[key] = max(0, int(materials.get(key, 0)) + int(mats[id]))
+	materials_changed.emit()
+
+
+func get_material(id: String) -> int:
+	return int(materials.get(id, 0))
+
+
+func add_set_stone(set_id: String, n: int = 1) -> void:
+	if set_id == "":
+		return
+	set_stones[set_id] = max(0, int(set_stones.get(set_id, 0)) + n)
+	materials_changed.emit()
+
+
+func get_set_stones(set_id: String) -> int:
+	return int(set_stones.get(set_id, 0))
+
+
+# Cost dicts may contain any of: "gold", "scrap", "cloth", "essence",
+# "stones": {set_id: count}. Missing keys mean zero. An EMPTY dict means
+# "operation unavailable" by convention — never affordable.
+func can_afford_cost(cost: Dictionary) -> bool:
+	if cost.is_empty():
+		return false
+	if gold < int(cost.get("gold", 0)):
+		return false
+	for id in ["scrap", "cloth", "essence"]:
+		if get_material(id) < int(cost.get(id, 0)):
+			return false
+	var stones: Dictionary = cost.get("stones", {})
+	for set_id in stones:
+		if get_set_stones(String(set_id)) < int(stones[set_id]):
+			return false
+	return true
+
+
+# Atomic: checks the FULL cost first, then deducts everything and emits both
+# wallet signals. Returns false (and changes nothing) when unaffordable.
+func spend_cost(cost: Dictionary) -> bool:
+	if not can_afford_cost(cost):
+		return false
+	var g: int = int(cost.get("gold", 0))
+	if g > 0:
+		gold -= g
+		gold_changed.emit(gold)
+	for id in ["scrap", "cloth", "essence"]:
+		var n: int = int(cost.get(id, 0))
+		if n > 0:
+			materials[id] = int(materials.get(id, 0)) - n
+	var stones: Dictionary = cost.get("stones", {})
+	for set_id in stones:
+		var key := String(set_id)
+		set_stones[key] = int(set_stones.get(key, 0)) - int(stones[set_id])
+		if set_stones[key] <= 0:
+			set_stones.erase(key)
+	materials_changed.emit()
+	return true
+
+
 # DEBUG/TEST: instantly grant enough XP to gain one level (bound to P in-game).
 # Solo testing aid — in co-op this only levels the local player, so it can desync.
 func debug_grant_level() -> void:
@@ -760,7 +840,7 @@ func _apply_stat_dict(s: Dictionary) -> void:
 # ── In-run talent tree ────────────────────────────────────────────────────────
 # Total rank of a node: bought ranks + free ranks from equipped unique items.
 func get_talent_rank(node_id: String) -> int:
-	return int(talents.get(node_id, 0)) + TalentTrees.item_grant_ranks(node_id)
+	return int(talents.get(node_id, 0)) + TalentTrees.set_grant_ranks(node_id)
 
 
 # Why a node can't be bought right now ("" = it can). The panel uses this both
@@ -910,37 +990,102 @@ func _find_skill_system() -> Node:
 # ── Universal stat effects (Str/Dex/Int) ─────────────────────────────────────
 # Identical formulas for every class so off-profile builds work (fast mages,
 # clever barbarians). Flat HP/mana/move-speed pieces live in the get_effective_*
-# getters below; these are the multipliers combat code reads.
+# getters below; these are the multipliers combat code reads. Equipment can roll
+# attribute affixes, so every consumer goes through get_effective_* attributes.
+func get_effective_strength() -> int:
+	var bonus: int = 0
+	if InventorySystem and InventorySystem.has_method("get_total"):
+		bonus = int(round(float(InventorySystem.call("get_total", "strength"))))
+	return player_strength + bonus
+
+
+func get_effective_dexterity() -> int:
+	var bonus: int = 0
+	if InventorySystem and InventorySystem.has_method("get_total"):
+		bonus = int(round(float(InventorySystem.call("get_total", "dexterity"))))
+	return player_dexterity + bonus
+
+
+func get_effective_intelligence() -> int:
+	var bonus: int = 0
+	if InventorySystem and InventorySystem.has_method("get_total"):
+		bonus = int(round(float(InventorySystem.call("get_total", "intelligence"))))
+	return player_intelligence + bonus
+
+
 func get_stat_basic_damage_mult() -> float:
-	return 1.0 + 0.01 * float(player_strength)
+	return 1.0 + 0.01 * float(get_effective_strength())
 
 
 func get_stat_skill_damage_mult() -> float:
-	return 1.0 + 0.01 * float(player_intelligence)
+	return 1.0 + 0.01 * float(get_effective_intelligence())
 
 
 func get_stat_attack_speed_mult() -> float:
-	return 1.0 + 0.01 * float(player_dexterity)
+	return 1.0 + 0.01 * float(get_effective_dexterity())
 
 
 # Cooldowns tick this much faster per point of Intelligence.
 func get_stat_cooldown_rate() -> float:
-	return 1.0 + 0.003 * float(player_intelligence)
+	return 1.0 + 0.003 * float(get_effective_intelligence())
 
 
 func get_effective_crit_chance() -> float:
-	return player_crit_chance + 0.003 * float(player_dexterity)
+	return player_crit_chance + 0.003 * float(get_effective_dexterity())
 
 
 func damage_player(amount: int) -> void:
 	if game_over or player_downed:
 		return
 	var mitigated: int = mitigate_damage(amount)
+	# Bastion Vow 5pc shield absorbs before HP.
+	if bastion_shield_hp > 0:
+		var absorbed: int = mini(bastion_shield_hp, mitigated)
+		bastion_shield_hp -= absorbed
+		mitigated -= absorbed
+	# Wildheart Totems 5pc — shapeshifted druids reflect 15% to the nearest enemy.
+	if mitigated > 0:
+		_druid_thorns_reflect(mitigated)
 	player_hp -= mitigated
+	# Bastion Vow 5pc — dropping below 30% HP grants a shield (30s cooldown).
+	if (
+		player_hp > 0
+		and player_hp < int(0.3 * float(get_effective_max_hp()))
+		and Time.get_ticks_msec() >= _bastion_ready_at_ms
+		and InventorySystem
+		and InventorySystem.has_method("has_set_effect")
+		and InventorySystem.has_set_effect("bastion_shield")
+	):
+		bastion_shield_hp = int(0.25 * float(get_effective_max_hp()))
+		_bastion_ready_at_ms = Time.get_ticks_msec() + 30000
+		if VfxManager:
+			VfxManager.screen_flash(Color(0.4, 0.9, 0.5, 0.25), 0.3)
 	if player_hp <= 0:
 		player_hp = 0
 		register_lethal_blow()
 	player_stats_changed.emit()
+
+
+func _druid_thorns_reflect(taken: int) -> void:
+	if InventorySystem == null or not InventorySystem.has_method("has_set_effect"):
+		return
+	if not InventorySystem.has_set_effect("druid_thorns"):
+		return
+	var ss := _find_skill_system()
+	if ss == null or String(ss.get("druid_form")) in ["", "human"]:
+		return
+	var ps := get_tree().get_nodes_in_group("player")
+	if ps.is_empty():
+		return
+	var ppos: Vector2 = (ps[0] as Node2D).global_position
+	var reflect: int = max(1, int(round(float(taken) * 0.15)))
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or e.get("dead") == true:
+			continue
+		if ppos.distance_to((e as Node2D).global_position) <= 160.0:
+			if e.has_method("take_damage"):
+				e.call("take_damage", reflect, ppos)
+			return
 
 
 # Called whenever the local player's HP reaches 0 (from any damage path). In
@@ -1053,7 +1198,7 @@ func get_effective_max_hp() -> int:
 	var bonus: int = 0
 	if InventorySystem and InventorySystem.has_method("get_max_hp_bonus"):
 		bonus = int(InventorySystem.call("get_max_hp_bonus"))
-	return player_max_hp + bonus + 5 * player_strength
+	return player_max_hp + bonus + 5 * get_effective_strength()
 
 
 # Effective max mana including affixes and Intelligence (+3 mana per point).
@@ -1061,7 +1206,7 @@ func get_effective_max_mana() -> int:
 	var bonus: int = 0
 	if InventorySystem and InventorySystem.has_method("get_max_mana_bonus"):
 		bonus = int(InventorySystem.call("get_max_mana_bonus"))
-	return player_max_mana + bonus + 3 * player_intelligence
+	return player_max_mana + bonus + 3 * get_effective_intelligence()
 
 
 # Effective move speed: Dexterity adds +2 flat per point, then item multipliers.
@@ -1069,7 +1214,7 @@ func get_effective_move_speed() -> float:
 	var bonus: float = 0.0
 	if InventorySystem and InventorySystem.has_method("get_move_speed_mult_bonus"):
 		bonus = float(InventorySystem.call("get_move_speed_mult_bonus"))
-	return (player_move_speed + 2.0 * float(player_dexterity)) * (1.0 + bonus)
+	return (player_move_speed + 2.0 * float(get_effective_dexterity())) * (1.0 + bonus)
 
 
 func get_effective_armor() -> int:

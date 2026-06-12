@@ -13,6 +13,7 @@ const FRAME_COLORS: Dictionary = {
 	"common": Color(0.65, 0.65, 0.70, 1),
 	"rare": Color(0.4, 0.7, 1.0, 1),
 	"legendary": Color(1.0, 0.65, 0.18, 1),
+	"set": Color(0.35, 0.9, 0.35, 1),
 	"unique": Color(1.0, 0.35, 0.25, 1),
 }
 
@@ -104,7 +105,7 @@ func _on_scroll_done() -> void:
 	match String(award_item.rarity):
 		"rare":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_rare.mp3"
-		"legendary":
+		"legendary", "set":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_legendary.mp3"
 		"unique":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_unique.mp3"
@@ -201,11 +202,16 @@ func _show_detail() -> void:
 		var td: String = award_item.get_transform_desc()
 		if td != "":
 			detail_transform.text = "✦ " + td
+			if award_item.get_requires_label() != "":
+				detail_transform.text += "\n⚑ " + award_item.get_requires_label()
+			detail_transform.visible = true
+		elif award_item.get_set_id() != "":
+			detail_transform.text = "◆ %s set piece" % award_item.get_set_name()
 			detail_transform.visible = true
 		else:
 			detail_transform.visible = false
 	if salvage_btn:
-		salvage_btn.text = "Salvage  (+%d gold)" % award_item.get_salvage_gold()
+		salvage_btn.text = "Salvage  (+%s)" % ItemDatabase.format_cost(award_item.get_salvage_preview())
 
 
 func _on_take() -> void:
@@ -223,10 +229,9 @@ func _on_salvage() -> void:
 		return
 	if InventorySystem:
 		InventorySystem.salvage_item(award_item)
-	else:
-		# Fallback — give gold directly.
-		if GameManager:
-			GameManager.add_gold(award_item.get_salvage_gold())
+	elif GameManager:
+		# Fallback — grant the materials directly.
+		GameManager.add_materials(award_item.get_salvage_preview())
 	_close(false)
 
 

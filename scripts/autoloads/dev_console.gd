@@ -14,6 +14,7 @@ func _ready() -> void:
 	c.register_command(cmd_spawn_boss, "spawn_boss", "spawn a boss: spawn_boss <id>")
 	c.register_command(cmd_give_levels, "give_levels", "grant N levels")
 	c.register_command(cmd_give_gold, "give_gold", "grant gold")
+	c.register_command(cmd_give_mats, "give_mats", "grant materials: give_mats <scrap> <cloth> <essence>")
 	c.register_command(cmd_give_item, "give_item", "roll + grant items: give_item <count> <wave 0=current>")
 	c.register_command(cmd_list_affixes, "list_affixes", "list elite affix ids")
 	c.register_command(cmd_list_enemies, "list_enemies", "list enemy type ids")
@@ -99,6 +100,13 @@ func cmd_give_gold(amount: int = 500) -> void:
 		return
 	GameManager.add_gold(amount)
 	_info("gold +%d → %d" % [amount, GameManager.gold])
+
+
+func cmd_give_mats(scrap: int = 20, cloth: int = 20, essence: int = 20) -> void:
+	if GameManager == null:
+		return
+	GameManager.add_materials({"scrap": scrap, "cloth": cloth, "essence": essence})
+	_info("materials → %s" % str(GameManager.materials))
 
 
 func cmd_give_item(count: int = 1, wave: int = 0) -> void:

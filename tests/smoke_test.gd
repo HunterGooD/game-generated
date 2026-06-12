@@ -174,29 +174,33 @@ func _check_reward_class_mapping() -> void:
 		print("  class %s: %d modifiers, %d transform-uniques" % [cls, nmods, nuniq])
 
 
-# Every unique item must actually DO something when equipped. A unique's
-# `transform` is consumed one of two ways: a slot-swap (in
-# SkillCatalog.TRANSFORM_OVERRIDES, which needs a slot mapping in
-# SkillCatalog.ITEM_TRANSFORM_SLOT) or a has_unique() behaviour flag read by a
-# skill. This guards the bug where slot-swap item uniques set the flag but never
-# swapped.
+# Every unique item must actually DO something when equipped. After the uniques
+# rework, a unique's `transform` is ALWAYS a has_unique() behaviour flag read by
+# a skill script — never a slot swap. A unique whose effect id appears in
+# TRANSFORM_OVERRIDES would masquerade as a talent slot-swap (the old removed
+# mechanism), so guard against that. Conditional uniques additionally declare
+# requires_transform, which must be a real talent transform id.
 func _check_unique_item_transforms() -> void:
 	var overrides: Dictionary = SkillCatalog.TRANSFORM_OVERRIDES
-	var slot_map: Dictionary = SkillCatalog.ITEM_TRANSFORM_SLOT
 	for u in ItemDatabase.UNIQUE_ITEMS:
 		var tid: String = String(u.get("transform", ""))
+		_ok()
 		if tid == "":
+			_fail("unique item '%s' has no transform effect id" % str(u.get("id", "?")))
 			continue
-		# Slot-swap transforms must have a slot mapping, or equipping does nothing.
-		if overrides.has(tid):
-			_ok()
-			if not slot_map.has(tid):
-				_fail(
-					(
-						"unique item '%s' transform '%s' is a slot-swap but has no _ITEM_TRANSFORM_SLOT mapping — equipping it does nothing"
-						% [str(u.get("id", "?")), tid]
-					)
+		var req: String = String(u.get("requires_transform", ""))
+		if req == "":
+			continue
+		_ok()
+		if not overrides.has(req) and req not in ["stone_armor_grinder"]:
+			# requires_transform must point at a talent transform that exists
+			# (slot-swap in TRANSFORM_OVERRIDES, or a known ctx-checked id).
+			_fail(
+				(
+					"unique item '%s' requires unknown talent transform '%s'"
+					% [str(u.get("id", "?")), req]
 				)
+			)
 
 
 # Talent trees must stay consistent with the catalogs they reference: every
@@ -251,19 +255,22 @@ func _check_talent_trees() -> void:
 							_ok()
 							if not String(node["stat"]) in ["strength", "dexterity", "intelligence"]:
 								_fail("talent '%s' has unknown stat" % nid)
-	# Item grants must target real modifier nodes that exist in the owning
-	# class's tree (TalentTrees.node_info finds them; kind must be modifier).
-	for uid in TalentTrees.ITEM_NODE_GRANTS:
-		_ok()
-		var grant: Dictionary = TalentTrees.ITEM_NODE_GRANTS[uid]
-		var found: bool = false
+	# Set 4pc grants must target real nodes that exist in the owning class's
+	# tree (modifier or stat nodes both work — both flow through get_talent_rank).
+	for set_id in ItemDatabase.SETS:
 		for cls in classes:
-			var info: Dictionary = TalentTrees.node_info(cls, String(grant["node"]))
-			if not info.is_empty() and String(info["node"]["kind"]) == "modifier":
-				found = true
-				break
-		if not found:
-			_fail("item grant '%s' targets unknown modifier node '%s'" % [uid, grant["node"]])
+			var grant: Dictionary = ItemDatabase.set_node_grant(String(set_id), String(cls))
+			if grant.is_empty():
+				continue
+			_ok()
+			var info: Dictionary = TalentTrees.node_info(String(cls), String(grant["node"]))
+			if info.is_empty():
+				_fail(
+					(
+						"set '%s' 4pc grant targets unknown node '%s' for class %s"
+						% [set_id, grant["node"], cls]
+					)
+				)
 	print("Talent nodes across classes: %d" % total_nodes)
 
 

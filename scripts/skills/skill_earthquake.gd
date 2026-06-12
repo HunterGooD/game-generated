@@ -87,3 +87,11 @@ func _damage_ring(idx: int, max_r: float) -> void:
 			hits[id] = true
 			if e.has_method("take_damage"):
 				e.take_damage(damage, global_position)
+			# Warbreaker Plate 5pc — shockwaves root enemies briefly.
+			if (
+				InventorySystem
+				and InventorySystem.has_method("has_set_effect")
+				and InventorySystem.has_set_effect("barb_aftershock")
+				and e.has_method("apply_slow")
+			):
+				e.apply_slow(0.6, 0.0)

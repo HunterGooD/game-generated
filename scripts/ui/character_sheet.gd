@@ -8,6 +8,7 @@ const RARITY_COLORS := {
 	"common": Color(0.85, 0.85, 0.9, 1),
 	"rare": Color(0.45, 0.75, 1.0, 1),
 	"legendary": Color(1.0, 0.65, 0.18, 1),
+	"set": Color(0.35, 0.9, 0.35, 1),
 	"unique": Color(1.0, 0.4, 0.3, 1),
 }
 
@@ -36,6 +37,8 @@ var paper_doll: Control = null  # Absolute-positioned container of slot tiles.
 var inventory_grid: GridContainer = null
 var inventory_bg: TextureRect = null
 var gold_label: Label = null
+var materials_label: Label = null
+var set_summary_label: Label = null
 var selected_item: ItemInstance = null
 
 # Diablo-style paper-doll layout — (x, y) in pixels inside the 340×470 paper-doll area.
@@ -67,6 +70,8 @@ func _ready() -> void:
 	if InventorySystem:
 		InventorySystem.equipment_changed.connect(_on_inventory_dirty)
 		InventorySystem.inventory_changed.connect(_on_inventory_dirty)
+	if GameManager:
+		GameManager.materials_changed.connect(_on_inventory_dirty)
 
 
 func _on_inventory_dirty() -> void:
@@ -117,6 +122,14 @@ func _build_equipment_tab() -> void:
 	gold_label.add_theme_constant_override("outline_size", 4)
 	gold_label.add_theme_font_size_override("font_size", 18)
 	head_row.add_child(gold_label)
+	# Crafting materials — currency-style readout next to gold.
+	materials_label = Label.new()
+	materials_label.text = ""
+	materials_label.add_theme_color_override("font_color", Color(0.75, 0.85, 0.9, 1))
+	materials_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	materials_label.add_theme_constant_override("outline_size", 4)
+	materials_label.add_theme_font_size_override("font_size", 15)
+	head_row.add_child(materials_label)
 
 	# Paper doll (left) + inventory (right) row.
 	var split := HBoxContainer.new()
@@ -143,6 +156,14 @@ func _build_equipment_tab() -> void:
 	paper_doll.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	paper_doll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	doll_box.add_child(paper_doll)
+	# Active set bonus summary under the doll (filled in _rebuild_equipment).
+	set_summary_label = Label.new()
+	set_summary_label.text = ""
+	set_summary_label.add_theme_color_override("font_color", Color(0.45, 0.95, 0.45, 1))
+	set_summary_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	set_summary_label.add_theme_constant_override("outline_size", 3)
+	set_summary_label.add_theme_font_size_override("font_size", 13)
+	doll_box.add_child(set_summary_label)
 	# Backdrop behind the paper doll.
 	var doll_bg := TextureRect.new()
 	var bg_path: String = "res://assets/textures/backgrounds/inventory_bg_dark.webp"
@@ -308,9 +329,9 @@ func _populate() -> void:
 			["Move Speed", "%d%%" % int(GameManager.get_effective_move_speed() / 2.2)],
 			["Crit Chance", "%d%%" % int((GameManager.player_crit_chance + crit_ch_bonus) * 100.0)],
 			["Crit Damage", "x%.2f" % (GameManager.player_crit_damage + crit_dm_bonus)],
-			["Strength", str(GameManager.player_strength)],
-			["Dexterity", str(GameManager.player_dexterity)],
-			["Intelligence", str(GameManager.player_intelligence)],
+			["Strength", str(GameManager.get_effective_strength())],
+			["Dexterity", str(GameManager.get_effective_dexterity())],
+			["Intelligence", str(GameManager.get_effective_intelligence())],
 			["Gold", str(GameManager.gold)],
 			["Total Gold", str(GameManager.total_gold_earned)],
 			["Wave Reached", str(GameManager.highest_wave)],
@@ -494,6 +515,31 @@ func _rebuild_equipment() -> void:
 		c.queue_free()
 	if gold_label and GameManager:
 		gold_label.text = "Gold: %d" % GameManager.gold
+	if materials_label and GameManager:
+		var parts: Array = []
+		for mid in ItemDatabase.MATERIAL_IDS:
+			parts.append(
+				"%s: %d" % [String(ItemDatabase.MATERIAL_DISPLAY[mid]), GameManager.get_material(mid)]
+			)
+		# Set stones — listed only when owned (one entry per set).
+		for set_id in GameManager.set_stones:
+			parts.append(
+				"%s Stone: %d"
+				% [
+					String(ItemDatabase.find_set(String(set_id)).get("name", set_id)),
+					GameManager.get_set_stones(String(set_id))
+				]
+			)
+		materials_label.text = "   ".join(parts)
+	# Worn set bonus summary under the paper doll.
+	if set_summary_label and InventorySystem:
+		var lines: Array = []
+		for info in InventorySystem.get_active_set_bonuses():
+			lines.append("%s  (%d/5)" % [String(info.get("name", "")), int(info.get("pieces", 0))])
+			for b in info.get("bonuses", []):
+				if bool(b.get("active", false)):
+					lines.append("  ✓ %s" % String(b.get("label", "")))
+		set_summary_label.text = "\n".join(lines)
 
 	# Place each slot at its Diablo-style hand-tuned position.
 	for slot_id in PAPER_DOLL_LAYOUT.keys():
@@ -617,6 +663,18 @@ func _on_inv_hover(item: ItemInstance) -> void:
 		)
 	if item.is_unique:
 		body += "\n✦ " + item.get_transform_desc()
+		if item.get_requires_label() != "":
+			body += "\n⚑ " + item.get_requires_label()
+	# Set items: show set name + per-threshold bonuses with worn-count state.
+	if item.get_set_id() != "":
+		var counts: Dictionary = InventorySystem.get_set_piece_counts() if InventorySystem else {}
+		var worn: int = int(counts.get(item.get_set_id(), 0))
+		body += "\n\n%s  (%d/5)" % [item.get_set_name(), worn]
+		var def: Dictionary = ItemDatabase.find_set(item.get_set_id())
+		for pair in [[2, "bonus2"], [4, "bonus4"], [5, "bonus5"]]:
+			var b: Dictionary = def.get(String(pair[1]), {})
+			var mark: String = "✓" if worn >= int(pair[0]) else "·"
+			body += "\n %s (%d) %s" % [mark, int(pair[0]), String(b.get("label", ""))]
 	var meta: String = (
 		"%s  •  ilvl %d  •  %s"
 		% [

@@ -167,6 +167,8 @@ var dash_cd: float = 0.0
 var dash_kind: String = "mage"
 var is_dashing: bool = false
 var _frostwalker_t: float = 0.0
+# Fractional accumulator for the equipment "HP Regen /s" affix.
+var _hp_regen_acc: float = 0.0
 var _runtime_base_stats: ActorStatsResource = ActorStatsResource.new()
 
 
@@ -641,6 +643,13 @@ func _physics_process(delta: float) -> void:
 
 	if GameManager:
 		GameManager.regen_mana(8.0 * delta * (1.05 if dome_t > 0.0 else 1.0))
+		# Equipment "HP Regen /s" affix — accumulate fractions, heal whole points.
+		if InventorySystem:
+			_hp_regen_acc += float(InventorySystem.get_total("hp_regen")) * delta
+			if _hp_regen_acc >= 1.0:
+				var whole: int = int(_hp_regen_acc)
+				_hp_regen_acc -= float(whole)
+				GameManager.heal_player(whole)
 
 	# Frostwalker unique — drop a small slow patch behind the player.
 	if velocity.length() > 30.0 and InventorySystem and InventorySystem.has_unique("frostwalker"):

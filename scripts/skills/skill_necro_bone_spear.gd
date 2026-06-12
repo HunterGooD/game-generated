@@ -1,7 +1,7 @@
 extends Area2D
 
-# Bone Spear — fast piercing projectile replacing Raise Skeleton when the
-# Bone Spear unique is equipped.
+# Bone Spear — fast piercing projectile (talent transform of Raise Skeleton).
+# The "Bone Spear" unique weapon makes it shatter into splinters when spent.
 
 const SPEED: float = 900.0
 const LIFETIME: float = 1.2
@@ -13,6 +13,7 @@ var travelled: float = 0.0
 var hit_ids: Dictionary = {}
 var pierced: int = 0
 var visual_only: bool = false
+var _is_splinter: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -21,9 +22,12 @@ func setup_context(ctx: SkillContext) -> void:
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	damage = dmg
 	visual_only = ctx.is_visual_only
+	_is_splinter = bool(ctx.get_mod("splinter", false))
 	if visual_only:
 		set_meta("visual_only", true)
 	rotation = direction.angle()
+	if _is_splinter:
+		scale = Vector2(0.55, 0.55)
 
 
 func _ready() -> void:
@@ -94,6 +98,34 @@ func _on_body_entered(body: Node) -> void:
 
 
 func _die() -> void:
+	# Bone Spear unique — shatter into a 3-splinter fan once spent (only when
+	# the spear actually pierced something; whiffs into a wall don't shatter).
+	if (
+		not _is_splinter
+		and not visual_only
+		and pierced > 0
+		and InventorySystem
+		and InventorySystem.has_unique("bone_spear_splinters")
+	):
+		_spawn_splinters()
 	set_deferred("monitoring", false)
 	set_deferred("monitorable", false)
 	queue_free()
+
+
+func _spawn_splinters() -> void:
+	if not is_inside_tree():
+		return
+	var packed: PackedScene = load(scene_file_path) as PackedScene
+	var parent := get_tree().current_scene
+	if packed == null or parent == null:
+		return
+	for angle in [-PI / 4.0, 0.0, PI / 4.0]:
+		var child: Node2D = packed.instantiate()
+		child.position = global_position
+		var mods: Dictionary = {"splinter": true, "visual_only": visual_only}
+		var ctx := SkillContext.from_mods(
+			direction.rotated(float(angle)), int(round(float(damage) * 0.5)), mods
+		)
+		SkillContext.apply(child, ctx)
+		parent.add_child(child)

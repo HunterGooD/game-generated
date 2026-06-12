@@ -13,6 +13,7 @@ var dim: ColorRect = null
 var root: Control = null
 
 var gold_label: Label = null
+var materials_label: Label = null
 var selected_item: ItemInstance = null
 var selected_label: Label = null
 var item_grid: GridContainer = null
@@ -20,6 +21,7 @@ var affix_box: VBoxContainer = null
 var upgrade_btn: Button = null
 var reroll_btn: Button = null
 var add_affix_btn: Button = null
+var craft_box: VBoxContainer = null
 var buy_btns: Dictionary = {}  # rarity → Button
 var current_wave: int = 1
 
@@ -39,6 +41,8 @@ func _ready() -> void:
 	if GameManager:
 		if not GameManager.gold_changed.is_connected(_on_gold_changed):
 			GameManager.gold_changed.connect(_on_gold_changed)
+		if not GameManager.materials_changed.is_connected(_on_materials_changed):
+			GameManager.materials_changed.connect(_on_materials_changed)
 	# Pull current wave from the spawner if any.
 	var spawner := get_tree().current_scene.find_child("EnemySpawner", true, false)
 	if spawner and spawner.get("current_wave") != null:
@@ -58,6 +62,10 @@ func _on_inv_changed() -> void:
 
 
 func _on_gold_changed(_g: int) -> void:
+	_refresh()
+
+
+func _on_materials_changed() -> void:
 	_refresh()
 
 
@@ -108,6 +116,8 @@ func _build_ui() -> void:
 	head.add_child(title)
 	gold_label = _label("Gold: 0", 22, Color(1.0, 0.85, 0.4, 1))
 	head.add_child(gold_label)
+	materials_label = _label("", 16, Color(0.75, 0.85, 0.9, 1))
+	head.add_child(materials_label)
 
 	var subtitle := _label(
 		"Spend your hoard before the next wave...", 14, Color(0.85, 0.75, 0.6, 1)
@@ -181,6 +191,11 @@ func _build_ui() -> void:
 	var sell_btn := _make_button("Sell item", 280, 56, 18, Color(1.0, 0.8, 0.45, 1))
 	sell_btn.pressed.connect(_do_sell)
 	upgrades_row.add_child(sell_btn)
+	# CRAFT section — convert an item into a set piece (2 set stones + essence).
+	# Buttons appear once you own stones (rebuilt in _refresh_selected).
+	craft_box = VBoxContainer.new()
+	craft_box.add_theme_constant_override("separation", 6)
+	right_box.add_child(craft_box)
 
 	# Footer — Trade button (co-op only) above Leave Shop.
 	if NetManager and NetManager.is_multiplayer:
@@ -261,6 +276,13 @@ func _set_btn_disabled(btn: Button, dis: bool) -> void:
 func _refresh() -> void:
 	if gold_label and GameManager:
 		gold_label.text = "Gold: %dg" % GameManager.gold
+	if materials_label and GameManager:
+		var parts: Array = []
+		for mid in ItemDatabase.MATERIAL_IDS:
+			parts.append(
+				"%s: %d" % [String(ItemDatabase.MATERIAL_DISPLAY[mid]), GameManager.get_material(mid)]
+			)
+		materials_label.text = "   ".join(parts)
 	# Refresh buy buttons (gray out unaffordable).
 	if GameManager:
 		var costs: Dictionary = {
@@ -323,6 +345,7 @@ func _refresh_selected() -> void:
 		_set_btn_text(upgrade_btn, "Upgrade ilvl")
 		_set_btn_text(reroll_btn, "Re-roll affixes")
 		_set_btn_text(add_affix_btn, "Add affix")
+		_refresh_craft_buttons()
 		return
 	var col: Color = ItemDatabase.rarity_color(selected_item.rarity)
 	selected_label.text = (
@@ -342,28 +365,66 @@ func _refresh_selected() -> void:
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		l.add_theme_constant_override("outline_size", 2)
 		affix_box.add_child(l)
-	# Cost labels + enable state.
-	var u_cost: int = InventorySystem.upgrade_cost(selected_item)
-	var r_cost: int = InventorySystem.reroll_cost(selected_item)
-	var a_cost: int = InventorySystem.add_affix_cost(selected_item)
-	if u_cost < 0:
+	# Cost labels + enable state (costs are material dicts; {} = unavailable).
+	var u_cost: Dictionary = InventorySystem.upgrade_cost(selected_item)
+	var r_cost: Dictionary = InventorySystem.reroll_cost(selected_item)
+	var a_cost: Dictionary = InventorySystem.add_affix_cost(selected_item)
+	if u_cost.is_empty():
 		_set_btn_text(upgrade_btn, "Upgrade ilvl\n(uniques unavailable)")
 		_set_btn_disabled(upgrade_btn, true)
 	else:
-		_set_btn_text(upgrade_btn, "Upgrade ilvl\n%dg" % u_cost)
-		_set_btn_disabled(upgrade_btn, GameManager.gold < u_cost)
-	if r_cost < 0:
+		_set_btn_text(upgrade_btn, "Upgrade ilvl\n%s" % ItemDatabase.format_cost(u_cost))
+		_set_btn_disabled(upgrade_btn, not GameManager.can_afford_cost(u_cost))
+	if r_cost.is_empty():
 		_set_btn_text(reroll_btn, "Re-roll affixes\n(uniques unavailable)")
 		_set_btn_disabled(reroll_btn, true)
 	else:
-		_set_btn_text(reroll_btn, "Re-roll affixes\n%dg" % r_cost)
-		_set_btn_disabled(reroll_btn, GameManager.gold < r_cost)
-	if a_cost < 0:
+		_set_btn_text(reroll_btn, "Re-roll affixes\n%s" % ItemDatabase.format_cost(r_cost))
+		_set_btn_disabled(reroll_btn, not GameManager.can_afford_cost(r_cost))
+	if a_cost.is_empty():
 		_set_btn_text(add_affix_btn, "Add affix\n(unavailable)")
 		_set_btn_disabled(add_affix_btn, true)
 	else:
-		_set_btn_text(add_affix_btn, "Add affix\n%dg" % a_cost)
-		_set_btn_disabled(add_affix_btn, GameManager.gold < a_cost)
+		_set_btn_text(add_affix_btn, "Add affix\n%s" % ItemDatabase.format_cost(a_cost))
+		_set_btn_disabled(add_affix_btn, not GameManager.can_afford_cost(a_cost))
+	_refresh_craft_buttons()
+
+
+# One craft button per set the player holds 2+ stones of. Crafting turns the
+# SELECTED item into that set's piece (slot kept, affixes re-rolled).
+func _refresh_craft_buttons() -> void:
+	if craft_box == null or GameManager == null:
+		return
+	for c in craft_box.get_children():
+		c.queue_free()
+	var owned: Array = []
+	for set_id in GameManager.set_stones:
+		if GameManager.get_set_stones(String(set_id)) >= 2:
+			owned.append(String(set_id))
+	if owned.is_empty():
+		return
+	craft_box.add_child(_label("CRAFT SET (uses selected item)", 14, Color(0.45, 0.95, 0.45, 1)))
+	for set_id in owned:
+		var set_name: String = String(ItemDatabase.find_set(set_id).get("name", set_id))
+		var cost: Dictionary = InventorySystem.craft_cost(selected_item, set_id)
+		var btn := _make_button("", 280, 50, 14, Color(0.55, 0.95, 0.55, 1))
+		if cost.is_empty():
+			_set_btn_text(btn, "%s\n(pick an armor/jewelry item)" % set_name)
+			_set_btn_disabled(btn, true)
+		else:
+			_set_btn_text(btn, "%s\n%s" % [set_name, ItemDatabase.format_cost(cost)])
+			_set_btn_disabled(btn, not GameManager.can_afford_cost(cost))
+		btn.pressed.connect(_do_craft.bind(set_id))
+		craft_box.add_child(btn)
+
+
+func _do_craft(set_id: String) -> void:
+	if selected_item == null or InventorySystem == null:
+		return
+	if not InventorySystem.craft_set_item(selected_item, set_id):
+		if AudioManager:
+			AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_merchant_fail.mp3", -6.0)
+	_refresh()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

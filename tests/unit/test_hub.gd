@@ -65,7 +65,7 @@ func test_hub_spawns_last_hero_with_props() -> void:
 	add_child_autofree(hub)
 	assert_not_null(hub.get_node_or_null("Player"), "player spawned in the hub")
 	assert_eq(GameManager.player_class, "rogue", "spawned as the last-played hero")
-	assert_eq(hub._props.size(), 3, "wardrobe + portal + co-op beacon props present")
+	assert_eq(hub._props.size(), 4, "wardrobe + portal + co-op beacon + mirror props present")
 
 
 func _all(n: Node) -> Array:

@@ -14,6 +14,10 @@ const TRANSFORM_OVERRIDES: Dictionary = {
 	"necro_curse_field": "necro_curse_field",
 	"druid_hurricane": "druid_hurricane",
 	"druid_dire_wolf": "druid_dire_wolf_form",
+	# Mage talent-tree slot swaps (bought as transform nodes in the run tree).
+	"frost_nova": "frost_nova",
+	"death_beam": "death_beam",
+	"meteor_shower": "meteor_shower",
 	# Battlemage (Mage) spec-path slot swaps.
 	"flame_cleave": "flame_cleave",
 	"frost_guard": "frost_guard",
@@ -83,16 +87,6 @@ const TRANSFORM_OVERRIDES: Dictionary = {
 	"druid_storm_totem": "druid_storm_totem",
 }
 
-# Which slot each slot-swap transform replaces. Transforms can be granted by a
-# level-up unique (apply_transform → transforms[slot]) OR an equipped unique item
-# (sets only InventorySystem.has_unique); get_transform() reads both.
-const ITEM_TRANSFORM_SLOT: Dictionary = {
-	"druid_hurricane": 0,
-	"druid_dire_wolf": 1,
-	"necro_bone_spear": 0,
-	"necro_curse_field": 1,
-}
-
 # Which BASE skill a slot-swap transform is meant to replace. The druid reuses
 # slots 0/1 for different skills per form, so a transform keyed only by slot index
 # would leak onto whatever in-form skill now occupies that slot. Gating on the
@@ -150,6 +144,35 @@ const _RAW := {
 	},
 	"meteor": {
 		"name": "Meteor", "scene": "res://scenes/skills/skill_meteor.tscn",
+		"icon": "res://assets/sprites/items/icon_skill_meteor.png",
+		"cooldown": 12.0, "mana_cost": 38.0, "damage_mult": 2.4,
+		"sfx": "res://assets/audio/sfx/player/player_spell_meteor.mp3",
+		"spawn": "at_target", "behavior": "telegraph_aoe",
+		"mod_wiring": {"radius_bonus": {"modifier": "mt_radius", "mul": 0.5}},
+	},
+	# MAGE TALENT TRANSFORMS — slot swaps bought in the run talent tree.
+	"frost_nova": {
+		# TODO(art): dedicated icon; reuses Ice Bolt's for now.
+		"name": "Frost Nova", "scene": "res://scenes/skills/skill_frost_nova.tscn",
+		"icon": "res://assets/sprites/items/icon_skill_ice_bolt.png",
+		"cooldown": 6.0, "mana_cost": 18.0, "damage_mult": 1.2,
+		"sfx": "res://assets/audio/sfx/player/player_spell_ice_bolt.mp3",
+		"spawn": "at_caster", "behavior": "aoe",
+		"mod_wiring": {"slow_stacks": {"modifier": "ib_slow"}},
+	},
+	"death_beam": {
+		# TODO(art): dedicated icon; reuses Chain Lightning's for now.
+		"name": "Death Beam", "scene": "res://scenes/skills/skill_death_beam.tscn",
+		"icon": "res://assets/sprites/items/icon_skill_chain_lightning.png",
+		"cooldown": 9.0, "mana_cost": 28.0, "damage_mult": 1.6,
+		"sfx": "res://assets/audio/sfx/player/player_spell_chain_lightning.mp3",
+		"spawn": "at_caster", "behavior": "aoe",
+		"mod_wiring": {"length_bonus": {"modifier": "cl_jumps", "mul": 120.0}},
+	},
+	"meteor_shower": {
+		# Same scene as Meteor — the script branches on ctx.transform to rain
+		# several smaller meteors instead of one big rock. TODO(art): own icon.
+		"name": "Meteor Shower", "scene": "res://scenes/skills/skill_meteor.tscn",
 		"icon": "res://assets/sprites/items/icon_skill_meteor.png",
 		"cooldown": 12.0, "mana_cost": 38.0, "damage_mult": 2.4,
 		"sfx": "res://assets/audio/sfx/player/player_spell_meteor.mp3",

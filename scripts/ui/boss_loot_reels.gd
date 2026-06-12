@@ -19,6 +19,7 @@ const FRAME_COLORS: Dictionary = {
 	"common": Color(0.65, 0.65, 0.70, 1),
 	"rare": Color(0.4, 0.7, 1.0, 1),
 	"legendary": Color(1.0, 0.65, 0.18, 1),
+	"set": Color(0.35, 0.9, 0.35, 1),
 	"unique": Color(1.0, 0.35, 0.25, 1),
 }
 
@@ -275,7 +276,7 @@ func _on_pick(index: int) -> void:
 	match String(award.rarity):
 		"rare":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_rare.mp3"
-		"legendary":
+		"legendary", "set":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_legendary.mp3"
 		"unique":
 			path = "res://assets/audio/sfx/ui/ui_loot_reveal_unique.mp3"
