@@ -784,6 +784,7 @@ func _spawn_arena_batch() -> void:
 				var e := _spawn_one("succubus", float(m["hp"]) * 3.0, float(m["dmg"]) * 1.4, float(m["xp"]) * 2.0, float(m["gold"]) * 2.0, EnemyAffixes.roll(3), pos)
 				if e:
 					e.set_meta("arena_event_reward", ARENA_PURPLE_BOSS_CURRENCY)
+					e.set_meta("meta_shard_reward", _miniboss_shards())
 		else:
 			# Horde (red) inflates the batch size.
 			var n: int = int(round(float(_arena_batch_size(current_wave)) * (1.0 + GameManager.arena_spawn_bonus)))
@@ -846,6 +847,7 @@ func _event_miniboss(center: Vector2) -> void:
 	)
 	if e:
 		e.set_meta("arena_event_reward", ARENA_EVENT_CURRENCY)
+		e.set_meta("meta_shard_reward", _miniboss_shards())
 	if GameManager:
 		GameManager.notice.emit("⚠ EVENT — slay the mini-boss for %d coin!" % ARENA_EVENT_CURRENCY, Color(1.0, 0.5, 0.3))
 
@@ -871,9 +873,19 @@ func _event_zone(center: Vector2) -> void:
 	zone.global_position = _event_pos(center, 180.0)
 
 
-# Bonus currency when a tagged event mini-boss is actually killed (not silently despawned).
+# Bonus currency when a tagged event mini-boss is actually killed (not silently despawned),
+# plus mirror shards (persistent meta currency) for tagged mini-bosses anywhere — dungeon
+# elites, arena events, purple-wave bosses. Shard awards are LOCAL: the host (who owns the
+# simulation) banks them; syncing clients needs a relay allowlist change (later).
 func _on_any_enemy_died(ev) -> void:
-	if not arena_mode or ev == null:
+	if ev == null:
+		return
+	var shard_actor = ev.actor
+	if shard_actor and is_instance_valid(shard_actor) and shard_actor.has_meta("meta_shard_reward"):
+		var shards: int = int(shard_actor.get_meta("meta_shard_reward", 0))
+		shard_actor.remove_meta("meta_shard_reward")
+		_award_meta_shards(shards)
+	if not arena_mode:
 		return
 	var actor = ev.actor
 	# "volatile" wave mutator: every foe detonates on death, hurting the LOCAL player if they're
@@ -999,12 +1011,13 @@ func spawn_room_pack(
 
 # A single beefy, fully-affixed mini-boss for a dungeon elite room. Tanky (×3 hp) with a
 # big reward bump; reuses _spawn_one so affix auras + co-op net registration apply.
+# Mini-bosses everywhere carry a mirror-shard bounty (see _on_any_enemy_died).
 func spawn_miniboss(type_id: String, center: Vector2, affix_n: int = 3) -> Node:
 	var m: Dictionary = _node_combat_mults()
 	var depth: int = GameManager.dungeon_depth if GameManager else 0
 	var depth_mult: float = 1.0 + 0.5 * float(depth)
 	var affixes: Array = EnemyAffixes.roll(maxi(2, affix_n))
-	return _spawn_one(
+	var e := _spawn_one(
 		type_id,
 		float(m["hp"]) * depth_mult * 3.0,
 		float(m["dmg"]) * depth_mult * 1.3,
@@ -1013,6 +1026,15 @@ func spawn_miniboss(type_id: String, center: Vector2, affix_n: int = 3) -> Node:
 		affixes,
 		center
 	)
+	if e:
+		e.set_meta("meta_shard_reward", _miniboss_shards())
+	return e
+
+
+# Per-kill shard bounty for a mini-boss at the current difficulty tier.
+func _miniboss_shards() -> int:
+	var tier: int = GameManager.run_difficulty if GameManager else 0
+	return int(Difficulty.value(tier, "shards_miniboss", 1.0))
 
 
 # Elite node: one pack of 3–5 elites. Clearing them all finishes the node.
@@ -1082,12 +1104,26 @@ func _on_node_exit_portal() -> void:
 		GameManager.clear_run_node()  # → run_node_cleared → RunFlow returns to the map
 
 
+# Mirror shards: bank persistent meta currency + a toast. Local-only by design (meta
+# progression is per-peer); a co-op client banks shards only for kills its own host-side
+# tags report — broadcasting awards needs a relay allowlist change (see server enum).
+func _award_meta_shards(n: int) -> void:
+	if n <= 0 or MetaProgress == null:
+		return
+	MetaProgress.add_shards(n)
+	if GameManager:
+		GameManager.notice.emit("+%d осколков зеркала" % n, Color(0.72, 0.86, 1.0))
+
+
 # The uber-boss is slain → the run is won. Drop a forced top-rarity reward and open a
 # golden victory portal that shows the end screen (rather than going back to the map).
+# The finale is also the ONLY source of meta gems: count = the difficulty tier's
+# gems_uber + 1 per endless loop, rarity luck = the tier's loot bonus + loop luck.
 func _finish_uber_boss() -> void:
 	if not is_inside_tree():
 		return
 	_spawn_boss_loot("unique")  # the finale always pays out a top-tier item
+	_award_uber_gems()
 	var p := _find_player()
 	var center: Vector2 = p.global_position if p else (room_min + room_max) * 0.5
 	var portal: Node2D = PORTAL_SCENE.instantiate()
@@ -1108,6 +1144,25 @@ func _finish_uber_boss() -> void:
 func _on_uber_victory() -> void:
 	var v := RUN_VICTORY.new()
 	get_tree().current_scene.add_child(v)
+
+
+# Roll + bank the uber-boss's meta gems and toast what dropped.
+func _award_uber_gems() -> void:
+	if MetaProgress == null:
+		return
+	var tier: int = GameManager.run_difficulty if GameManager else 0
+	var loop_n: int = GameManager.run_loop if GameManager else 0
+	var n_gems: int = int(Difficulty.value(tier, "gems_uber", 1.0)) + loop_n
+	var luck: float = Difficulty.value(tier, "loot_rarity_bonus", 0.0)
+	if GameManager:
+		luck += GameManager.loop_loot_luck()
+	var names: Array = []
+	for i in n_gems:
+		var gid: String = MetaGems.roll(luck)
+		MetaProgress.add_gem(gid)
+		names.append(MetaGems.display_name(gid))
+	if GameManager and not names.is_empty():
+		GameManager.notice.emit("Камни зеркала: %s" % ", ".join(names), Color(0.8, 0.55, 1.0))
 
 
 # Wipe any enemies still alive at the end of an arena wave (no XP/gold/drops). Skips
@@ -1309,6 +1364,10 @@ func _on_boss_defeated(boss_id: String, reward: String) -> void:
 	var hud := _find_hud()
 	if hud and hud.has_method("hide_boss_bar"):
 		hud.call("hide_boss_bar")
+	# Every boss kill banks mirror shards (persistent meta currency), scaled by the
+	# difficulty tier. Local award — see _award_meta_shards on the co-op caveat.
+	var shard_tier: int = GameManager.run_difficulty if GameManager else 0
+	_award_meta_shards(int(Difficulty.value(shard_tier, "shards_boss", 4.0)))
 	# Avoid "unused" warning.
 	var _ignore := boss_id
 	# Dungeon (managed) → the DungeonRunner owns the reward chest + exit/descent portals.

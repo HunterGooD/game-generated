@@ -497,15 +497,18 @@ func reset_run() -> void:
 	# peer applies its own save to its own player). Empty {} when the class has no tree.
 	if player_class != "" and MetaProgress != null:
 		_apply_stat_dict(MetaProgress.meta_bonus(player_class))
-		# Repeatable-notable ranks add small PERCENT bumps (the infinite point sink).
+		# Repeatable-notable ranks + socketed gems add PERCENT bumps on top.
 		var mpct: Dictionary = MetaProgress.meta_percent(player_class)
 		var dmg_pct: float = float(mpct.get("damage", 0.0))
 		var hp_pct: float = float(mpct.get("max_hp", 0.0))
+		var spd_pct: float = float(mpct.get("move_speed", 0.0))
 		if dmg_pct != 0.0:
 			player_damage = int(round(float(player_damage) * (1.0 + dmg_pct)))
 		if hp_pct != 0.0:
 			player_max_hp = int(round(float(player_max_hp) * (1.0 + hp_pct)))
 			player_hp = player_max_hp
+		if spd_pct != 0.0:
+			player_move_speed *= 1.0 + spd_pct
 	gold = 0
 	materials = {"scrap": 0, "cloth": 0, "essence": 0}
 	set_stones = {}

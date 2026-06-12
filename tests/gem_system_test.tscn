@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dr6o4s4n3bmui"]
+
+[ext_resource type="Script" path="res://tests/gem_system_test.gd" id="1"]
+
+[node name="GemSystemTest" type="Node"]
+script = ExtResource("1")

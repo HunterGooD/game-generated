@@ -12,6 +12,7 @@ const FLOOR_TEX: String = "res://assets/textures/floors/ruins_floor.webp"
 const HERO_SELECT := preload("res://scripts/ui/hero_select.gd")
 const COOP_PANEL := preload("res://scripts/ui/hub_coop_panel.gd")
 const META_TREE := preload("res://scripts/ui/meta_tree_ui.gd")
+const GAMBLE_SHOP := preload("res://scripts/ui/gamble_shop.gd")
 const MIRROR_SHADER := preload("res://assets/shaders/hub_mirror.gdshader")
 const PORTAL_SHADER := preload("res://assets/shaders/hub_portal.gdshader")
 const WARDROBE_SHADER := preload("res://assets/shaders/hub_wardrobe.gdshader")
@@ -123,6 +124,17 @@ func _spawn_props() -> void:
 		)
 	)
 	_props.append(_make_mirror_prop("Зеркало  —  мета-дерево", Vector2(260, -220), _open_mirror))
+	_props.append(
+		_make_prop(
+			"Гадалка  —  камни за осколки",
+			Vector2(-260, -220),
+			Color(0.85, 0.45, 0.78),
+			_open_gamble,
+			null,
+			"spark",
+			Vector2(64, 96)
+		)
+	)
 
 
 func _make_prop(
@@ -293,6 +305,22 @@ func _open_mirror() -> void:
 	# button as the basic attack, so without this you'd swing/move behind the overlay.
 	_set_player_locked(true)
 	var ov := META_TREE.new()
+	ov.closed.connect(
+		func():
+			_overlay_open = false
+			_set_player_locked(false)
+	)
+	add_child(ov)
+
+
+# The Fortune Teller — gamble mirror shards for random meta gems. Locks the player like
+# the mirror does (the shop is click-driven and shares the attack mouse button).
+func _open_gamble() -> void:
+	if _overlay_open:
+		return
+	_overlay_open = true
+	_set_player_locked(true)
+	var ov := GAMBLE_SHOP.new()
 	ov.closed.connect(
 		func():
 			_overlay_open = false

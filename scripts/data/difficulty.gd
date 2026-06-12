@@ -12,6 +12,8 @@ extends RefCounted
 ##   spawn_rate_mult                 multiplies wave enemy counts (density)
 ##   loot_rarity_bonus               shifts LootRoller weights toward higher rarities
 ##   reward_mult                     multiplies XP / gold from kills
+##   shards_miniboss / shards_boss   mirror shards (meta currency) a mini-boss / boss drops
+##   gems_uber                       meta gems the uber-boss pays out (+1 per endless loop)
 ##
 ## Stateless — every method is static. The selected tier lives in GameManager.run_difficulty.
 
@@ -26,6 +28,9 @@ const TIERS: Array = [
 		"spawn_rate_mult": 1.0,
 		"loot_rarity_bonus": 0.0,
 		"reward_mult": 1.0,
+		"shards_miniboss": 1,
+		"shards_boss": 4,
+		"gems_uber": 1,
 	},
 	{
 		"id": "hard",
@@ -37,6 +42,9 @@ const TIERS: Array = [
 		"spawn_rate_mult": 1.15,
 		"loot_rarity_bonus": 0.25,
 		"reward_mult": 1.35,
+		"shards_miniboss": 2,
+		"shards_boss": 6,
+		"gems_uber": 2,
 	},
 	{
 		"id": "nightmare",
@@ -48,6 +56,9 @@ const TIERS: Array = [
 		"spawn_rate_mult": 1.3,
 		"loot_rarity_bonus": 0.6,
 		"reward_mult": 1.8,
+		"shards_miniboss": 3,
+		"shards_boss": 9,
+		"gems_uber": 3,
 	},
 	{
 		"id": "hell",
@@ -59,6 +70,9 @@ const TIERS: Array = [
 		"spawn_rate_mult": 1.5,
 		"loot_rarity_bonus": 1.0,
 		"reward_mult": 2.4,
+		"shards_miniboss": 4,
+		"shards_boss": 12,
+		"gems_uber": 4,
 	},
 ]
 

@@ -2,25 +2,36 @@ extends Node
 
 # MetaProgress — persistent meta-progression ("mirror") state, saved to user://meta.save.
 # Per class we track a meta-level (grown by run XP), the set of allocated tree nodes, and
-# per-socket gem slots (reserved now, filled by the future gem/gambling system). Bonuses
-# from allocated nodes are folded into GameManager at the start of every run (reset_run).
+# per-socket gem slots. GLOBAL (cross-class) state: the mirror-shard wallet (meta currency
+# dropped by mini-bosses/bosses) and the gem inventory (uber-boss drops + the hub Fortune
+# Teller's gamble). Bonuses from allocated nodes AND socketed gems are folded into
+# GameManager at the start of every run (reset_run).
 #
 # Co-op: this is purely LOCAL — each peer loads its own save and applies its own tree to
 # its own player. Nothing here is networked (HP/stat authority is owner-side; see the
 # coop sync audit), so two players' mirrors never need to agree.
 #
-# Phase A = infra only: save/load, meta-level + points, bonus application, dev commands.
-# The tree UI (Phase B) and the remaining six class trees (Phase C) sit on top of this
-# unchanged. Tree DATA lives in MetaTrees; this autoload owns only the per-player STATE.
+# Phase A = infra; Phase B = tree UI; Phase C = all class trees; Phase E (this) = gems:
+# shards, gem inventory, socketing. Gem DATA lives in MetaGems; tree DATA in MetaTrees;
+# this autoload owns only the per-player STATE.
+
+# Emitted on wallet/inventory changes so open UIs (gamble shop, tree panel) refresh live.
+signal shards_changed(total: int)
+signal gems_changed
 
 const SAVE_PATH: String = "user://meta.save"
-const SAVE_VERSION: int = 1
+const SAVE_VERSION: int = 2
 # 1 passive point per meta level past the first (level 1 = 0 points; the start node is
 # always free). XP needed to reach the next level scales linearly with the current level.
 const XP_PER_LEVEL_BASE: int = 100
 
-# { "version": int, "classes": { <class_id>: { meta_level, meta_xp, allocated[], sockets{} } } }
-var _data: Dictionary = {"version": SAVE_VERSION, "classes": {}}
+# {
+#   "version": int,
+#   "shards": int,                      — mirror shards (global meta currency)
+#   "gems": { <gem_id>: count },        — unsocketed gem inventory (global)
+#   "classes": { <class_id>: { meta_level, meta_xp, allocated[], sockets{}, ranks{} } }
+# }   sockets: socket node id -> gem_id (or null while empty)
+var _data: Dictionary = {"version": SAVE_VERSION, "classes": {}, "shards": 0, "gems": {}}
 
 
 func _ready() -> void:
@@ -60,10 +71,14 @@ func _save() -> void:
 func _migrate(d: Dictionary) -> Dictionary:
 	var v: int = int(d.get("version", 0))
 	if v < SAVE_VERSION:
-		# No migrations yet — a missing/older shell just adopts the current version tag.
+		# v1 → v2 just adds the global shard wallet + gem inventory (defaulted below).
 		d["version"] = SAVE_VERSION
 	if not d.has("classes") or typeof(d["classes"]) != TYPE_DICTIONARY:
 		d["classes"] = {}
+	if typeof(d.get("shards")) != TYPE_FLOAT and typeof(d.get("shards")) != TYPE_INT:
+		d["shards"] = 0
+	if typeof(d.get("gems")) != TYPE_DICTIONARY:
+		d["gems"] = {}
 	return d
 
 
@@ -224,31 +239,137 @@ func allocate(class_id: String, node_id: String) -> bool:
 
 
 # Free full respec — wipe all allocated nodes (and the socket slots they opened). Points
-# return to the pool automatically (points_available is derived, not stored).
+# return to the pool automatically (points_available is derived, not stored); socketed
+# gems are NOT lost — they pop back into the global inventory.
 func respec(class_id: String) -> void:
 	var e: Dictionary = _entry(class_id)
+	var sockets: Dictionary = e.get("sockets", {})
+	var returned: bool = false
+	for sid in sockets:
+		var gid: Variant = sockets[sid]
+		if gid != null and String(gid) != "":
+			_gem_add_raw(String(gid), 1)
+			returned = true
 	e["allocated"] = []
 	e["sockets"] = {}
 	e["ranks"] = {}
 	_save()
+	if returned:
+		gems_changed.emit()
+
+
+# ── mirror shards (global meta currency) ──────────────────────────────────────
+func get_shards() -> int:
+	return int(_data.get("shards", 0))
+
+
+func add_shards(amount: int) -> void:
+	if amount <= 0:
+		return
+	_data["shards"] = get_shards() + amount
+	_save()
+	shards_changed.emit(get_shards())
+
+
+func spend_shards(amount: int) -> bool:
+	if amount <= 0 or get_shards() < amount:
+		return false
+	_data["shards"] = get_shards() - amount
+	_save()
+	shards_changed.emit(get_shards())
+	return true
+
+
+# ── gem inventory (global, unsocketed gems) ───────────────────────────────────
+func gem_counts() -> Dictionary:
+	var gems: Dictionary = _data.get("gems", {})
+	return gems
+
+
+func gem_count(gem_id: String) -> int:
+	return int(gem_counts().get(gem_id, 0))
+
+
+func add_gem(gem_id: String, n: int = 1) -> void:
+	if n <= 0 or not MetaGems.has_gem(gem_id):
+		return
+	_gem_add_raw(gem_id, n)
+	_save()
+	gems_changed.emit()
+
+
+# Inventory mutation without save/signal — callers batch those.
+func _gem_add_raw(gem_id: String, n: int) -> void:
+	var gems: Dictionary = _data["gems"]
+	var next: int = int(gems.get(gem_id, 0)) + n
+	if next <= 0:
+		gems.erase(gem_id)
+	else:
+		gems[gem_id] = next
+
+
+# ── socketing ─────────────────────────────────────────────────────────────────
+# The gem id sitting in a socket node ("" while empty / socket not opened).
+func socketed_gem(class_id: String, socket_id: String) -> String:
+	var gid: Variant = _entry(class_id).get("sockets", {}).get(socket_id, null)
+	return String(gid) if gid != null else ""
+
+
+# Place an owned gem into an ALLOCATED socket node. An occupied socket swaps — the old
+# gem returns to the inventory. Returns whether the gem went in.
+func socket_gem(class_id: String, socket_id: String, gem_id: String) -> bool:
+	if gem_count(gem_id) <= 0:
+		return false
+	if String(MetaTrees.node_data(class_id, socket_id).get("type", "")) != "socket":
+		return false
+	if not is_allocated(class_id, socket_id):
+		return false
+	var old: String = socketed_gem(class_id, socket_id)
+	if old == gem_id:
+		return false  # already holds this gem — nothing to do
+	if old != "":
+		_gem_add_raw(old, 1)
+	_gem_add_raw(gem_id, -1)
+	_entry(class_id)["sockets"][socket_id] = gem_id
+	_save()
+	gems_changed.emit()
+	return true
+
+
+# Pop a socket's gem back into the inventory. Returns whether anything was removed.
+func unsocket_gem(class_id: String, socket_id: String) -> bool:
+	var old: String = socketed_gem(class_id, socket_id)
+	if old == "":
+		return false
+	_gem_add_raw(old, 1)
+	_entry(class_id)["sockets"][socket_id] = null
+	_save()
+	gems_changed.emit()
+	return true
 
 
 # ── bonus application ─────────────────────────────────────────────────────────
-# Sum of every allocated node's flat stat bonuses, keyed for GameManager._apply_stat_dict.
-# GameManager folds this on top of the base stat line at the start of each run. Empty {}
-# when the class has no tree or nothing allocated (a no-op through _apply_stat_dict).
+# Sum of every allocated node's flat stat bonuses PLUS the flat lines of socketed gems,
+# keyed for GameManager._apply_stat_dict. GameManager folds this on top of the base stat
+# line at the start of each run. Empty {} when the class has no tree or nothing allocated
+# (a no-op through _apply_stat_dict).
 func meta_bonus(class_id: String) -> Dictionary:
 	var total: Dictionary = {}
 	for node_id in allocated_nodes(class_id):
 		var stats: Dictionary = MetaTrees.node_data(class_id, String(node_id)).get("stats", {})
 		for k in stats:
 			total[k] = total.get(k, 0) + stats[k]
+	for gem_id in _socketed_gems(class_id):
+		var gstats: Dictionary = MetaGems.get_gem(gem_id).get("stats", {})
+		for k in gstats:
+			total[k] = total.get(k, 0) + gstats[k]
 	return total
 
 
-# Per-rank PERCENT bonuses from repeatable nodes, summed × their rank (fractions: 0.001 =
-# +0.1%). Keys match the player stats GameManager scales by these at run start (damage,
-# max_hp). Separate channel from meta_bonus because these multiply rather than add.
+# Per-rank PERCENT bonuses from repeatable nodes (summed × their rank) plus socketed
+# gems' percent lines (fractions: 0.001 = +0.1%). Keys match the player stats GameManager
+# scales by these at run start (damage, max_hp, move_speed). Separate channel from
+# meta_bonus because these multiply rather than add.
 func meta_percent(class_id: String) -> Dictionary:
 	var total: Dictionary = {}
 	var ranks: Dictionary = _entry(class_id).get("ranks", {})
@@ -257,7 +378,23 @@ func meta_percent(class_id: String) -> Dictionary:
 		var n: int = int(ranks[id])
 		for k in rp:
 			total[k] = float(total.get(k, 0.0)) + float(rp[k]) * float(n)
+	for gem_id in _socketed_gems(class_id):
+		var gp: Dictionary = MetaGems.get_gem(gem_id).get("pct", {})
+		for k in gp:
+			total[k] = float(total.get(k, 0.0)) + float(gp[k])
 	return total
+
+
+# Gem ids sitting in this class's ALLOCATED sockets (a socket only exists once its node
+# is taken, but stay defensive against stale saves).
+func _socketed_gems(class_id: String) -> Array:
+	var out: Array = []
+	var sockets: Dictionary = _entry(class_id).get("sockets", {})
+	for sid in sockets:
+		var gid: Variant = sockets[sid]
+		if gid != null and String(gid) != "" and is_allocated(class_id, String(sid)):
+			out.append(String(gid))
+	return out
 
 
 # Compact snapshot for UI / dev readout.

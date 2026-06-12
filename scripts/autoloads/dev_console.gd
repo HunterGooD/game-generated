@@ -49,6 +49,9 @@ func _ready() -> void:
 	c.register_command(cmd_meta_levels, "meta_levels", "grant N meta levels to the current class: meta_levels <n>")
 	c.register_command(cmd_meta_alloc, "meta_alloc", "allocate a meta node for the current class: meta_alloc <node_id>")
 	c.register_command(cmd_meta_respec, "meta_respec", "free full respec of the current class's meta tree")
+	c.register_command(cmd_meta_shards, "meta_shards", "grant mirror shards (meta currency): meta_shards <n>")
+	c.register_command(cmd_give_gems, "give_gems", "grant meta gems: give_gems <count> <gem_id | empty = random>")
+	c.register_command(cmd_list_gems, "list_gems", "list meta gem ids (rarity, owned count)")
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -493,6 +496,40 @@ func cmd_meta_respec() -> void:
 	var cls: String = _meta_class()
 	MetaProgress.respec(cls)
 	_info("meta[%s] respec — all points refunded" % cls)
+
+
+func cmd_meta_shards(n: int = 100) -> void:
+	if MetaProgress == null:
+		return
+	MetaProgress.add_shards(maxi(1, n))
+	_info("shards +%d → %d total" % [maxi(1, n), MetaProgress.get_shards()])
+
+
+func cmd_give_gems(count: int = 1, gem_id: String = "") -> void:
+	if MetaProgress == null:
+		return
+	if gem_id != "" and not MetaGems.has_gem(gem_id):
+		_err("unknown gem '%s' — try list_gems" % gem_id)
+		return
+	var granted: Array = []
+	for i in maxi(1, count):
+		var gid: String = gem_id if gem_id != "" else MetaGems.roll()
+		MetaProgress.add_gem(gid)
+		granted.append(gid)
+	_info("gems granted: %s" % ", ".join(granted))
+
+
+func cmd_list_gems() -> void:
+	if MetaProgress == null:
+		return
+	for rarity in MetaGems.RARITY_ORDER:
+		for id in MetaGems.ids_of_rarity(String(rarity)):
+			var gid: String = String(id)
+			_info(
+				"%s — %s [%s] owned ×%d"
+				% [gid, MetaGems.display_name(gid), String(rarity), MetaProgress.gem_count(gid)]
+			)
+	_info("shards: %d" % MetaProgress.get_shards())
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
