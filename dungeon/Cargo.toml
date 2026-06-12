@@ -23,3 +23,10 @@ godot = { version = "0.4", optional = true }
 [features]
 default = []
 bridge = ["dep:godot"]
+
+# Cross-compile fix: gdext 0.4.5's `godot-bindings` picks the prebuilt GDExtension
+# interface bindings by HOST os (#[cfg(target_os)] inside its build script), so
+# cross-compiling from macOS baked in macOS bindings and broke Windows/Linux builds.
+# This vendored copy dispatches on CARGO_CFG_TARGET_OS instead. See vendor/godot-bindings.
+[patch.crates-io]
+godot-bindings = { path = "vendor/godot-bindings" }

@@ -36,3 +36,7 @@ Thumbs.db
 
 # Rust dungeon generator build artifacts
 /dungeon/target/
+# Compiled GDExtension libraries (rebuild via dungeon/build_all.sh); keep the dir layout.
+/dungeon/bin/**/*.dylib
+/dungeon/bin/**/*.dll
+/dungeon/bin/**/*.so

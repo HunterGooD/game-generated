@@ -1,0 +1,9 @@
+# Cross-compilation linkers for building the GDExtension from macOS.
+#
+# Windows: native MSVC linking via cargo-xwin is NOT needed — in prebuilt mode gdext
+# runs no bindgen, so the mingw-w64 GNU toolchain (brew install mingw-w64) is enough
+# and avoids the xwin/clang sysroot dance entirely. Build with:
+#   cargo build --release --features bridge --target x86_64-pc-windows-gnu
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-ar"
