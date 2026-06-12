@@ -22,17 +22,23 @@ func setup_context(ctx: SkillContext) -> void:
 
 
 func _ready() -> void:
-	_draw_beam()
+	# Abyssal Lens unique — a second beam fires straight backwards.
+	var twin: bool = InventorySystem != null and InventorySystem.has_unique("beam_twin")
+	_draw_beam(direction)
+	if twin:
+		_draw_beam(-direction)
 	if VfxManager:
 		VfxManager.screen_shake(6.0, 0.18)
 	# Damage only on the caster's machine (visual-only copies just show the beam).
 	if not _visual_only:
-		_damage_line()
+		_damage_line(direction)
+		if twin:
+			_damage_line(-direction)
 	var t := get_tree().create_timer(FADE_TIME + 0.1)
 	t.timeout.connect(queue_free)
 
 
-func _damage_line() -> void:
+func _damage_line(dir: Vector2) -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -40,27 +46,27 @@ func _damage_line() -> void:
 		if not is_instance_valid(e) or bool(e.get("dead")):
 			continue
 		var to_e: Vector2 = (e as Node2D).global_position - global_position
-		var along: float = to_e.dot(direction)
+		var along: float = to_e.dot(dir)
 		if along < 0.0 or along > beam_length:
 			continue
-		# direction is normalized, so |cross| is the perpendicular distance.
-		if abs(to_e.cross(direction)) > HALF_WIDTH:
+		# dir is normalized, so |cross| is the perpendicular distance.
+		if abs(to_e.cross(dir)) > HALF_WIDTH:
 			continue
 		if e.has_method("take_damage"):
 			e.call("take_damage", damage, global_position)
 
 
-func _draw_beam() -> void:
+func _draw_beam(dir: Vector2) -> void:
 	var core := Line2D.new()
 	core.add_point(Vector2.ZERO)
-	core.add_point(direction * beam_length)
+	core.add_point(dir * beam_length)
 	core.width = 14.0
 	core.default_color = Color(0.75, 0.35, 1.0, 0.95)
 	core.z_index = 180
 	add_child(core)
 	var glow := Line2D.new()
 	glow.add_point(Vector2.ZERO)
-	glow.add_point(direction * beam_length)
+	glow.add_point(dir * beam_length)
 	glow.width = 34.0
 	glow.default_color = Color(0.45, 0.15, 0.7, 0.4)
 	glow.z_index = 179

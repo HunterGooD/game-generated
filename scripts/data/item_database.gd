@@ -638,6 +638,62 @@ const UNIQUE_ITEMS: Array = [
 			{"id": "crit_chance", "value": 8},
 		]
 	},
+	# Mage talent-transform uniques — only matter when the matching talent
+	# transform is taken (the effect code lives inside that skill's script).
+	{
+		"id": "cinder_cascade",
+		"kind": "armor",
+		"slot": SLOT_AMULET,
+		"title": "Cinder Cascade",
+		"icon": "res://assets/sprites/items/icon_skill_meteor.png",
+		"class_lock": "mage",
+		"transform": "shower_cascade",
+		"requires_transform": "meteor_shower",
+		"requires_label": "Requires talent: Meteor Shower",
+		"transform_desc": "Meteor Shower rains 2 additional meteors.",
+		"fixed_affixes":
+		[
+			{"id": "fire_dmg", "value": 25},
+			{"id": "damage", "value": 15},
+			{"id": "max_mana", "value": 20},
+		]
+	},
+	{
+		"id": "glacial_heart",
+		"kind": "armor",
+		"slot": SLOT_RING_1,
+		"title": "Glacial Heart",
+		"icon": "res://assets/sprites/items/icon_skill_ice_bolt.png",
+		"class_lock": "mage",
+		"transform": "nova_glacial",
+		"requires_transform": "frost_nova",
+		"requires_label": "Requires talent: Frost Nova",
+		"transform_desc": "Frost Nova also chills — repeated novas freeze enemies solid.",
+		"fixed_affixes":
+		[
+			{"id": "max_mana", "value": 25},
+			{"id": "cdr", "value": 5},
+			{"id": "intelligence", "value": 4},
+		]
+	},
+	{
+		"id": "abyssal_lens",
+		"kind": "armor",
+		"slot": SLOT_GLOVES,
+		"title": "Abyssal Lens",
+		"icon": "res://assets/sprites/items/icon_skill_chain_lightning.png",
+		"class_lock": "mage",
+		"transform": "beam_twin",
+		"requires_transform": "death_beam",
+		"requires_label": "Requires talent: Death Beam",
+		"transform_desc": "Death Beam also fires a second beam behind you.",
+		"fixed_affixes":
+		[
+			{"id": "damage", "value": 20},
+			{"id": "crit_dmg", "value": 30},
+			{"id": "crit_chance", "value": 8},
+		]
+	},
 	{
 		"id": "voidstaff",
 		"kind": "weapon",

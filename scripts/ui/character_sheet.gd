@@ -40,6 +40,9 @@ var gold_label: Label = null
 var materials_label: Label = null
 var set_summary_label: Label = null
 var selected_item: ItemInstance = null
+# Right-click context menu for bag items (Equip / Salvage / Sell).
+var _ctx_menu: PopupMenu = null
+var _ctx_item: ItemInstance = null
 
 # Diablo-style paper-doll layout — (x, y) in pixels inside the 340×470 paper-doll area.
 const SLOT_SIZE: Vector2 = Vector2(100, 100)
@@ -54,6 +57,59 @@ const PAPER_DOLL_LAYOUT: Dictionary = {
 	ItemDatabase.SLOT_WEAPON_MAIN: Vector2(5, 360),
 	ItemDatabase.SLOT_WEAPON_OFF: Vector2(235, 360),
 }
+
+
+# ── Drag & drop cells ─────────────────────────────────────────────────────────
+# Drag payload: {"item": ItemInstance, "from_slot": int} (-1 = from the bag).
+
+
+# One bag cell. Dragging starts a payload; dropping an EQUIPPED item here
+# unequips it back to the bag.
+class BagCell:
+	extends PanelContainer
+	var item: ItemInstance = null
+	var sheet: Node = null
+
+	func _get_drag_data(_pos: Vector2) -> Variant:
+		if item == null or sheet == null:
+			return null
+		set_drag_preview(sheet.make_drag_preview(item))
+		return {"item": item, "from_slot": -1}
+
+	func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
+		return data is Dictionary and int((data as Dictionary).get("from_slot", -1)) >= 0
+
+	func _drop_data(_pos: Vector2, data: Variant) -> void:
+		if InventorySystem:
+			InventorySystem.unequip_slot(int((data as Dictionary).get("from_slot", -1)))
+
+
+# One paper-doll slot. Accepts items that fit this slot; dragging out is also
+# possible (drop on the bag to unequip).
+class EquipCell:
+	extends PanelContainer
+	var slot: int = -1
+	var item: ItemInstance = null
+	var sheet: Node = null
+
+	func _get_drag_data(_pos: Vector2) -> Variant:
+		if item == null or sheet == null:
+			return null
+		set_drag_preview(sheet.make_drag_preview(item))
+		return {"item": item, "from_slot": slot}
+
+	func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
+		if not (data is Dictionary):
+			return false
+		var it = (data as Dictionary).get("item")
+		if not (it is ItemInstance) or sheet == null:
+			return false
+		return sheet.item_fits_slot(it as ItemInstance, slot)
+
+	func _drop_data(_pos: Vector2, data: Variant) -> void:
+		var it = (data as Dictionary).get("item")
+		if it is ItemInstance and InventorySystem:
+			InventorySystem.equip_item(it as ItemInstance, slot)
 
 
 func _ready() -> void:
@@ -181,14 +237,25 @@ func _build_equipment_tab() -> void:
 	inv_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inv_box.size_flags_stretch_ratio = 1.4
 	split.add_child(inv_box)
+	var inv_head := HBoxContainer.new()
+	inv_head.add_theme_constant_override("separation", 12)
+	inv_box.add_child(inv_head)
 	var inv_lbl := Label.new()
-	inv_lbl.text = "Inventory  (click to equip / unequip)"
+	inv_lbl.text = "Inventory  (drag or click to equip • right-click for actions)"
+	inv_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inv_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	inv_lbl.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
 	inv_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	inv_lbl.add_theme_constant_override("outline_size", 3)
 	inv_lbl.add_theme_font_size_override("font_size", 14)
-	inv_box.add_child(inv_lbl)
+	inv_head.add_child(inv_lbl)
+	# Bulk disassembly of low-tier loot straight from the sheet.
+	var salvage_all_btn := Button.new()
+	salvage_all_btn.text = "Salvage common+rare"
+	salvage_all_btn.add_theme_font_size_override("font_size", 12)
+	salvage_all_btn.focus_mode = Control.FOCUS_NONE
+	salvage_all_btn.pressed.connect(_on_salvage_all)
+	inv_head.add_child(salvage_all_btn)
 	# Wrap inventory in a Control with bg behind grid.
 	var inv_wrap := Control.new()
 	inv_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -560,11 +627,14 @@ func _rebuild_equipment() -> void:
 
 
 func _build_equip_slot_tile(slot: int) -> Control:
-	var root := PanelContainer.new()
+	var root := EquipCell.new()
 	root.theme_type_variation = &"InventoryPanel"
 	root.custom_minimum_size = SLOT_SIZE
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	var item: ItemInstance = InventorySystem.get_equipped(slot) if InventorySystem else null
+	root.slot = slot
+	root.item = item
+	root.sheet = self
 	var inner := Control.new()
 	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(inner)
@@ -598,6 +668,15 @@ func _build_equip_slot_tile(slot: int) -> Control:
 			tw.tween_property(root, "modulate", Color(1.1, 0.4, 0.35, 1), 0.8).set_trans(
 				Tween.TRANS_SINE
 			)
+		elif item.rarity == ItemDatabase.RARITY_SET:
+			# Soft green pulse for set pieces.
+			var tws := root.create_tween().set_loops()
+			tws.tween_property(root, "modulate", Color(0.6, 1.35, 0.6, 1), 0.9).set_trans(
+				Tween.TRANS_SINE
+			)
+			tws.tween_property(root, "modulate", Color(0.5, 1.05, 0.5, 1), 0.9).set_trans(
+				Tween.TRANS_SINE
+			)
 		root.mouse_entered.connect(_on_inv_hover.bind(item))
 		root.mouse_exited.connect(_on_inv_exit)
 		root.gui_input.connect(_on_equip_click.bind(slot, item))
@@ -618,10 +697,12 @@ func _build_equip_slot_tile(slot: int) -> Control:
 
 
 func _build_inventory_cell(item: ItemInstance) -> Control:
-	var root := PanelContainer.new()
+	var root := BagCell.new()
 	root.theme_type_variation = &"InventoryPanel"
 	root.custom_minimum_size = Vector2(78, 78)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.item = item
+	root.sheet = self
 	if item != null:
 		var icon := TextureRect.new()
 		icon.texture = item.get_icon()
@@ -638,6 +719,14 @@ func _build_inventory_cell(item: ItemInstance) -> Control:
 				Tween.TRANS_SINE
 			)
 			tw.tween_property(root, "modulate", Color(1.1, 0.4, 0.35, 1), 0.7).set_trans(
+				Tween.TRANS_SINE
+			)
+		elif item.rarity == ItemDatabase.RARITY_SET:
+			var tws := root.create_tween().set_loops()
+			tws.tween_property(root, "modulate", Color(0.6, 1.35, 0.6, 1), 0.9).set_trans(
+				Tween.TRANS_SINE
+			)
+			tws.tween_property(root, "modulate", Color(0.5, 1.05, 0.5, 1), 0.9).set_trans(
 				Tween.TRANS_SINE
 			)
 		root.mouse_entered.connect(_on_inv_hover.bind(item))
@@ -675,6 +764,19 @@ func _on_inv_hover(item: ItemInstance) -> void:
 			var b: Dictionary = def.get(String(pair[1]), {})
 			var mark: String = "✓" if worn >= int(pair[0]) else "·"
 			body += "\n %s (%d) %s" % [mark, int(pair[0]), String(b.get("label", ""))]
+	# Compare against the currently equipped item in the same slot (only when
+	# hovering a BAG item — hovering the equipped one itself shows it plainly).
+	if InventorySystem and not InventorySystem.equipment.values().has(item):
+		var eq: ItemInstance = InventorySystem.get_equipped(item.get_slot())
+		if eq == null and item.get_slot() == ItemDatabase.SLOT_RING_1:
+			eq = InventorySystem.get_equipped(ItemDatabase.SLOT_RING_2)
+		if eq != null and eq != item:
+			body += (
+				"\n\n— Equipped: %s (%s, ilvl %d) —"
+				% [eq.get_title(), ItemDatabase.rarity_display(eq.rarity), eq.ilvl]
+			)
+			for line in eq.get_affix_lines():
+				body += "\n  " + String(line)
 	var meta: String = (
 		"%s  •  ilvl %d  •  %s"
 		% [
@@ -695,29 +797,106 @@ func _on_inv_click(event: InputEvent, item: ItemInstance) -> void:
 	if not (event is InputEventMouseButton) or not (event as InputEventMouseButton).pressed:
 		return
 	var mb := event as InputEventMouseButton
-	if mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_LEFT:
-		# Equip. Left-click auto-routes (first free hand); right-click forces a
-		# one-handed weapon into the OFF hand so the player can choose the slot
-		# without drag-and-drop. Non-weapons ignore the distinction.
-		if InventorySystem:
-			# Class lock check.
-			var lock: String = item.get_class_lock()
-			if lock != "" and GameManager and lock != GameManager.player_class:
-				if AudioManager:
-					AudioManager.play_sfx_path(
-						"res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -18.0
-					)
-				return
-			var force_off: bool = (
-				mb.button_index == MOUSE_BUTTON_RIGHT
-				and item.is_weapon()
-				and not item.is_two_handed()
-			)
-			if force_off:
-				InventorySystem.equip_item(item, ItemDatabase.SLOT_WEAPON_OFF)
-			else:
-				InventorySystem.equip_item(item)
-	# 'S' on the cell is keyboard-only; handled in _unhandled_input by selected_item.
+	if mb.button_index == MOUSE_BUTTON_LEFT:
+		# Quick-equip: auto-routes (first free hand for 1H weapons). Slot
+		# targeting is drag-and-drop; everything else is in the context menu.
+		_try_equip(item, -1)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		_show_ctx_menu(item)
+
+
+func _try_equip(item: ItemInstance, target_slot: int) -> void:
+	if InventorySystem == null or item == null:
+		return
+	var lock: String = item.get_class_lock()
+	if lock != "" and GameManager and lock != GameManager.player_class:
+		if AudioManager:
+			AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -18.0)
+		return
+	InventorySystem.equip_item(item, target_slot)
+
+
+# ── Drag & drop / context-menu helpers ───────────────────────────────────────
+# Whether `item` may land in paper-doll `slot` (drag target highlighting).
+func item_fits_slot(item: ItemInstance, slot: int) -> bool:
+	if item == null or InventorySystem == null:
+		return false
+	var lock: String = item.get_class_lock()
+	if lock != "" and GameManager and lock != String(GameManager.player_class):
+		return false
+	if item.is_weapon():
+		if slot == ItemDatabase.SLOT_WEAPON_MAIN:
+			return true
+		if slot == ItemDatabase.SLOT_WEAPON_OFF:
+			return not item.is_two_handed() or InventorySystem.has_berserker_grip
+		return false
+	var s: int = item.get_slot()
+	if s == ItemDatabase.SLOT_RING_1 or s == ItemDatabase.SLOT_RING_2:
+		return slot == ItemDatabase.SLOT_RING_1 or slot == ItemDatabase.SLOT_RING_2
+	return slot == s
+
+
+func make_drag_preview(item: ItemInstance) -> Control:
+	var icon := TextureRect.new()
+	icon.texture = item.get_icon()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(64, 64)
+	icon.size = Vector2(64, 64)
+	icon.modulate = Color(1, 1, 1, 0.85)
+	return icon
+
+
+func _show_ctx_menu(item: ItemInstance) -> void:
+	if item == null:
+		return
+	_ctx_item = item
+	if _ctx_menu == null:
+		_ctx_menu = PopupMenu.new()
+		add_child(_ctx_menu)
+		_ctx_menu.id_pressed.connect(_on_ctx_menu_id)
+	_ctx_menu.clear()
+	_ctx_menu.add_item("Equip", 0)
+	if item.is_weapon() and not item.is_two_handed():
+		_ctx_menu.add_item("Equip off-hand", 1)
+	_ctx_menu.add_separator()
+	_ctx_menu.add_item("Salvage  (+%s)" % ItemDatabase.format_cost(item.get_salvage_preview()), 2)
+	_ctx_menu.add_item("Sell  (+%dg)" % (item.get_salvage_gold() * 2), 3)
+	if TooltipManager:
+		TooltipManager.hide_tooltip()
+	_ctx_menu.position = Vector2i(get_viewport().get_mouse_position()) + Vector2i(4, 4)
+	_ctx_menu.popup()
+
+
+func _on_ctx_menu_id(id: int) -> void:
+	if _ctx_item == null or InventorySystem == null:
+		return
+	match id:
+		0:
+			_try_equip(_ctx_item, -1)
+		1:
+			_try_equip(_ctx_item, ItemDatabase.SLOT_WEAPON_OFF)
+		2:
+			InventorySystem.salvage_item(_ctx_item)
+		3:
+			InventorySystem.sell_item(_ctx_item)
+	_ctx_item = null
+
+
+# Disassemble every common + rare in the bag in one click.
+func _on_salvage_all() -> void:
+	if InventorySystem == null:
+		return
+	var targets: Array = []
+	for it in InventorySystem.inventory:
+		if (
+			it is ItemInstance
+			and (it as ItemInstance).rarity
+			in [ItemDatabase.RARITY_COMMON, ItemDatabase.RARITY_RARE]
+		):
+			targets.append(it)
+	for it in targets:
+		InventorySystem.salvage_item(it)
 
 
 func _on_equip_click(event: InputEvent, slot: int, _item: ItemInstance) -> void:

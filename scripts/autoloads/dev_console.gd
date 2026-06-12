@@ -16,6 +16,24 @@ func _ready() -> void:
 	c.register_command(cmd_give_gold, "give_gold", "grant gold")
 	c.register_command(cmd_give_mats, "give_mats", "grant materials: give_mats <scrap> <cloth> <essence>")
 	c.register_command(cmd_give_item, "give_item", "roll + grant items: give_item <count> <wave 0=current>")
+	c.register_command(
+		cmd_spawn_item,
+		"spawn_item",
+		"grant an exact item: spawn_item <common|rare|legendary|set|unique> <slot -1=random> <ilvl 0=wave>"
+	)
+	c.register_command(
+		cmd_give_set, "give_set", "grant set pieces: give_set <set_id> <count 1-5> (5 = full set incl. amulet)"
+	)
+	c.register_command(cmd_give_unique, "give_unique", "grant a unique: give_unique <unique_id | empty = random>")
+	c.register_command(cmd_give_stones, "give_stones", "grant set stones: give_stones <set_id> <n>")
+	c.register_command(cmd_list_sets, "list_sets", "list set ids (+ your class eligibility)")
+	c.register_command(cmd_list_uniques, "list_uniques", "list unique item ids for the current class")
+	c.register_command(cmd_give_talents, "give_talents", "grant talent points: give_talents <n>")
+	c.register_command(
+		cmd_learn_transform,
+		"learn_transform",
+		"apply a talent transform directly: learn_transform <transform_id> (e.g. meteor_shower)"
+	)
 	c.register_command(cmd_list_affixes, "list_affixes", "list elite affix ids")
 	c.register_command(cmd_list_enemies, "list_enemies", "list enemy type ids")
 	c.register_command(cmd_heal, "heal", "full-heal the player")
@@ -107,6 +125,177 @@ func cmd_give_mats(scrap: int = 20, cloth: int = 20, essence: int = 20) -> void:
 		return
 	GameManager.add_materials({"scrap": scrap, "cloth": cloth, "essence": essence})
 	_info("materials → %s" % str(GameManager.materials))
+
+
+# Build one base (non-unique) item directly — rarity/slot/ilvl fully chosen.
+func _make_item(rarity: String, slot: int, ilvl: int) -> ItemInstance:
+	var cls: String = String(GameManager.player_class)
+	var s: int = slot
+	if s < 0:
+		var slots: Array = ItemDatabase.set_eligible_slots()
+		slots.append(ItemDatabase.SLOT_WEAPON_MAIN)
+		s = int(slots[randi() % slots.size()])
+	var pool: Array = ItemDatabase.get_base_items_for_slot(s, cls)
+	if pool.is_empty():
+		return null
+	var pick: Dictionary = pool[randi() % pool.size()]
+	var inst := ItemInstance.new()
+	inst.base_id = String(pick.get("id", ""))
+	inst.rarity = rarity
+	inst.ilvl = maxi(1, ilvl)
+	var n: int = int(ItemDatabase.RARITY_AFFIX_COUNT.get(rarity, 1))
+	inst.affixes = LootRoller._roll_affixes(n, inst.ilvl, rarity, int(pick.get("slot", s)))
+	return inst
+
+
+func cmd_spawn_item(rarity: String = "rare", slot: int = -1, ilvl: int = 0) -> void:
+	if GameManager == null or InventorySystem == null:
+		return
+	var lvl: int = ilvl if ilvl > 0 else maxi(1, 1 + int(float(_current_wave()) / 2.0))
+	var cls: String = String(GameManager.player_class)
+	var item: ItemInstance = null
+	match rarity:
+		ItemDatabase.RARITY_UNIQUE:
+			item = LootRoller._roll_unique(cls, lvl)
+		ItemDatabase.RARITY_SET:
+			item = LootRoller._roll_set(lvl, cls)
+			if item != null and slot >= 0 and ItemDatabase.set_eligible_slots().has(slot):
+				# Re-target the requested slot, keeping the rolled set.
+				var pool: Array = ItemDatabase.get_base_items_for_slot(slot, cls)
+				if not pool.is_empty():
+					item.base_id = String(pool[randi() % pool.size()].get("id", ""))
+					item.affixes = LootRoller.roll_set_affixes(item.set_id, slot, lvl)
+		_:
+			if not ItemDatabase.RARITY_AFFIX_COUNT.has(rarity):
+				_info("unknown rarity '%s' (common/rare/legendary/set/unique)" % rarity)
+				return
+			item = _make_item(rarity, slot, lvl)
+	if item == null or not InventorySystem.add_item(item):
+		_info("could not grant item (bag full / no base for slot?)")
+		return
+	_info("granted: %s" % item.describe().replace("\n", "  "))
+
+
+func cmd_give_set(set_id: String = "", count: int = 5) -> void:
+	if GameManager == null or InventorySystem == null:
+		return
+	if not ItemDatabase.SETS.has(set_id):
+		_info("unknown set '%s' — try list_sets" % set_id)
+		return
+	var lvl: int = maxi(1, 1 + int(float(_current_wave()) / 2.0))
+	var cls: String = String(GameManager.player_class)
+	# Order matters: 4 armor slots first, amulet 5th — give_set X 5 = full bonus.
+	var slots: Array = [
+		ItemDatabase.SLOT_HELMET,
+		ItemDatabase.SLOT_CHEST,
+		ItemDatabase.SLOT_GLOVES,
+		ItemDatabase.SLOT_BOOTS,
+		ItemDatabase.SLOT_AMULET,
+	]
+	var n := 0
+	for i in mini(maxi(1, count), slots.size()):
+		var slot: int = int(slots[i])
+		var pool: Array = ItemDatabase.get_base_items_for_slot(slot, cls)
+		if pool.is_empty():
+			continue
+		var inst := ItemInstance.new()
+		inst.base_id = String(pool[randi() % pool.size()].get("id", ""))
+		inst.rarity = ItemDatabase.RARITY_SET
+		inst.set_id = set_id
+		inst.ilvl = lvl
+		inst.affixes = LootRoller.roll_set_affixes(set_id, slot, lvl)
+		if InventorySystem.add_item(inst):
+			n += 1
+	_info("granted %d piece(s) of %s" % [n, set_id])
+
+
+func cmd_give_unique(unique_id: String = "") -> void:
+	if GameManager == null or InventorySystem == null:
+		return
+	var cls: String = String(GameManager.player_class)
+	var item: ItemInstance = null
+	if unique_id == "":
+		item = LootRoller._roll_unique(cls, maxi(1, 1 + int(float(_current_wave()) / 2.0)))
+	else:
+		var tpl: Dictionary = ItemDatabase.find_unique(unique_id)
+		if tpl.is_empty():
+			_info("unknown unique '%s' — try list_uniques" % unique_id)
+			return
+		# Roll repeatedly until the exact unique lands (pool is small) — or build
+		# it directly when it belongs to another class.
+		var lock: String = String(tpl.get("class_lock", ""))
+		for _i in 64:
+			item = LootRoller._roll_unique(lock if lock != "" else cls, 1)
+			if item != null and item.unique_id == unique_id:
+				break
+		if item == null or item.unique_id != unique_id:
+			_info("failed to roll %s" % unique_id)
+			return
+	if item == null or not InventorySystem.add_item(item):
+		_info("could not grant unique (bag full?)")
+		return
+	_info("granted unique: %s" % item.get_title())
+
+
+func cmd_give_stones(set_id: String = "", n: int = 2) -> void:
+	if GameManager == null:
+		return
+	if not ItemDatabase.SETS.has(set_id):
+		_info("unknown set '%s' — try list_sets" % set_id)
+		return
+	GameManager.add_set_stone(set_id, maxi(1, n))
+	_info("%s stones → %d" % [set_id, GameManager.get_set_stones(set_id)])
+
+
+func cmd_list_sets() -> void:
+	var cls: String = String(GameManager.player_class) if GameManager else ""
+	var lines: Array = []
+	for sid in ItemDatabase.SETS:
+		var classes: Array = ItemDatabase.SETS[sid].get("classes", [])
+		var tag: String = "generic" if classes.is_empty() else ", ".join(classes)
+		var mine: String = " ←" if classes.is_empty() or classes.has(cls) else ""
+		lines.append("%s (%s)%s" % [sid, tag, mine])
+	_info("sets: " + " | ".join(lines))
+
+
+func cmd_list_uniques() -> void:
+	var cls: String = String(GameManager.player_class) if GameManager else ""
+	var ids: Array = []
+	for u in ItemDatabase.get_uniques_for_class(cls):
+		ids.append(String(u.get("id", "")))
+	_info("uniques for %s: %s" % [cls, ", ".join(ids)])
+
+
+func cmd_give_talents(n: int = 5) -> void:
+	if GameManager == null:
+		return
+	GameManager.talent_points += maxi(1, n)
+	if GameManager.has_signal("talents_changed"):
+		GameManager.talents_changed.emit()
+	_info("talent points → %d" % GameManager.talent_points)
+
+
+func cmd_learn_transform(transform_id: String = "") -> void:
+	# Apply a talent transform directly to the live SkillSystem — fastest way to
+	# test slot swaps (meteor_shower / frost_nova / death_beam / ...).
+	if transform_id == "":
+		_info("usage: learn_transform <transform_id>")
+		return
+	var meta: Dictionary = RewardData.find_unique_by_transform(transform_id)
+	if meta.is_empty():
+		_info("unknown transform '%s' (not in RewardData)" % transform_id)
+		return
+	var ps := get_tree().get_nodes_in_group("player")
+	if ps.is_empty():
+		_info("no player in scene")
+		return
+	var ss = ps[0].get_node_or_null("SkillSystem")
+	if ss == null:
+		_info("player has no SkillSystem")
+		return
+	var slot: int = int(meta.get("slot", 0))
+	ss.apply_transform(slot, transform_id)
+	_info("applied transform %s to slot %d" % [transform_id, slot])
 
 
 func cmd_give_item(count: int = 1, wave: int = 0) -> void:

@@ -78,6 +78,9 @@ func _ready() -> void:
 	# Meteor Shower: the lead meteor schedules its extra rocks.
 	if _is_shower and not _is_shower_child:
 		var count: int = 2 + (randi() % 2)
+		# Cinder Cascade unique — the shower rains 2 additional meteors.
+		if InventorySystem and InventorySystem.has_unique("shower_cascade"):
+			count += 2
 		for i in count:
 			var t := get_tree().create_timer(0.25 * float(i + 1))
 			t.timeout.connect(_spawn_shower_child)

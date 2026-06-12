@@ -15,6 +15,12 @@ const COLUMN_WIDTH: int = 340
 const TRANSFORM_COLOR := Color(1.0, 0.45, 0.35)
 const ULT_COLOR := Color(0.6, 0.85, 1.0)
 const STAT_NAMES := {"strength": "Str", "dexterity": "Dex", "intelligence": "Int"}
+# TODO(art): dedicated str/dex/int icons; themed gear placeholders for now.
+const STAT_ICONS := {
+	"strength": "res://assets/sprites/items/gear_chest_plate.png",
+	"dexterity": "res://assets/sprites/items/gear_boots_greaves.png",
+	"intelligence": "res://assets/sprites/items/crystal_blue.png",
+}
 
 var _points_label: Label = null
 var _stats_label: Label = null
@@ -197,6 +203,14 @@ func _build_node_button(node: Dictionary) -> Button:
 		rank_text += " +%d" % free_ranks
 	btn.text = "%s   [%s]" % [TalentTrees.display_name(node), rank_text]
 	btn.add_theme_font_size_override("font_size", 15)
+	# Per-node icon so the player reads the tree at a glance: skill icon for
+	# modifier/transform/ult nodes, themed placeholders for stat/perk nodes.
+	var node_icon: Texture2D = _node_icon(node, kind)
+	if node_icon != null:
+		btn.icon = node_icon
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 30)
+		btn.add_theme_constant_override("h_separation", 8)
 	match kind:
 		"transform":
 			btn.add_theme_color_override("font_color", TRANSFORM_COLOR)
@@ -213,6 +227,29 @@ func _build_node_button(node: Dictionary) -> Button:
 	btn.mouse_entered.connect(_on_node_hover.bind(node, reason))
 	btn.mouse_exited.connect(_on_node_exit)
 	return btn
+
+
+func _node_icon(node: Dictionary, kind: String) -> Texture2D:
+	match kind:
+		"stat":
+			return _load_icon(STAT_ICONS.get(String(node.get("stat", "")), ""))
+		"perk":
+			return _load_icon("res://assets/sprites/items/rune_circle.png")
+		"ult":
+			return _load_icon("res://assets/sprites/items/crystal_purple.png")
+	# modifier / transform — the affected slot's skill icon.
+	var slot: int = TalentTrees.node_slot(node)
+	if slot >= 0:
+		var tex: Texture2D = RewardData.slot_icon(slot)
+		if tex != null:
+			return tex
+	return _load_icon("res://assets/sprites/items/crystal_blue.png")
+
+
+func _load_icon(path: String) -> Texture2D:
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
 
 
 func _on_node_pressed(node_id: String) -> void:

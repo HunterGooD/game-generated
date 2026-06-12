@@ -37,6 +37,8 @@ func _damage_ring() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	# Glacial Heart unique — novas also stack chill (freezes at the cap).
+	var glacial: bool = InventorySystem != null and InventorySystem.has_unique("nova_glacial")
 	for e in tree.get_nodes_in_group("enemy"):
 		if not is_instance_valid(e) or bool(e.get("dead")):
 			continue
@@ -49,3 +51,5 @@ func _damage_ring() -> void:
 			e.call("mark_element", "frost")
 		if e.has_method("apply_slow"):
 			e.call("apply_slow", slow_duration, slow_mult)
+		if glacial and e.has_method("apply_chill"):
+			e.call("apply_chill", 2.5, 2)
