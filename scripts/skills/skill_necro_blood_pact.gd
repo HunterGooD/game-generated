@@ -10,6 +10,8 @@ const SPEED_MULT: float = 1.30
 const HP_COST_PCT: float = 0.15
 
 var visual_only: bool = false
+var _caster: Node = null
+var _pact_power: float = BASE_DMG_MULT
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -19,6 +21,7 @@ func setup_context(ctx: SkillContext) -> void:
 	var caster = ctx.caster
 	if visual_only or caster == null:
 		return
+	_caster = caster
 	# Sacrifice HP — never enough to kill the caster.
 	if GameManager:
 		var cost: int = max(1, int(round(float(GameManager.player_hp) * HP_COST_PCT)))
@@ -35,14 +38,19 @@ func setup_context(ctx: SkillContext) -> void:
 	if ss and ss.has_method("get_modifier"):
 		var stacks: int = int(ss.call("get_modifier", 2, "necro_pact_power"))
 		pact_power += 0.25 * float(stacks)
+	_pact_power = pact_power
+
+
+# Tree-dependent empowerment. Deferred to _ready() because setup_context() runs
+# before the skill is added to the scene (get_tree() is null there), which would
+# otherwise silently skip every minion.
+func _apply_pact() -> void:
 	# Multiplayer: a non-host caster's minions live on the host — ask the host to
 	# empower them. Solo and host apply directly to their local minions.
 	if NetManager and NetManager.is_multiplayer and not NetManager.is_host:
 		var ns := _find_net_sync()
 		if ns:
-			ns.call(
-				"request_blood_pact", BUFF_DURATION, pact_power, SPEED_MULT
-			)
+			ns.call("request_blood_pact", BUFF_DURATION, _pact_power, SPEED_MULT)
 		return
 	# Empower every minion owned by THIS necromancer.
 	var tree := get_tree()
@@ -51,10 +59,10 @@ func setup_context(ctx: SkillContext) -> void:
 	for n in tree.get_nodes_in_group("necro_minion"):
 		if not is_instance_valid(n):
 			continue
-		if n.get("owner_caster") != caster:
+		if n.get("owner_caster") != _caster:
 			continue
 		if n.has_method("apply_blood_pact"):
-			n.call("apply_blood_pact", BUFF_DURATION, pact_power, SPEED_MULT)
+			n.call("apply_blood_pact", BUFF_DURATION, _pact_power, SPEED_MULT)
 
 
 func _find_net_sync() -> Node:
@@ -66,6 +74,8 @@ func _find_net_sync() -> Node:
 
 func _ready() -> void:
 	z_index = 70
+	if not visual_only and _caster != null:
+		_apply_pact()
 	var ring := Sprite2D.new()
 	var path: String = "res://assets/sprites/effects/cast_flash.png"
 	if ResourceLoader.exists(path):

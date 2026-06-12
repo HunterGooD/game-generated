@@ -72,7 +72,7 @@ func _nearest_unused(from: Vector2, used: Dictionary) -> Node:
 		for n in tree.get_nodes_in_group(grp):
 			if not is_instance_valid(n) or not (n is Node2D):
 				continue
-			if used.has(n.get_instance_id()) or bool(n.get("dead")):
+			if used.has(n.get_instance_id()) or n.get("dead") == true:
 				continue
 			var d: float = from.distance_to((n as Node2D).global_position)
 			if d < best_d:

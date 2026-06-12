@@ -2,7 +2,8 @@ extends Node2D
 
 # Second Funeral — Gravebinder (Necromancer) R. Marks the necromancer (and nearby
 # allies in co-op) so they cannot die for 8s, granting a shield. Cheating death sets
-# them to 1 HP (see player._try_cheat_death).
+# them to 1 HP (see player._try_cheat_death). While the window is active, every enemy
+# death also reaps HP back (player._on_enemy_died_funeral heals each buffed player).
 
 const DURATION: float = 8.0
 const RADIUS: float = 260.0

@@ -127,6 +127,10 @@ var evasion_chance: float = 0.0
 var evasion_t: float = 0.0
 # Cheat-death: survive a lethal hit at 1 HP. `funeral_t` is the Necro Second Funeral
 # window (free while active); `dirty_escape_cd` gates the Trickster passive (90s).
+# While the funeral window is active, each enemy death also heals the buffed player
+# for FUNERAL_HEAL_FRAC of max HP (Gravebinder reaping; applies to every player the
+# ult covers, since each peer heals itself off its own observed kills).
+const FUNERAL_HEAL_FRAC: float = 0.02
 var funeral_t: float = 0.0
 var dirty_escape_cd: float = 0.0
 # Assassin Backstab Window: brief window (after a dash/vanish) where attacks crit harder.
@@ -203,6 +207,7 @@ func _ready() -> void:
 	if GameEvents:
 		GameEvents.enemy_died.connect(_on_enemy_died_frenzy)
 		GameEvents.enemy_died.connect(_on_enemy_died_passives)
+		GameEvents.enemy_died.connect(_on_enemy_died_funeral)
 
 
 func _setup_components() -> void:
@@ -1393,6 +1398,16 @@ func apply_evasion(chance: float, duration: float) -> void:
 # for the next `duration` seconds.
 func grant_funeral(duration: float) -> void:
 	funeral_t = max(funeral_t, duration)
+
+
+# Second Funeral reaping: while the funeral window is active, every enemy death
+# heals this player for a flat fraction of max HP. Each peer heals off its own
+# observed kills, so the heal naturally covers every player the ult buffs.
+func _on_enemy_died_funeral(_event) -> void:
+	if funeral_t <= 0.0 or GameManager == null:
+		return
+	var amount: int = maxi(1, int(round(float(GameManager.player_max_hp) * FUNERAL_HEAL_FRAC)))
+	heal_amount(amount)
 
 
 # Trickster Dirty Escape passive: arm a one-shot cheat-death on an 90s shared CD.

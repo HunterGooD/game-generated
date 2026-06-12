@@ -47,8 +47,8 @@ func _ready() -> void:
 					e.call("add_curse_stack")
 	if linked.size() < 2:
 		# Need at least 2 marked enemies. Detonate the single mark for value.
-		if linked.size() == 1:
-			var node = linked[0].get_meta("hex_mark_node", null)
+		if linked.size() == 1 and linked[0].has_meta("hex_mark_node"):
+			var node = linked[0].get_meta("hex_mark_node")
 			if node and is_instance_valid(node) and node.has_method("detonate"):
 				node.call("detonate")
 		queue_free()

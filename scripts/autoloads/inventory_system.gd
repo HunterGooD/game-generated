@@ -112,6 +112,11 @@ func equip_item(item: ItemInstance, target_slot: int = -1) -> bool:
 	var lock: String = item.get_class_lock()
 	if lock != "" and GameManager and lock != String(GameManager.player_class):
 		return false
+	# Drag-equip safety: if this item is ALREADY worn (e.g. dragged slot→slot, or
+	# dropped back onto its own slot), strip it out of equipment first. Otherwise
+	# the old slot keeps a stale reference and the item duplicates on next unequip
+	# (or, when re-dropped onto its own slot, gets cloned straight into the bag).
+	_detach_item_from_equipment(item)
 	var slot: int = target_slot if target_slot >= 0 else item.get_slot()
 	if slot < 0:
 		return false
@@ -147,6 +152,17 @@ func equip_item(item: ItemInstance, target_slot: int = -1) -> bool:
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_equip_armor.mp3", -8.0)
 	return true
+
+
+func _detach_item_from_equipment(item: ItemInstance) -> void:
+	# Erase `item` from every equipment slot it currently occupies (a 2H weapon
+	# can mirror into both hands). keys() returns a copy, so erasing while
+	# iterating is safe. Does NOT touch the bag or emit — the caller re-places.
+	if item == null:
+		return
+	for s in equipment.keys():
+		if equipment[s] == item:
+			equipment.erase(s)
 
 
 func _auto_weapon_slot(item: ItemInstance) -> int:

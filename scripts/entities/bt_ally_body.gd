@@ -158,7 +158,7 @@ func _owner_marked_target() -> Node2D:
 	var m = owner_caster.call("get_marked_target")
 	if m == null or not is_instance_valid(m) or not (m is Node2D):
 		return null
-	if bool(m.get("dead")):
+	if m.get("dead") == true:
 		return null
 	# Don't abandon position to chase a mark across the whole map.
 	if global_position.distance_to((m as Node2D).global_position) > _detection_range() * 1.5:

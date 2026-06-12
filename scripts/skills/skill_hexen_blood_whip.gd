@@ -95,9 +95,10 @@ func _report_cast(enemies_hit: int) -> void:
 func _apply_to(target: Node, caster_pos: Vector2, allow_pull: bool = true) -> void:
 	# Detonate existing hex if present.
 	if target.has_meta("hex_marked") and bool(target.get_meta("hex_marked", false)):
-		var hex_node = target.get_meta("hex_mark_node", null)
-		if hex_node and is_instance_valid(hex_node) and hex_node.has_method("detonate"):
-			hex_node.call("detonate")
+		if target.has_meta("hex_mark_node"):
+			var hex_node = target.get_meta("hex_mark_node")
+			if hex_node and is_instance_valid(hex_node) and hex_node.has_method("detonate"):
+				hex_node.call("detonate")
 	# Damage + fresh mark (the lash curses what it touches).
 	if target.has_method("take_damage"):
 		target.call("take_damage", damage, caster_pos)
