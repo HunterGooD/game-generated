@@ -62,11 +62,29 @@ func _on_player_disconnected(pid: int) -> void:
 		_try_resolve_votes()
 
 
-# Begin a fresh run and show its map.
+# Begin a fresh run and show its map. A run started from the hub always begins
+# at loop 0 — continue_run is the only way to carry the loop counter forward.
 func start_run(difficulty: int, seed_value: int = -1) -> void:
 	_flow_active = true
+	GameManager.run_loop = 0
 	GameManager.start_run(difficulty, seed_value)
 	_change_scene(SCENE_RUN_MAP)
+
+
+# Post-uber-boss "Continue": next loop, fresh map, build intact. Solo rolls the
+# map directly; the co-op host broadcasts run_start (with the loop) so every
+# client lands on the identical new map.
+func continue_run(difficulty: int) -> void:
+	if is_coop_client():
+		return  # host-authoritative — clients follow the run_start broadcast
+	GameManager.run_loop += 1
+	if is_coop_host():
+		host_start_run(difficulty, true)
+		open_map()
+	else:
+		_flow_active = true
+		GameManager.start_run(difficulty)
+		_change_scene(SCENE_RUN_MAP)
 
 
 func open_map() -> void:
@@ -78,13 +96,20 @@ func open_map() -> void:
 # Host picks the difficulty (in the run-map picker). Generate the map locally, then
 # broadcast (seed, difficulty) so every client rebuilds the identical DAG. Solo just
 # starts the run. RunMapUI routes its difficulty buttons through here.
-func host_start_run(difficulty: int) -> void:
+func host_start_run(difficulty: int, keep_loop: bool = false) -> void:
 	_flow_active = true
 	votes.clear()
+	if not keep_loop:
+		GameManager.run_loop = 0
 	GameManager.start_run(difficulty)  # generates run_seed + map, emits run_started
 	if is_coop_host():
 		NetManager.send(
-			"run_start", {"seed": GameManager.run_seed, "difficulty": GameManager.run_difficulty}
+			"run_start",
+			{
+				"seed": GameManager.run_seed,
+				"difficulty": GameManager.run_difficulty,
+				"loop": GameManager.run_loop,
+			}
 		)
 
 
@@ -173,6 +198,7 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 			if is_coop_client():
 				_flow_active = true
 				votes.clear()
+				GameManager.run_loop = int(msg.get("loop", 0))
 				GameManager.start_run(int(msg.get("difficulty", 0)), int(msg.get("seed", 0)))
 				_change_scene(SCENE_RUN_MAP)
 		"run_vote":

@@ -171,7 +171,7 @@ func _show_detail() -> void:
 		detail_rarity.text = ItemDatabase.rarity_display(award_item.rarity)
 		detail_rarity.add_theme_color_override("font_color", rarity_col)
 	if detail_ilvl:
-		detail_ilvl.text = "Item Level %d" % award_item.ilvl
+		detail_ilvl.text = "Уровень предмета %d" % award_item.ilvl
 	if detail_affixes:
 		for c in detail_affixes.get_children():
 			c.queue_free()
@@ -187,10 +187,10 @@ func _show_detail() -> void:
 		if award_item.is_weapon():
 			var wl := Label.new()
 			wl.text = (
-				"Weapon Damage: x%.2f%s"
+				"Урон оружия: x%.2f%s"
 				% [
 					award_item.get_weapon_damage_mult(),
-					" (2H)" if award_item.is_two_handed() else " (1H)"
+					" (2Р)" if award_item.is_two_handed() else " (1Р)"
 				]
 			)
 			wl.add_theme_color_override("font_color", Color(1.0, 0.7, 0.55, 1))
@@ -206,12 +206,12 @@ func _show_detail() -> void:
 				detail_transform.text += "\n⚑ " + award_item.get_requires_label()
 			detail_transform.visible = true
 		elif award_item.get_set_id() != "":
-			detail_transform.text = "◆ %s set piece" % award_item.get_set_name()
+			detail_transform.text = "◆ Часть комплекта «%s»" % award_item.get_set_name()
 			detail_transform.visible = true
 		else:
 			detail_transform.visible = false
 	if salvage_btn:
-		salvage_btn.text = "Salvage  (+%s)" % ItemDatabase.format_cost(award_item.get_salvage_preview())
+		salvage_btn.text = "Разобрать  (+%s)" % ItemDatabase.format_cost(award_item.get_salvage_preview())
 
 
 func _on_take() -> void:

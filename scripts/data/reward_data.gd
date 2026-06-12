@@ -5,24 +5,24 @@ extends RefCounted
 # Used by the level-up overlay AND the character sheet items tab.
 
 const STAT_REWARDS := [
-	{"id": "hp+20", "title": "Iron Heart", "desc": "+20 maximum health", "rarity": "common"},
-	{"id": "hp+40", "title": "Vital Surge", "desc": "+40 maximum health", "rarity": "rare"},
-	{"id": "mana+15", "title": "Inner Well", "desc": "+15 maximum mana", "rarity": "common"},
-	{"id": "mana+30", "title": "Deep Reservoir", "desc": "+30 maximum mana", "rarity": "rare"},
-	{"id": "dmg+3", "title": "Sharpened Edge", "desc": "+3 damage", "rarity": "common"},
-	{"id": "dmg+7", "title": "Lethal Focus", "desc": "+7 damage", "rarity": "rare"},
-	{"id": "crit+5", "title": "Killer Instinct", "desc": "+5% critical chance", "rarity": "common"},
+	{"id": "hp+20", "title": "Железное сердце", "desc": "+20 к макс. здоровью", "rarity": "common"},
+	{"id": "hp+40", "title": "Прилив жизни", "desc": "+40 к макс. здоровью", "rarity": "rare"},
+	{"id": "mana+15", "title": "Внутренний источник", "desc": "+15 к макс. мане", "rarity": "common"},
+	{"id": "mana+30", "title": "Глубокий резервуар", "desc": "+30 к макс. мане", "rarity": "rare"},
+	{"id": "dmg+3", "title": "Заточенное лезвие", "desc": "+3 к урону", "rarity": "common"},
+	{"id": "dmg+7", "title": "Смертельная сосредоточенность", "desc": "+7 к урону", "rarity": "rare"},
+	{"id": "crit+5", "title": "Инстинкт убийцы", "desc": "+5% к шансу крита", "rarity": "common"},
 	{
 		"id": "crit_dmg+0.25",
-		"title": "Brutal Strike",
-		"desc": "+25% critical damage",
+		"title": "Жестокий удар",
+		"desc": "+25% к крит. урону",
 		"rarity": "rare"
 	},
-	{"id": "speed+15", "title": "Quick Step", "desc": "+15 move speed", "rarity": "common"},
+	{"id": "speed+15", "title": "Быстрый шаг", "desc": "+15 к скорости бега", "rarity": "common"},
 	{
 		"id": "heal_full",
-		"title": "Blood Renewal",
-		"desc": "Restore full health",
+		"title": "Обновление крови",
+		"desc": "Полностью восстановить здоровье",
 		"rarity": "common"
 	},
 ]
@@ -31,328 +31,328 @@ const SKILL_MODIFIERS := [
 	{
 		"id": "fw_duration",
 		"slot": 0,
-		"title": "Eternal Pyre",
-		"desc": "Fire Wall lasts longer and ticks faster",
+		"title": "Вечный костёр",
+		"desc": "Огненная стена держится дольше и бьёт чаще",
 		"rarity": "common",
-		"stack_bonus": "+1.5s duration & faster ticks"
+		"stack_bonus": "+1,5 с длительности и чаще тики"
 	},
 	{
 		"id": "fw_radius",
 		"slot": 0,
-		"title": "Vast Inferno",
-		"desc": "Fire Wall is wider",
+		"title": "Бескрайнее пекло",
+		"desc": "Огненная стена шире",
 		"rarity": "common",
-		"stack_bonus": "+35% width"
+		"stack_bonus": "+35% ширины"
 	},
 	{
 		"id": "fw_damage",
 		"slot": 0,
-		"title": "Pyromancy",
-		"desc": "+30% Fire Wall damage",
+		"title": "Пиромантия",
+		"desc": "+30% к урону Огненной стены",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "ib_pierce",
 		"slot": 1,
-		"title": "Piercing Frost",
-		"desc": "Ice Bolt pierces through enemies",
+		"title": "Пронзающий мороз",
+		"desc": "Ледяная стрела пронзает врагов насквозь",
 		"rarity": "rare",
-		"stack_bonus": "Already piercing"
+		"stack_bonus": "Уже пронзает"
 	},
 	{
 		"id": "ib_slow",
 		"slot": 1,
-		"title": "Deep Freeze",
-		"desc": "Ice Bolt slows harder and longer",
+		"title": "Глубокая заморозка",
+		"desc": "Ледяная стрела замедляет сильнее и дольше",
 		"rarity": "common",
-		"stack_bonus": "+1.5s slow & stronger"
+		"stack_bonus": "+1,5 с замедления и сильнее"
 	},
 	{
 		"id": "ib_damage",
 		"slot": 1,
-		"title": "Hardened Ice",
-		"desc": "+30% Ice Bolt damage",
+		"title": "Закалённый лёд",
+		"desc": "+30% к урону Ледяной стрелы",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "cl_jumps",
 		"slot": 2,
-		"title": "Arc Mastery",
-		"desc": "Chain Lightning hits two more targets",
+		"title": "Мастерство дуги",
+		"desc": "Цепная молния поражает на две цели больше",
 		"rarity": "rare",
-		"stack_bonus": "+2 jumps"
+		"stack_bonus": "+2 прыжка"
 	},
 	{
 		"id": "cl_damage",
 		"slot": 2,
-		"title": "High Voltage",
-		"desc": "+30% Chain Lightning damage",
+		"title": "Высокое напряжение",
+		"desc": "+30% к урону Цепной молнии",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "mt_radius",
 		"slot": 3,
-		"title": "Greater Impact",
-		"desc": "Meteor blast radius +50%",
+		"title": "Большее воздействие",
+		"desc": "Радиус взрыва Метеора +50%",
 		"rarity": "common",
-		"stack_bonus": "+50% radius"
+		"stack_bonus": "+50% радиуса"
 	},
 	{
 		"id": "mt_damage",
 		"slot": 3,
-		"title": "Heavenly Hammer",
-		"desc": "+40% Meteor damage",
+		"title": "Небесный молот",
+		"desc": "+40% к урону Метеора",
 		"rarity": "rare",
-		"stack_bonus": "+40% damage"
+		"stack_bonus": "+40% урона"
 	},
 	# DRUID
 	{
 		"id": "wolf_duration",
 		"slot": 0,
-		"title": "Wild Endurance",
-		"desc": "Wolf Form lasts longer",
+		"title": "Дикая выносливость",
+		"desc": "Облик волка держится дольше",
 		"rarity": "common",
-		"stack_bonus": "+4s duration"
+		"stack_bonus": "+4 с длительности"
 	},
 	{
 		"id": "bear_duration",
 		"slot": 1,
-		"title": "Iron Hide",
-		"desc": "Bear Form lasts longer",
+		"title": "Железная шкура",
+		"desc": "Облик медведя держится дольше",
 		"rarity": "common",
-		"stack_bonus": "+4s duration"
+		"stack_bonus": "+4 с длительности"
 	},
 	{
 		"id": "stone_armor_charges",
 		"slot": 2,
-		"title": "Mountain's Shield",
-		"desc": "Stone Armor absorbs one extra hit",
+		"title": "Щит горы",
+		"desc": "Каменная броня поглощает один лишний удар",
 		"rarity": "rare",
-		"stack_bonus": "+1 absorbed hit"
+		"stack_bonus": "+1 поглощённый удар"
 	},
 	{
 		"id": "spirit_pets",
 		"slot": 3,
-		"title": "Pack Caller",
-		"desc": "Summon Spirit can call one more beast at a time",
+		"title": "Зов стаи",
+		"desc": "Призыв духа может держать на одного зверя больше",
 		"rarity": "rare",
-		"stack_bonus": "+1 max spirit pet"
+		"stack_bonus": "+1 к пределу духов"
 	},
 	{
 		"id": "spirit_summon_damage",
 		"slot": 3,
-		"title": "Feral Spirits",
-		"desc": "+30% Summon Spirit damage",
+		"title": "Дикие духи",
+		"desc": "+30% к урону Призыва духа",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "eagle_duration",
 		"slot": 4,
-		"title": "Sky Lord",
-		"desc": "Eagle Form lasts longer",
+		"title": "Владыка небес",
+		"desc": "Облик орла держится дольше",
 		"rarity": "common",
-		"stack_bonus": "+4s duration"
+		"stack_bonus": "+4 с длительности"
 	},
 	# NECROMANCER
 	{
 		"id": "necro_skel_count",
 		"slot": 0,
-		"title": "Risen Legion",
-		"desc": "Raise Skeleton can summon one more soldier at a time",
+		"title": "Восставший легион",
+		"desc": "Поднять скелета может держать на одного бойца больше",
 		"rarity": "rare",
-		"stack_bonus": "+1 max skeleton"
+		"stack_bonus": "+1 к пределу скелетов"
 	},
 	{
 		"id": "necro_knight_armor",
 		"slot": 1,
-		"title": "Plated Bones",
-		"desc": "+40 max HP for each Bone Knight you summon",
+		"title": "Бронированные кости",
+		"desc": "+40 макс. здоровья каждому призванному Костяному рыцарю",
 		"rarity": "common",
-		"stack_bonus": "+40 knight HP"
+		"stack_bonus": "+40 здоровья рыцаря"
 	},
 	{
 		"id": "necro_pact_power",
 		"slot": 2,
-		"title": "Crimson Vow",
-		"desc": "Blood Pact grants +25% more damage to your minions",
+		"title": "Багровый обет",
+		"desc": "Кровавый договор даёт приспешникам на +25% больше урона",
 		"rarity": "rare",
-		"stack_bonus": "+25% pact damage"
+		"stack_bonus": "+25% урона договора"
 	},
 	{
 		"id": "necro_pulse_radius",
 		"slot": 3,
-		"title": "Wider Reach",
-		"desc": "Death Pulse radius +30%",
+		"title": "Широкий охват",
+		"desc": "Радиус Пульса смерти +30%",
 		"rarity": "common",
-		"stack_bonus": "+30% radius"
+		"stack_bonus": "+30% радиуса"
 	},
 	{
 		"id": "necro_pulse_damage",
 		"slot": 3,
-		"title": "Grave Resonance",
-		"desc": "+30% Death Pulse damage",
+		"title": "Могильный резонанс",
+		"desc": "+30% к урону Пульса смерти",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	# BARBARIAN — slots: Whirlwind(0), Leap Slam(1), Battle Cry(2), Earthquake(3)
 	{
 		"id": "barb_whirl_damage",
 		"slot": 0,
-		"title": "Reaving Spin",
-		"desc": "+30% Whirlwind damage",
+		"title": "Рассекающее вращение",
+		"desc": "+30% к урону Вихря",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "barb_leap_damage",
 		"slot": 1,
-		"title": "Crater Maker",
-		"desc": "+30% Leap Slam damage",
+		"title": "Создатель кратеров",
+		"desc": "+30% к урону Прыжка-удара",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "barb_quake_damage",
 		"slot": 3,
-		"title": "Tectonic Fury",
-		"desc": "+30% Earthquake damage",
+		"title": "Тектоническая ярость",
+		"desc": "+30% к урону Землетрясения",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "barb_cry_power",
 		"slot": 2,
-		"title": "Warlord's Roar",
-		"desc": "Battle Cry lasts longer and boosts move speed more",
+		"title": "Рык вождя",
+		"desc": "Боевой клич длится дольше и сильнее ускоряет бег",
 		"rarity": "rare",
-		"stack_bonus": "+2s duration & +15% speed"
+		"stack_bonus": "+2 с длительности и +15% скорости"
 	},
 	{
 		"id": "barb_quake_waves",
 		"slot": 3,
-		"title": "Aftershocks",
-		"desc": "Earthquake sends one more shockwave ring",
+		"title": "Повторные толчки",
+		"desc": "Землетрясение выпускает ещё одно кольцо ударной волны",
 		"rarity": "rare",
-		"stack_bonus": "+1 shockwave"
+		"stack_bonus": "+1 ударная волна"
 	},
 	# ROGUE — slots: Caltrops(0), Smoke Bomb(1), Poison Vial(2), Fan of Knives(3)
 	{
 		"id": "rogue_knives_damage",
 		"slot": 3,
-		"title": "Honed Blades",
-		"desc": "+30% Fan of Knives damage",
+		"title": "Отточенные клинки",
+		"desc": "+30% к урону Веера ножей",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "rogue_knives_count",
 		"slot": 3,
-		"title": "Blade Tempest",
-		"desc": "Fan of Knives throws two more daggers",
+		"title": "Буря клинков",
+		"desc": "Веер ножей метает на два кинжала больше",
 		"rarity": "rare",
-		"stack_bonus": "+2 daggers"
+		"stack_bonus": "+2 кинжала"
 	},
 	{
 		"id": "rogue_caltrops_duration",
 		"slot": 0,
-		"title": "Lasting Barbs",
-		"desc": "Caltrops linger on the ground longer",
+		"title": "Стойкие колючки",
+		"desc": "Шипы дольше лежат на земле",
 		"rarity": "common",
-		"stack_bonus": "+4s duration"
+		"stack_bonus": "+4 с длительности"
 	},
 	{
 		"id": "rogue_caltrops_damage",
 		"slot": 0,
-		"title": "Serrated Spikes",
-		"desc": "+30% Caltrops damage",
+		"title": "Зазубренные шипы",
+		"desc": "+30% к урону Шипов",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "rogue_poison_damage",
 		"slot": 2,
-		"title": "Virulent Brew",
-		"desc": "+30% Poison Vial damage",
+		"title": "Едкое варево",
+		"desc": "+30% к урону Склянки яда",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	# HEXEN — slots: Hex Mark(0), Blood Whip(1), Soul Tether(2), Crimson Ritual(3)
 	{
 		"id": "hexen_mark_damage",
 		"slot": 0,
-		"title": "Deepening Curse",
-		"desc": "+30% Hex Mark damage",
+		"title": "Углубляющееся проклятие",
+		"desc": "+30% к урону Метки проклятия",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "hexen_mark_duration",
 		"slot": 0,
-		"title": "Lingering Hex",
-		"desc": "Hex Mark ticks longer before it detonates",
+		"title": "Затяжная порча",
+		"desc": "Метка проклятия тикает дольше перед подрывом",
 		"rarity": "rare",
-		"stack_bonus": "+1.5s duration"
+		"stack_bonus": "+1,5 с длительности"
 	},
 	{
 		"id": "hexen_whip_damage",
 		"slot": 1,
-		"title": "Flensing Lash",
-		"desc": "+30% Blood Whip damage",
+		"title": "Свежующая плеть",
+		"desc": "+30% к урону Кровавого хлыста",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "hexen_tether_damage",
 		"slot": 2,
-		"title": "Soul Drain",
-		"desc": "+30% Soul Tether damage",
+		"title": "Вытягивание души",
+		"desc": "+30% к урону Уз души",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "hexen_ritual_damage",
 		"slot": 3,
-		"title": "Sanguine Crescendo",
-		"desc": "+30% Crimson Ritual damage",
+		"title": "Кровавое крещендо",
+		"desc": "+30% к урону Багрового ритуала",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	# STORMCALLER — slots: Chain Bolt(0), Storm Step(1), Sky Strike(2), Static Discharge(3)
 	{
 		"id": "storm_bolt_damage",
 		"slot": 0,
-		"title": "Overcharged Arc",
-		"desc": "+30% Chain Bolt damage",
+		"title": "Перегруженная дуга",
+		"desc": "+30% к урону Цепного разряда",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "storm_bolt_jumps",
 		"slot": 0,
-		"title": "Forking Path",
-		"desc": "Chain Bolt arcs to one more target",
+		"title": "Раздвоенный путь",
+		"desc": "Цепной разряд перескакивает ещё на одну цель",
 		"rarity": "rare",
-		"stack_bonus": "+1 jump"
+		"stack_bonus": "+1 прыжок"
 	},
 	{
 		"id": "storm_sky_damage",
 		"slot": 2,
-		"title": "Thunderhead",
-		"desc": "+30% Sky Strike damage",
+		"title": "Грозовая туча",
+		"desc": "+30% к урону Небесного удара",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 	{
 		"id": "storm_discharge_damage",
 		"slot": 3,
-		"title": "Overload",
-		"desc": "+30% Static Discharge damage",
+		"title": "Перегрузка",
+		"desc": "+30% к урону Разряда статики",
 		"rarity": "common",
-		"stack_bonus": "+30% damage"
+		"stack_bonus": "+30% урона"
 	},
 ]
 
@@ -360,40 +360,40 @@ const UNIQUES := [
 	{
 		"id": "transform_ice_wall",
 		"slot": 0,
-		"title": "Ice Wall",
-		"desc": "Fire Wall becomes a Wall of Ice that freezes and blocks",
+		"title": "Стена льда",
+		"desc": "Огненная стена становится Стеной льда — замораживает и преграждает путь",
 		"rarity": "unique",
 		"transform": "ice_wall"
 	},
 	{
 		"id": "transform_frost_nova",
 		"slot": 1,
-		"title": "Frost Nova",
-		"desc": "Ice Bolt becomes a radial frost burst around you",
+		"title": "Морозная нова",
+		"desc": "Ледяная стрела становится круговым морозным взрывом вокруг вас",
 		"rarity": "unique",
 		"transform": "frost_nova"
 	},
 	{
 		"id": "transform_death_beam",
 		"slot": 2,
-		"title": "Death Beam",
-		"desc": "Chain Lightning becomes a focused beam of death",
+		"title": "Луч смерти",
+		"desc": "Цепная молния становится сфокусированным лучом смерти",
 		"rarity": "unique",
 		"transform": "death_beam"
 	},
 	{
 		"id": "transform_meteor_shower",
 		"slot": 3,
-		"title": "Meteor Shower",
-		"desc": "Meteor becomes a rain of three smaller meteors",
+		"title": "Метеоритный дождь",
+		"desc": "Метеор становится дождём из трёх метеоров поменьше",
 		"rarity": "unique",
 		"transform": "meteor_shower"
 	},
 	{
 		"id": "stone_armor_grinder",
 		"slot": 2,
-		"title": "Grinder Stones",
-		"desc": "Stone Armor's shards also spin to deal contact damage to nearby enemies",
+		"title": "Жернова",
+		"desc": "Осколки Каменной брони вращаются и наносят контактный урон врагам рядом",
 		"rarity": "unique",
 		"transform": "stone_armor_grinder"
 	},
@@ -401,26 +401,26 @@ const UNIQUES := [
 	{
 		"id": "transform_druid_hurricane",
 		"slot": 0,
-		"title": "Eye of the Storm",
-		"desc": "Wolf Form is replaced by a swirling Hurricane that chases enemies for 8 seconds",
+		"title": "Око бури",
+		"desc": "Облик волка заменяется кружащим Ураганом, преследующим врагов 8 секунд",
 		"rarity": "unique",
 		"transform": "druid_hurricane"
 	},
 	{
 		"id": "transform_druid_dire_wolf",
 		"slot": 1,
-		"title": "Alpha Predator",
+		"title": "Альфа-хищник",
 		"desc":
-		"Bear Form is replaced by Dire Wolf Form — wolf moveset with brutal damage and speed",
+		"Облик медведя заменяется Обликом лютого волка — волчий набор приёмов с жестоким уроном и скоростью",
 		"rarity": "unique",
 		"transform": "druid_dire_wolf"
 	},
 	{
 		"id": "transform_necro_bone_spear",
 		"slot": 0,
-		"title": "Bone Spear",
+		"title": "Костяное копьё",
 		"desc":
-		"Raise Skeleton is replaced by a piercing bone spear projectile. You give up your light minions for direct damage.",
+		"Поднять скелета заменяется пронзающим костяным копьём. Вы отдаёте лёгких приспешников ради прямого урона.",
 		# NECROMANCER UNIQUES — replace summon slots with direct-damage tools.
 		"rarity": "unique",
 		"transform": "necro_bone_spear"
@@ -428,18 +428,18 @@ const UNIQUES := [
 	{
 		"id": "transform_necro_curse_field",
 		"slot": 1,
-		"title": "Curse Field",
+		"title": "Поле проклятия",
 		"desc":
-		"Raise Knight is replaced by a cursed ground that makes enemies inside take +50% damage for 8 seconds",
+		"Поднять рыцаря заменяется проклятой землёй: враги внутри получают +50% урона в течение 8 секунд",
 		"rarity": "unique",
 		"transform": "necro_curse_field"
 	},
 	{
 		"id": "transform_hexen_eternal_mark",
 		"slot": 0,
-		"title": "Eternal Mark",
+		"title": "Вечная метка",
 		"desc":
-		"Hex Marks never expire on their own — only Soul Tether or Blood Whip detonates them",
+		"Метки проклятия не истекают сами — их подрывают только Узы души или Кровавый хлыст",
 		# HEXEN UNIQUES.
 		"rarity": "unique",
 		"transform": "hexen_eternal_mark"
@@ -447,18 +447,18 @@ const UNIQUES := [
 	{
 		"id": "transform_hexen_tether_shock",
 		"slot": 2,
-		"title": "Tether Shock",
+		"title": "Шок уз",
 		"desc":
-		"Soul Tether briefly stuns linked enemies when the initial hit exceeds half their health",
+		"Узы души ненадолго оглушают связанных врагов, если первый удар превышает половину их здоровья",
 		"rarity": "unique",
 		"transform": "hexen_tether_shock"
 	},
 	{
 		"id": "transform_hexen_bloodmoon",
 		"slot": 3,
-		"title": "Bloodmoon Ritual",
+		"title": "Ритуал кровавой луны",
 		"desc":
-		"Crimson Ritual erupts in a damaging burst when it expires; a kill inside refunds the cooldown",
+		"Багровый ритуал взрывается по истечении; убийство внутри возвращает перезарядку",
 		"rarity": "unique",
 		"transform": "hexen_bloodmoon"
 	},
@@ -466,9 +466,9 @@ const UNIQUES := [
 	{
 		"id": "basic_barb_shockwave",
 		"slot": -1,
-		"title": "Cleaving Shockwave",
+		"title": "Рассекающая волна",
 		"desc":
-		"Barbarian basic attack sends a forward shockwave that passes through enemies for 50% damage",
+		"Базовая атака варвара посылает вперёд ударную волну, проходящую сквозь врагов с 50% урона",
 		# "basic_<id>" key in InventorySystem.has_unique().
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_shockwave.png",
@@ -477,8 +477,8 @@ const UNIQUES := [
 	{
 		"id": "basic_rogue_triple_throw",
 		"slot": -1,
-		"title": "Triple Throw",
-		"desc": "Rogue dagger basic now fires three daggers in a short fan",
+		"title": "Тройной бросок",
+		"desc": "Базовый кинжал разбойника теперь метает три кинжала коротким веером",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_triple_throw.png",
 		"basic_for": "rogue"
@@ -486,8 +486,8 @@ const UNIQUES := [
 	{
 		"id": "basic_mage_phantom_edge",
 		"slot": -1,
-		"title": "Phantom Edge",
-		"desc": "Mage bolt is replaced by a sweeping ethereal sword arc in melee range",
+		"title": "Призрачное лезвие",
+		"desc": "Снаряд мага заменяется размашистой дугой эфирного меча в ближнем бою",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_phantom_edge.png",
 		"basic_for": "mage"
@@ -495,8 +495,8 @@ const UNIQUES := [
 	{
 		"id": "basic_druid_thunder_sphere",
 		"slot": -1,
-		"title": "Thunder Sphere",
-		"desc": "Druid claw becomes a ranged crackling lightning ball",
+		"title": "Громовая сфера",
+		"desc": "Коготь друида становится дальнобойным трещащим шаром молний",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_thunder_sphere.png",
 		"basic_for": "druid"
@@ -504,8 +504,8 @@ const UNIQUES := [
 	{
 		"id": "basic_necro_bone_lance",
 		"slot": -1,
-		"title": "Bone Lance",
-		"desc": "Necromancer bolt becomes a forward bone-lance thrust at melee range",
+		"title": "Костяная пика",
+		"desc": "Снаряд некроманта становится выпадом костяной пикой в ближнем бою",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_bone_lance.png",
 		"basic_for": "necromancer"
@@ -513,8 +513,8 @@ const UNIQUES := [
 	{
 		"id": "basic_hexen_whipcrack",
 		"slot": -1,
-		"title": "Whipcrack",
-		"desc": "Hexen basic attack flicks a quick whip that applies a 0.5s mini-hex on hit",
+		"title": "Щелчок хлыста",
+		"desc": "Базовая атака ведьмы — быстрый хлыст, вешающий мини-проклятие на 0,5 с при попадании",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_whipcrack.png",
 		"basic_for": "hexen"
@@ -522,9 +522,9 @@ const UNIQUES := [
 	{
 		"id": "basic_storm_voltaic_tonfa",
 		"slot": -1,
-		"title": "Voltaic Tonfa",
+		"title": "Вольтова тонфа",
 		"desc":
-		"Stormcaller basic is replaced by a melee lightning tonfa swing that chains to a second target",
+		"Базовая атака буревестницы заменяется взмахом молниевой тонфы, перескакивающим на вторую цель",
 		"rarity": "unique",
 		"icon": "res://assets/sprites/items/icon_unique_basic_voltaic_tonfa.png",
 		"basic_for": "stormcaller"
@@ -533,39 +533,39 @@ const UNIQUES := [
 	{
 		"id": "storm_stormveil",
 		"slot": 1,
-		"title": "Stormveil",
-		"desc": "Storm Step also blinds enemies along your path with a 1.5s 50% slow",
+		"title": "Грозовая вуаль",
+		"desc": "Грозовой шаг вдобавок ослепляет врагов на пути: замедление 50% на 1,5 с",
 		"rarity": "unique",
 		"transform": "storm_stormveil"
 	},
 	{
 		"id": "storm_heavens_spear",
 		"slot": 2,
-		"title": "Heaven's Spear",
+		"title": "Копьё небес",
 		"desc":
-		"Sky Strike leaves a small charged patch on the ground that shocks enemies for 1.2s",
+		"Небесный удар оставляет на земле заряженный участок, бьющий врагов током 1,2 с",
 		"rarity": "unique",
 		"transform": "storm_heavens_spear"
 	},
 	{
 		"id": "storm_capacitor_core",
 		"slot": 3,
-		"title": "Capacitor Core",
+		"title": "Ядро конденсатора",
 		"desc":
-		"Static Charge cap raised to 9, and Static Discharge refunds half its cooldown on 6+ stacks consumed",
+		"Лимит Статического заряда повышен до 9, а Разряд статики возвращает половину перезарядки при 6+ потраченных стаках",
 		"rarity": "unique",
 		"transform": "storm_capacitor_core"
 	},
 ]
 
 const CLASS_SLOT_NAMES := {
-	"mage": ["Fire Wall", "Ice Bolt", "Chain Lightning", "Meteor"],
-	"barbarian": ["Whirlwind", "Leap Slam", "Battle Cry", "Earthquake"],
-	"rogue": ["Caltrops", "Smoke Bomb", "Poison Vial", "Fan of Knives"],
-	"druid": ["Wolf Form", "Bear Form", "Stone Armor", "Summon Spirit", "Eagle Form"],
-	"necromancer": ["Raise Skeleton", "Raise Knight", "Blood Pact", "Death Pulse"],
-	"hexen": ["Hex Mark", "Blood Whip", "Soul Tether", "Crimson Ritual"],
-	"stormcaller": ["Chain Bolt", "Storm Step", "Sky Strike", "Static Discharge"],
+	"mage": ["Огненная стена", "Ледяная стрела", "Цепная молния", "Метеор"],
+	"barbarian": ["Вихрь", "Прыжок-удар", "Боевой клич", "Землетрясение"],
+	"rogue": ["Шипы", "Дымовая бомба", "Склянка яда", "Веер ножей"],
+	"druid": ["Облик волка", "Облик медведя", "Каменная броня", "Призыв духа", "Облик орла"],
+	"necromancer": ["Поднять скелета", "Поднять рыцаря", "Кровавый договор", "Пульс смерти"],
+	"hexen": ["Метка проклятия", "Кровавый хлыст", "Узы души", "Багровый ритуал"],
+	"stormcaller": ["Цепной разряд", "Грозовой шаг", "Небесный удар", "Разряд статики"],
 }
 
 const CLASS_SLOT_ICONS := {
@@ -734,7 +734,7 @@ static func slot_name(slot: int) -> String:
 	var cls: String = _read_class()
 	var names: Array = CLASS_SLOT_NAMES.get(cls, CLASS_SLOT_NAMES["mage"])
 	if slot < 0 or slot >= names.size():
-		return "Unknown"
+		return "Неизвестно"
 	return String(names[slot])
 
 

@@ -85,12 +85,12 @@ func _ready() -> void:
 	if hint_label:
 		var is_druid: bool = GameManager and String(GameManager.player_class) == "druid"
 		if is_druid:
-			hint_label.text = "WASD move   |   Click cast   |   1 2 3 4 skills   |   Q eagle   |   Space dash   |   Tab character"
+			hint_label.text = "WASD — движение   |   Клик — атака   |   1 2 3 4 — навыки   |   Q — орёл   |   Пробел — рывок   |   Tab — персонаж"
 		else:
-			hint_label.text = "WASD move   |   Click cast   |   1 2 3 4 skills   |   Space dash   |   Tab character"
+			hint_label.text = "WASD — движение   |   Клик — атака   |   1 2 3 4 — навыки   |   Пробел — рывок   |   Tab — персонаж"
 	if class_label and GameManager:
 		var data: Dictionary = GameManager.get_class_data()
-		class_label.text = String(data.get("display", "Hero"))
+		class_label.text = String(data.get("display", "Герой"))
 	_build_hotbar()
 	_setup_xp_shader()
 	_update_xp_bar()
@@ -194,7 +194,7 @@ func _build_wave_counter() -> void:
 	band.offset_top = 10
 	band.offset_bottom = 50
 	wave_counter_label = Label.new()
-	wave_counter_label.text = "WAVE 1"
+	wave_counter_label.text = "ВОЛНА 1"
 	wave_counter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wave_counter_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	wave_counter_label.add_theme_font_size_override("font_size", 26)
@@ -210,13 +210,13 @@ func update_wave_counter(wave: int, label: String = "") -> void:
 		return
 	var text: String = label
 	if text == "":
-		text = "WAVE %d" % wave
+		text = "ВОЛНА %d" % wave
 	wave_counter_label.text = text
 	# Boss waves are red, rest waves green, normal waves gold.
 	var boss_id: String = BossDatabase.boss_for_wave(wave)
 	if boss_id != "":
 		wave_counter_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3, 1))
-	elif label.begins_with("REST") or label.find("Portal") >= 0:
+	elif label.begins_with("ОТДЫХ") or label.find("Портал") >= 0:
 		wave_counter_label.add_theme_color_override("font_color", Color(0.7, 1.0, 0.6, 1))
 	else:
 		wave_counter_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45, 1))
@@ -244,7 +244,7 @@ func _build_boss_bar() -> void:
 	band.offset_right = 360
 	# Name label on top.
 	boss_bar_label = Label.new()
-	boss_bar_label.text = "BOSS"
+	boss_bar_label.text = "БОСС"
 	boss_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_bar_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4, 1))
 	boss_bar_label.add_theme_color_override("font_outline_color", Color(0.05, 0.0, 0.0, 1))
@@ -576,7 +576,7 @@ func _refresh() -> void:
 		return
 	_update_globes()
 	if level_label:
-		level_label.text = "Lv %d" % GameManager.player_level
+		level_label.text = "Ур. %d" % GameManager.player_level
 	_update_xp_bar()
 
 
@@ -597,7 +597,7 @@ func _update_xp_bar() -> void:
 	xp_fill.offset_bottom = 0.0
 	if xp_label:
 		xp_label.text = (
-			"Lv %d    %d / %d XP"
+			"Ур. %d    %d / %d опыта"
 			% [GameManager.player_level, GameManager.player_xp, GameManager.player_xp_to_next]
 		)
 
@@ -613,7 +613,7 @@ func _on_level_up(lv: int) -> void:
 		VfxManager.screen_flash(Color(1.0, 0.4, 0.2, 0.35), 0.5)
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/player/player_level_up.mp3", -4.0)
-	_show_banner("Level Up — Lv %d" % lv, Color(1.0, 0.85, 0.4, 1))
+	_show_banner("Новый уровень — %d" % lv, Color(1.0, 0.85, 0.4, 1))
 	# Flash XP bar.
 	if xp_fill:
 		var tw := create_tween()
@@ -629,7 +629,7 @@ func _on_class_selected(_cid: String) -> void:
 	_apply_resource_style()
 	_refresh()
 	if class_label and GameManager:
-		class_label.text = String(GameManager.get_class_data().get("display", "Hero"))
+		class_label.text = String(GameManager.get_class_data().get("display", "Герой"))
 
 
 func _on_wave_started(wave: int) -> void:
@@ -637,20 +637,20 @@ func _on_wave_started(wave: int) -> void:
 	var boss_id: String = BossDatabase.boss_for_wave(wave)
 	if boss_id != "":
 		var boss_data: Dictionary = BossDatabase.get_boss(boss_id)
-		_show_banner(String(boss_data.get("intro", "BOSS APPROACHES")), Color(1.0, 0.3, 0.25, 1))
-		update_wave_counter(wave, "BOSS WAVE %d" % wave)
+		_show_banner(String(boss_data.get("intro", "ПРИБЛИЖАЕТСЯ БОСС")), Color(1.0, 0.3, 0.25, 1))
+		update_wave_counter(wave, "ВОЛНА БОССА %d" % wave)
 	else:
-		_show_banner("Wave %d" % wave, Color(1.0, 0.4, 0.4, 1))
+		_show_banner("Волна %d" % wave, Color(1.0, 0.4, 0.4, 1))
 		update_wave_counter(wave)
 	if GameManager and wave > GameManager.highest_wave:
 		GameManager.highest_wave = wave
 
 
 func _on_wave_cleared(wave: int) -> void:
-	_show_banner("Wave cleared!", Color(0.7, 1.0, 0.7, 1))
+	_show_banner("Волна зачищена!", Color(0.7, 1.0, 0.7, 1))
 	# If this is a merchant-break wave, swap counter to a rest indicator.
 	if BossDatabase.boss_for_wave(wave) == "" and wave % 3 == 0:
-		update_wave_counter(wave, "REST · Portal to continue")
+		update_wave_counter(wave, "ОТДЫХ · Портал, чтобы продолжить")
 
 
 func _show_banner(text: String, color: Color) -> void:
@@ -962,4 +962,4 @@ func _update_downed_banner() -> void:
 		downed_banner.offset_left = -280.0
 		downed_banner.offset_right = 280.0
 	downed_banner.visible = true
-	downed_banner.text = "DOWNED — wait for an ally  (%d)" % int(ceil(GameManager.downed_time_left))
+	downed_banner.text = "ВЫ ПОВЕРЖЕНЫ — ждите союзника  (%d)" % int(ceil(GameManager.downed_time_left))

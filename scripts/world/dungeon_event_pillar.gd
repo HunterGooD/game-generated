@@ -65,15 +65,15 @@ func _activate() -> void:
 		"damage":
 			_glow = Color(1.0, 0.5, 0.4)
 			_buff_all(DURATION, 1.3, 1.0)
-			_notice("Pillar of Wrath — +30% damage!", _glow)
+			_notice("Столп гнева — +30% к урону!", _glow)
 		"shield":
 			_glow = Color(0.5, 0.8, 1.0)
 			_shield_all(40.0 + 15.0 * float(diff))
-			_notice("Pillar of Warding — shield granted!", _glow)
+			_notice("Столп защиты — даровал щит!", _glow)
 		"chest":
 			_glow = Color(1.0, 0.84, 0.3)
 			_spawn_chest()
-			_notice("Pillar of Fortune — a cache rises!", _glow)
+			_notice("Столп удачи — поднимается тайник!", _glow)
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/pickup/pickup_gold_pickup.mp3", -8.0)
 	queue_redraw()
@@ -82,7 +82,7 @@ func _activate() -> void:
 func _deactivate() -> void:
 	_active = false
 	if GameManager:
-		GameManager.notice.emit("The pillar's power fades — clear the stragglers.", Color(0.7, 0.7, 0.8))
+		GameManager.notice.emit("Сила столпа угасает — добейте отставших.", Color(0.7, 0.7, 0.8))
 	queue_redraw()
 
 

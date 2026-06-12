@@ -75,7 +75,7 @@ func _finish(success: bool) -> void:
 	_done = true
 	if success and GameManager:
 		GameManager.arena_award(reward)
-		GameManager.notice.emit("Zone cleared!  +%d coin" % reward, Color(0.45, 0.9, 0.5))
+		GameManager.notice.emit("Зона зачищена!  +%d монет" % reward, Color(0.45, 0.9, 0.5))
 	elif GameManager:
-		GameManager.notice.emit("Zone failed — the foes endured", Color(0.8, 0.5, 0.4))
+		GameManager.notice.emit("Зона провалена — враги выстояли", Color(0.8, 0.5, 0.4))
 	queue_free()

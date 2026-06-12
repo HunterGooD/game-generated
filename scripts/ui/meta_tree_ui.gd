@@ -24,15 +24,15 @@ const CLASS_COLORS: Dictionary = {
 }
 # stat key -> [label, is_percent]
 const STAT_LABELS: Dictionary = {
-	"max_hp": ["Max HP", false],
-	"max_mana": ["Max Mana", false],
-	"damage": ["Damage", false],
-	"move_speed": ["Move Speed", false],
-	"crit_chance": ["Crit Chance", true],
-	"crit_damage": ["Crit Damage", true],
-	"strength": ["Strength", false],
-	"dexterity": ["Dexterity", false],
-	"intelligence": ["Intelligence", false],
+	"max_hp": ["Макс. здоровье", false],
+	"max_mana": ["Макс. мана", false],
+	"damage": ["Урон", false],
+	"move_speed": ["Скорость бега", false],
+	"crit_chance": ["Шанс крита", true],
+	"crit_damage": ["Крит. урон", true],
+	"strength": ["Сила", false],
+	"dexterity": ["Ловкость", false],
+	"intelligence": ["Интеллект", false],
 }
 const ZOOM_MIN: float = 0.5
 const ZOOM_MAX: float = 2.0
@@ -140,7 +140,7 @@ func _build_chrome(dim: Control) -> void:
 
 	# Footer: respec + close + hint.
 	var respec := Button.new()
-	respec.text = "Respec (free)"
+	respec.text = "Сброс (бесплатно)"
 	respec.custom_minimum_size = Vector2(150, 36)
 	respec.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	respec.position = Vector2(20, -52)
@@ -148,7 +148,7 @@ func _build_chrome(dim: Control) -> void:
 	dim.add_child(respec)
 
 	var close := Button.new()
-	close.text = "Back to Hub"
+	close.text = "Назад в хаб"
 	close.custom_minimum_size = Vector2(150, 36)
 	close.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	close.position = Vector2(-170, -52)
@@ -156,7 +156,7 @@ func _build_chrome(dim: Control) -> void:
 	dim.add_child(close)
 
 	var hint := Label.new()
-	hint.text = "Drag to pan · wheel to zoom · click a node to allocate · Esc to close"
+	hint.text = "Перетаскивание — обзор · колесо — масштаб · клик по узлу — вложить очко · Esc — закрыть"
 	hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	hint.position = Vector2(0, -22)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -399,30 +399,33 @@ func _node_desc(node_id: String, nd: Dictionary) -> String:
 	var lines: Array = []
 	match ntype:
 		"start":
-			lines.append("Start — always taken (free)")
+			lines.append("Старт — всегда взят (бесплатно)")
 		"socket":
-			lines.append("Socket — gem slot (empty)")
-			lines.append("Gems arrive with the gambling system.")
+			lines.append("Гнездо — слот для камня (пусто)")
+			lines.append("Камни появятся вместе с системой азартных игр.")
 		"notable":
-			lines.append("Notable: " + node_id.capitalize().replace("_", " "))
+			lines.append("Значимый: " + node_id.capitalize().replace("_", " "))
 		_:
-			lines.append("Passive")
+			lines.append("Пассивка")
 	var stats: Dictionary = nd.get("stats", {})
 	for k in stats:
 		lines.append("  " + _stat_line(String(k), stats[k]))
 	# Repeatable nodes: current rank + the per-rank percent bump (the endless sink).
 	if bool(nd.get("repeatable", false)):
-		lines.append("Repeatable — rank %d (click to keep ranking)" % MetaProgress.node_rank(_view_class, node_id))
+		lines.append(
+			"Повторяемый — ранг %d (кликайте, чтобы продолжать)"
+			% MetaProgress.node_rank(_view_class, node_id)
+		)
 		var rp: Dictionary = nd.get("rank_pct", {})
 		var parts: Array = []
 		for k in rp:
 			var meta: Array = STAT_LABELS.get(k, [String(k).capitalize(), false])
 			parts.append("+%.1f%% %s" % [float(rp[k]) * 100.0, String(meta[0])])
 		if not parts.is_empty():
-			lines.append("  per rank: " + ", ".join(parts))
+			lines.append("  за ранг: " + ", ".join(parts))
 	var effect: String = String(nd.get("effect", ""))
 	if effect != "":
-		lines.append("(effect: %s)" % effect)
+		lines.append("(эффект: %s)" % effect)
 	return "\n".join(lines)
 
 

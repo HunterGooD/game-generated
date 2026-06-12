@@ -77,11 +77,11 @@ func _build_ui() -> void:
 	vb.add_theme_constant_override("separation", 14)
 	margin.add_child(vb)
 
-	var title := _label("PARTY TRADE", 30, Color(1.0, 0.85, 0.45, 1))
+	var title := _label("ОБМЕН В ОТРЯДЕ", 30, Color(1.0, 0.85, 0.45, 1))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
 	var sub := _label(
-		"Pick an item from your inventory, choose a teammate, and send it.",
+		"Выберите предмет из инвентаря, укажите товарища и отправьте.",
 		14,
 		Color(0.85, 0.75, 0.55, 1)
 	)
@@ -93,16 +93,16 @@ func _build_ui() -> void:
 	recip_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	recip_row.add_theme_constant_override("separation", 14)
 	vb.add_child(recip_row)
-	var send_to_lbl := _label("Send to:", 18, Color(0.95, 0.85, 0.55, 1))
+	var send_to_lbl := _label("Кому:", 18, Color(0.95, 0.85, 0.55, 1))
 	recip_row.add_child(send_to_lbl)
-	recipient_label = _label("(no teammate)", 18, Color(1.0, 0.85, 0.4, 1))
+	recipient_label = _label("(нет товарища)", 18, Color(1.0, 0.85, 0.4, 1))
 	recip_row.add_child(recipient_label)
-	var cycle_btn := _make_button("Next teammate", 220, 44, 14)
+	var cycle_btn := _make_button("Следующий товарищ", 220, 44, 14)
 	cycle_btn.pressed.connect(_cycle_recipient)
 	recip_row.add_child(cycle_btn)
 
 	# Inventory grid.
-	var inv_lbl := _label("YOUR INVENTORY", 18, Color(1.0, 0.7, 0.4, 1))
+	var inv_lbl := _label("ВАШ ИНВЕНТАРЬ", 18, Color(1.0, 0.7, 0.4, 1))
 	inv_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(inv_lbl)
 	item_grid = GridContainer.new()
@@ -111,7 +111,7 @@ func _build_ui() -> void:
 	item_grid.add_theme_constant_override("v_separation", 6)
 	vb.add_child(item_grid)
 
-	selected_label = _label("Select an item to send", 16, Color(0.95, 0.85, 0.55, 1))
+	selected_label = _label("Выберите предмет для отправки", 16, Color(0.95, 0.85, 0.55, 1))
 	selected_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(selected_label)
 
@@ -120,10 +120,10 @@ func _build_ui() -> void:
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	btn_row.add_theme_constant_override("separation", 18)
 	vb.add_child(btn_row)
-	send_btn = _make_button("Gift item", 240, 56, 20, Color(0.65, 1.0, 0.5, 1))
+	send_btn = _make_button("Подарить предмет", 240, 56, 20, Color(0.65, 1.0, 0.5, 1))
 	send_btn.pressed.connect(_do_gift)
 	btn_row.add_child(send_btn)
-	var close_btn := _make_button("Close", 180, 56, 18)
+	var close_btn := _make_button("Закрыть", 180, 56, 18)
 	close_btn.pressed.connect(_close)
 	btn_row.add_child(close_btn)
 
@@ -155,9 +155,9 @@ func _refresh() -> void:
 	# Recipient label.
 	if recipient_label:
 		if recipient_pid < 0:
-			recipient_label.text = "(no teammate)"
+			recipient_label.text = "(нет товарища)"
 		else:
-			recipient_label.text = "Player %d" % (recipient_pid + 1)
+			recipient_label.text = "Игрок %d" % (recipient_pid + 1)
 	# Inventory grid.
 	if item_grid and InventorySystem:
 		for c in item_grid.get_children():
@@ -168,11 +168,11 @@ func _refresh() -> void:
 	# Selected item label.
 	if selected_label:
 		if selected_item == null:
-			selected_label.text = "Select an item to send"
+			selected_label.text = "Выберите предмет для отправки"
 		else:
 			var col: Color = ItemDatabase.rarity_color(selected_item.rarity)
 			selected_label.text = (
-				"%s  [%s ilvl %d]"
+				"%s  [%s ур. %d]"
 				% [
 					selected_item.get_title(),
 					ItemDatabase.rarity_display(selected_item.rarity),

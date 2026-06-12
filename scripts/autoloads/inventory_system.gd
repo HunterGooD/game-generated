@@ -308,15 +308,12 @@ func _set_bonus(stat_id: String) -> float:
 	return total
 
 
-# Public — returns {set_id: equipped_count}. Armor slots (helmet/chest/gloves/
-# boots) count 1 each; ALL jewelry (amulet + both rings) contributes at most 1
-# per set, so the maximum is 5 — the 5th piece is "any one jewelry" by design.
+# Public — returns {set_id: equipped_count}. EVERY equipped piece counts —
+# amulet and both rings included — so a ring+amulet pair is a valid 2pc and a
+# player may reach 5pc through any mix of armor and jewelry (max raw count 7;
+# thresholds stop mattering past 5).
 func get_set_piece_counts() -> Dictionary:
 	var counts: Dictionary = {}
-	var jewelry_seen: Dictionary = {}
-	var jewelry_slots: Array = [
-		ItemDatabase.SLOT_AMULET, ItemDatabase.SLOT_RING_1, ItemDatabase.SLOT_RING_2
-	]
 	for slot in equipment.keys():
 		var it = equipment.get(slot, null)
 		if not (it is ItemInstance):
@@ -324,10 +321,6 @@ func get_set_piece_counts() -> Dictionary:
 		var sid: String = (it as ItemInstance).get_set_id()
 		if sid == "":
 			continue
-		if jewelry_slots.has(int(slot)):
-			if jewelry_seen.has(sid):
-				continue
-			jewelry_seen[sid] = true
 		counts[sid] = int(counts.get(sid, 0)) + 1
 	return counts
 

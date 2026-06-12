@@ -92,7 +92,7 @@ func _build_floor() -> void:
 func _spawn_props() -> void:
 	_props.append(
 		_make_prop(
-			"Wardrobe  —  change hero",
+			"Гардероб  —  сменить героя",
 			Vector2(-260, -40),
 			Color(0.55, 0.7, 1.0),
 			_open_wardrobe,
@@ -102,7 +102,7 @@ func _spawn_props() -> void:
 	)
 	_props.append(
 		_make_prop(
-			"Portal  —  begin the run",
+			"Портал  —  начать забег",
 			Vector2(260, -40),
 			Color(1.0, 0.55, 0.35),
 			_enter_portal,
@@ -113,7 +113,7 @@ func _spawn_props() -> void:
 	)
 	_props.append(
 		_make_prop(
-			"Beacon  —  co-op",
+			"Маяк  —  кооператив",
 			Vector2(0, -220),
 			Color(0.5, 0.85, 0.6),
 			_open_coop_panel,
@@ -122,7 +122,7 @@ func _spawn_props() -> void:
 			Vector2(128, 88)
 		)
 	)
-	_props.append(_make_mirror_prop("Mirror  —  meta tree", Vector2(260, -220), _open_mirror))
+	_props.append(_make_mirror_prop("Зеркало  —  мета-дерево", Vector2(260, -220), _open_mirror))
 
 
 func _make_prop(

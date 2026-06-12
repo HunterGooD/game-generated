@@ -93,8 +93,8 @@ func _roll_offers() -> Array:
 				{
 					"id": "barb_dual_2h",
 					"kind": "perk",
-					"title": "Berserker's Grip",
-					"desc": "Wield TWO two-handed weapons at once. Weapon damage stacks.",
+					"title": "Хватка берсерка",
+					"desc": "Носите ДВА двуручных оружия разом. Урон оружия складывается.",
 					"rarity": "legendary",
 				}
 			)
@@ -298,7 +298,7 @@ func _build_card(data: Dictionary) -> Control:
 	v.add_child(desc)
 
 	var btn := Button.new()
-	btn.text = "Take"
+	btn.text = "Взять"
 	btn.custom_minimum_size = Vector2(220, 56)
 	btn.add_theme_font_size_override("font_size", 20)
 	btn.add_theme_color_override("font_color", Color(1, 0.92, 0.7, 1))
@@ -334,15 +334,15 @@ func _on_card_hover(data: Dictionary, panel: Control, rarity_color: Color) -> vo
 	match kind:
 		"modifier":
 			var slot: int = int(data.get("slot", 0))
-			meta = "Affects: %s" % RewardData.slot_name(slot)
+			meta = "Влияет на: %s" % RewardData.slot_name(slot)
 			var existing: int = _existing_stack_count(slot, String(data.get("id", "")))
 			if existing > 0:
-				meta += "    You already own ×%d" % existing
+				meta += "    У вас уже есть ×%d" % existing
 		"unique":
 			var slot: int = int(data.get("slot", 0))
-			meta = "Transforms: %s" % RewardData.slot_name(slot)
+			meta = "Преобразует: %s" % RewardData.slot_name(slot)
 		"stat":
-			meta = "Permanent stat increase"
+			meta = "Постоянное усиление характеристик"
 	if TooltipManager:
 		TooltipManager.show_tooltip(title, rarity, body, meta)
 

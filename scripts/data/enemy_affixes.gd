@@ -9,22 +9,22 @@ extends RefCounted
 
 const AFFIXES := {
 	"vital":
-	{"name": "Vital", "color": Color(0.35, 1.0, 0.45), "hp_mult": 2.4},
+	{"name": "Живучий", "color": Color(0.35, 1.0, 0.45), "hp_mult": 2.4},
 	"swift":
 	{
-		"name": "Swift",
+		"name": "Стремительный",
 		"color": Color(0.3, 0.9, 1.0),
 		"speed_mult": 1.4,
 		"attack_speed_mult": 1.5,
 	},
 	"brutal":
-	{"name": "Brutal", "color": Color(1.0, 0.32, 0.22), "damage_mult": 1.7},
+	{"name": "Жестокий", "color": Color(1.0, 0.32, 0.22), "damage_mult": 1.7},
 	"regenerating":
-	{"name": "Regenerating", "color": Color(0.25, 1.0, 0.6), "regen_frac": 0.025},
+	{"name": "Регенерирующий", "color": Color(0.25, 1.0, 0.6), "regen_frac": 0.025},
 	"explosive":
-	{"name": "Explosive", "color": Color(1.0, 0.55, 0.12), "explode": true},
+	{"name": "Взрывной", "color": Color(1.0, 0.55, 0.12), "explode": true},
 	"shielded":
-	{"name": "Shielded", "color": Color(0.45, 0.62, 1.0), "shield": true},
+	{"name": "Защищённый", "color": Color(0.45, 0.62, 1.0), "shield": true},
 }
 
 

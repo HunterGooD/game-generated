@@ -23,8 +23,8 @@ const ATK_SOUL_DRAIN: String = "soul_drain"
 const BOSSES: Dictionary = {
 	"crimson_matron":
 	{
-		"name": "The Crimson Matron",
-		"intro": "THE CRIMSON MATRON STIRS",
+		"name": "Багровая матрона",
+		"intro": "БАГРОВАЯ МАТРОНА ПРОБУЖДАЕТСЯ",
 		"sprite": "res://assets/sprites/characters/boss_crimson_matron_idle.png",
 		"sprite_scale": 0.95,
 		"tint": Color(1, 1, 1, 1),
@@ -44,8 +44,8 @@ const BOSSES: Dictionary = {
 	},
 	"hellgate_sovereign":
 	{
-		"name": "The Hellgate Sovereign",
-		"intro": "THE HELLGATE SOVEREIGN AWAKENS",
+		"name": "Владыка адских врат",
+		"intro": "ВЛАДЫКА АДСКИХ ВРАТ ПРОБУЖДАЕТСЯ",
 		"sprite": "res://assets/sprites/characters/boss_hellgate_sovereign_idle.png",
 		"sprite_scale": 1.15,
 		"tint": Color(1, 1, 1, 1),
@@ -85,8 +85,8 @@ const BOSSES: Dictionary = {
 	},
 	"shadewitch":
 	{
-		"name": "The Shadewitch",
-		"intro": "THE SHADEWITCH STEPS THROUGH THE VEIL",
+		"name": "Ведьма теней",
+		"intro": "ВЕДЬМА ТЕНЕЙ ВЫХОДИТ ИЗ-ЗА ЗАВЕСЫ",
 		"sprite": "res://assets/sprites/characters/boss_shadewitch_idle.png",
 		"sprite_scale": 0.85,
 		"tint": Color(0.95, 0.85, 1.1, 1),
@@ -106,8 +106,8 @@ const BOSSES: Dictionary = {
 	},
 	"lich_empress":
 	{
-		"name": "Lich-Empress of Echoes",
-		"intro": "THE LICH-EMPRESS CLAIMS HER THRONE",
+		"name": "Лич-императрица эха",
+		"intro": "ЛИЧ-ИМПЕРАТРИЦА ВОСХОДИТ НА ТРОН",
 		"sprite": "res://assets/sprites/characters/boss_lich_empress_idle.png",
 		"sprite_scale": 1.0,
 		"tint": Color(0.9, 0.95, 1.15, 1),

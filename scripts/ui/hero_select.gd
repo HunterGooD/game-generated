@@ -42,7 +42,7 @@ func _build() -> void:
 	dim.add_child(vb)
 
 	var title := Label.new()
-	title.text = "Wardrobe — Choose Your Hero"
+	title.text = "Гардероб — выберите героя"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.55))
@@ -59,7 +59,7 @@ func _build() -> void:
 		grid.add_child(_make_card(cid, cid == current))
 
 	var hint := Label.new()
-	hint.text = "Esc / click outside to close"
+	hint.text = "Esc / клик вне окна — закрыть"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.78))

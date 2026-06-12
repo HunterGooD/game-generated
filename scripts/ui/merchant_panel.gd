@@ -111,31 +111,31 @@ func _build_ui() -> void:
 	# Header row.
 	var head := HBoxContainer.new()
 	vb.add_child(head)
-	var title := _label("THE WANDERING ECHO", 32, Color(1, 0.85, 0.5, 1))
+	var title := _label("БРОДЯЧЕЕ ЭХО", 32, Color(1, 0.85, 0.5, 1))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	gold_label = _label("Gold: 0", 22, Color(1.0, 0.85, 0.4, 1))
+	gold_label = _label("Золото: 0", 22, Color(1.0, 0.85, 0.4, 1))
 	head.add_child(gold_label)
 	materials_label = _label("", 16, Color(0.75, 0.85, 0.9, 1))
 	head.add_child(materials_label)
 
 	var subtitle := _label(
-		"Spend your hoard before the next wave...", 14, Color(0.85, 0.75, 0.6, 1)
+		"Потратьте добычу перед следующей волной...", 14, Color(0.85, 0.75, 0.6, 1)
 	)
 	vb.add_child(subtitle)
 
 	# BUY section.
-	var buy_lbl := _label("BUY GEAR", 18, Color(1.0, 0.7, 0.4, 1))
+	var buy_lbl := _label("КУПИТЬ СНАРЯЖЕНИЕ", 18, Color(1.0, 0.7, 0.4, 1))
 	vb.add_child(buy_lbl)
 	var buy_row := HBoxContainer.new()
 	buy_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	buy_row.add_theme_constant_override("separation", 12)
 	vb.add_child(buy_row)
 	for cfg in [
-		[ItemDatabase.RARITY_COMMON, "Common\n40g", 40, Color(0.82, 0.82, 0.86, 1)],
-		[ItemDatabase.RARITY_RARE, "Rare\n150g", 150, Color(0.45, 0.72, 1, 1)],
-		[ItemDatabase.RARITY_LEGENDARY, "Legendary\n450g", 450, Color(1, 0.65, 0.18, 1)],
-		[ItemDatabase.RARITY_UNIQUE, "Unique\n900g", 900, Color(1.0, 0.35, 0.25, 1)],
+		[ItemDatabase.RARITY_COMMON, "Обычный\n40з", 40, Color(0.82, 0.82, 0.86, 1)],
+		[ItemDatabase.RARITY_RARE, "Редкий\n150з", 150, Color(0.45, 0.72, 1, 1)],
+		[ItemDatabase.RARITY_LEGENDARY, "Легендарный\n450з", 450, Color(1, 0.65, 0.18, 1)],
+		[ItemDatabase.RARITY_UNIQUE, "Уникальный\n900з", 900, Color(1.0, 0.35, 0.25, 1)],
 	]:
 		var rarity: String = cfg[0]
 		var btn := _make_button(cfg[1], 200, 80, 18, cfg[3])
@@ -154,9 +154,9 @@ func _build_ui() -> void:
 	left_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_box.add_theme_constant_override("separation", 6)
 	split.add_child(left_box)
-	var inv_title := _label("UPGRADE YOUR GEAR", 18, Color(1.0, 0.7, 0.4, 1))
+	var inv_title := _label("УЛУЧШИТЬ СНАРЯЖЕНИЕ", 18, Color(1.0, 0.7, 0.4, 1))
 	left_box.add_child(inv_title)
-	var hint := _label("Click an item to select", 12, Color(0.78, 0.72, 0.55, 1))
+	var hint := _label("Кликните по предмету, чтобы выбрать", 12, Color(0.78, 0.72, 0.55, 1))
 	left_box.add_child(hint)
 	item_grid = GridContainer.new()
 	item_grid.columns = 6
@@ -170,7 +170,7 @@ func _build_ui() -> void:
 	right_box.size_flags_stretch_ratio = 0.8
 	right_box.add_theme_constant_override("separation", 6)
 	split.add_child(right_box)
-	selected_label = _label("Select an item to upgrade", 16, Color(0.95, 0.85, 0.55, 1))
+	selected_label = _label("Выберите предмет для улучшения", 16, Color(0.95, 0.85, 0.55, 1))
 	right_box.add_child(selected_label)
 	affix_box = VBoxContainer.new()
 	affix_box.add_theme_constant_override("separation", 2)
@@ -178,17 +178,17 @@ func _build_ui() -> void:
 	var upgrades_row := VBoxContainer.new()
 	upgrades_row.add_theme_constant_override("separation", 8)
 	right_box.add_child(upgrades_row)
-	upgrade_btn = _make_button("Upgrade ilvl", 280, 56, 18)
+	upgrade_btn = _make_button("Повысить ур. предмета", 280, 56, 18)
 	upgrade_btn.pressed.connect(_do_upgrade)
 	upgrades_row.add_child(upgrade_btn)
-	reroll_btn = _make_button("Re-roll affixes", 280, 56, 18)
+	reroll_btn = _make_button("Перебросить аффиксы", 280, 56, 18)
 	reroll_btn.pressed.connect(_do_reroll)
 	upgrades_row.add_child(reroll_btn)
-	add_affix_btn = _make_button("Add affix", 280, 56, 18)
+	add_affix_btn = _make_button("Добавить аффикс", 280, 56, 18)
 	add_affix_btn.pressed.connect(_do_add_affix)
 	upgrades_row.add_child(add_affix_btn)
 	# Sell button — converts the selected inventory item into gold.
-	var sell_btn := _make_button("Sell item", 280, 56, 18, Color(1.0, 0.8, 0.45, 1))
+	var sell_btn := _make_button("Продать предмет", 280, 56, 18, Color(1.0, 0.8, 0.45, 1))
 	sell_btn.pressed.connect(_do_sell)
 	upgrades_row.add_child(sell_btn)
 	# CRAFT section — convert an item into a set piece (2 set stones + essence).
@@ -199,12 +199,12 @@ func _build_ui() -> void:
 
 	# Footer — Trade button (co-op only) above Leave Shop.
 	if NetManager and NetManager.is_multiplayer:
-		var trade_btn := _make_button("TRADE WITH PARTY", 280, 56, 18, Color(0.95, 0.95, 0.55, 1))
+		var trade_btn := _make_button("ОБМЕН С ОТРЯДОМ", 280, 56, 18, Color(0.95, 0.95, 0.55, 1))
 		trade_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		trade_btn.pressed.connect(_open_trade)
 		vb.add_child(trade_btn)
 
-	var leave_btn := _make_button("LEAVE SHOP", 280, 60, 22, Color(0.95, 0.7, 0.4, 1))
+	var leave_btn := _make_button("ПОКИНУТЬ ЛАВКУ", 280, 60, 22, Color(0.95, 0.7, 0.4, 1))
 	leave_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	leave_btn.pressed.connect(_close)
 	vb.add_child(leave_btn)
@@ -275,7 +275,7 @@ func _set_btn_disabled(btn: Button, dis: bool) -> void:
 # Refresh
 func _refresh() -> void:
 	if gold_label and GameManager:
-		gold_label.text = "Gold: %dg" % GameManager.gold
+		gold_label.text = "Золото: %dз" % GameManager.gold
 	if materials_label and GameManager:
 		var parts: Array = []
 		for mid in ItemDatabase.MATERIAL_IDS:
@@ -338,18 +338,18 @@ func _refresh_selected() -> void:
 	for c in affix_box.get_children():
 		c.queue_free()
 	if selected_item == null:
-		selected_label.text = "Select an item to upgrade"
+		selected_label.text = "Выберите предмет для улучшения"
 		_set_btn_disabled(upgrade_btn, true)
 		_set_btn_disabled(reroll_btn, true)
 		_set_btn_disabled(add_affix_btn, true)
-		_set_btn_text(upgrade_btn, "Upgrade ilvl")
-		_set_btn_text(reroll_btn, "Re-roll affixes")
-		_set_btn_text(add_affix_btn, "Add affix")
+		_set_btn_text(upgrade_btn, "Повысить ур. предмета")
+		_set_btn_text(reroll_btn, "Перебросить аффиксы")
+		_set_btn_text(add_affix_btn, "Добавить аффикс")
 		_refresh_craft_buttons()
 		return
 	var col: Color = ItemDatabase.rarity_color(selected_item.rarity)
 	selected_label.text = (
-		"%s  [%s, ilvl %d]"
+		"%s  [%s, ур. %d]"
 		% [
 			selected_item.get_title(),
 			ItemDatabase.rarity_display(selected_item.rarity),
@@ -370,22 +370,22 @@ func _refresh_selected() -> void:
 	var r_cost: Dictionary = InventorySystem.reroll_cost(selected_item)
 	var a_cost: Dictionary = InventorySystem.add_affix_cost(selected_item)
 	if u_cost.is_empty():
-		_set_btn_text(upgrade_btn, "Upgrade ilvl\n(uniques unavailable)")
+		_set_btn_text(upgrade_btn, "Повысить ур. предмета\n(уникальные нельзя)")
 		_set_btn_disabled(upgrade_btn, true)
 	else:
-		_set_btn_text(upgrade_btn, "Upgrade ilvl\n%s" % ItemDatabase.format_cost(u_cost))
+		_set_btn_text(upgrade_btn, "Повысить ур. предмета\n%s" % ItemDatabase.format_cost(u_cost))
 		_set_btn_disabled(upgrade_btn, not GameManager.can_afford_cost(u_cost))
 	if r_cost.is_empty():
-		_set_btn_text(reroll_btn, "Re-roll affixes\n(uniques unavailable)")
+		_set_btn_text(reroll_btn, "Перебросить аффиксы\n(уникальные нельзя)")
 		_set_btn_disabled(reroll_btn, true)
 	else:
-		_set_btn_text(reroll_btn, "Re-roll affixes\n%s" % ItemDatabase.format_cost(r_cost))
+		_set_btn_text(reroll_btn, "Перебросить аффиксы\n%s" % ItemDatabase.format_cost(r_cost))
 		_set_btn_disabled(reroll_btn, not GameManager.can_afford_cost(r_cost))
 	if a_cost.is_empty():
-		_set_btn_text(add_affix_btn, "Add affix\n(unavailable)")
+		_set_btn_text(add_affix_btn, "Добавить аффикс\n(недоступно)")
 		_set_btn_disabled(add_affix_btn, true)
 	else:
-		_set_btn_text(add_affix_btn, "Add affix\n%s" % ItemDatabase.format_cost(a_cost))
+		_set_btn_text(add_affix_btn, "Добавить аффикс\n%s" % ItemDatabase.format_cost(a_cost))
 		_set_btn_disabled(add_affix_btn, not GameManager.can_afford_cost(a_cost))
 	_refresh_craft_buttons()
 
@@ -403,13 +403,15 @@ func _refresh_craft_buttons() -> void:
 			owned.append(String(set_id))
 	if owned.is_empty():
 		return
-	craft_box.add_child(_label("CRAFT SET (uses selected item)", 14, Color(0.45, 0.95, 0.45, 1)))
+	craft_box.add_child(
+		_label("СОЗДАТЬ КОМПЛЕКТНЫЙ (из выбранного предмета)", 14, Color(0.45, 0.95, 0.45, 1))
+	)
 	for set_id in owned:
 		var set_name: String = String(ItemDatabase.find_set(set_id).get("name", set_id))
 		var cost: Dictionary = InventorySystem.craft_cost(selected_item, set_id)
 		var btn := _make_button("", 280, 50, 14, Color(0.55, 0.95, 0.55, 1))
 		if cost.is_empty():
-			_set_btn_text(btn, "%s\n(pick an armor/jewelry item)" % set_name)
+			_set_btn_text(btn, "%s\n(выберите броню или украшение)" % set_name)
 			_set_btn_disabled(btn, true)
 		else:
 			_set_btn_text(btn, "%s\n%s" % [set_name, ItemDatabase.format_cost(cost)])

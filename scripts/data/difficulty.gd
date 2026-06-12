@@ -18,7 +18,7 @@ extends RefCounted
 const TIERS: Array = [
 	{
 		"id": "normal",
-		"name": "Normal",
+		"name": "Обычный",
 		"enemy_hp_mult": 1.0,
 		"enemy_dmg_mult": 1.0,
 		"elite_chance": 0.10,
@@ -29,7 +29,7 @@ const TIERS: Array = [
 	},
 	{
 		"id": "hard",
-		"name": "Hard",
+		"name": "Тяжёлый",
 		"enemy_hp_mult": 1.5,
 		"enemy_dmg_mult": 1.3,
 		"elite_chance": 0.18,
@@ -40,7 +40,7 @@ const TIERS: Array = [
 	},
 	{
 		"id": "nightmare",
-		"name": "Nightmare",
+		"name": "Кошмар",
 		"enemy_hp_mult": 2.2,
 		"enemy_dmg_mult": 1.7,
 		"elite_chance": 0.28,
@@ -51,7 +51,7 @@ const TIERS: Array = [
 	},
 	{
 		"id": "hell",
-		"name": "Hell",
+		"name": "Ад",
 		"enemy_hp_mult": 3.2,
 		"enemy_dmg_mult": 2.3,
 		"elite_chance": 0.40,
@@ -81,4 +81,4 @@ static func value(tier: int, key: String, default: float = 0.0) -> float:
 
 
 static func name_of(tier: int) -> String:
-	return String(get_tier(tier).get("name", "Normal"))
+	return String(get_tier(tier).get("name", "Обычный"))

@@ -538,7 +538,7 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 12)
 
 	_status = Label.new()
-	_status.text = "Loading..."
+	_status.text = "Загрузка..."
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_status)
 
@@ -576,7 +576,7 @@ func set_progress(p: float) -> void:
 	if _progress:
 		_progress.value = clamp(p, 0.0, 1.0)
 	if _status:
-		_status.text = "Loading... %d%%" % int(p * 100.0)
+		_status.text = "Загрузка... %d%%" % int(p * 100.0)
 
 
 # Heavy first-time warm-up. Honors a min_display floor so quick loads

@@ -79,7 +79,7 @@ func _build_card(class_id: String, data: Dictionary) -> Control:
 
 	# Primary attribute tag.
 	var prim_label := Label.new()
-	prim_label.text = "Primary: " + String(data.get("primary_label", ""))
+	prim_label.text = "Основное: " + String(data.get("primary_label", ""))
 	prim_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	prim_label.add_theme_color_override("font_color", Color(0.95, 0.6, 0.4, 1))
 	prim_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
@@ -114,14 +114,14 @@ func _build_card(class_id: String, data: Dictionary) -> Control:
 	stats.add_theme_constant_override("separation", 2)
 	v.add_child(stats)
 	var base: Dictionary = data.get("base", {})
-	_add_stat_row(stats, "Health", str(int(base.get("max_hp", 0))))
-	_add_stat_row(stats, "Mana", str(int(base.get("max_mana", 0))))
-	_add_stat_row(stats, "Damage", str(int(base.get("damage", 0))))
-	_add_stat_row(stats, "Speed", "%d%%" % int(float(base.get("move_speed", 200.0)) / 2.2))
-	_add_stat_row(stats, "Crit", "%d%%" % int(float(base.get("crit_chance", 0.0)) * 100.0))
-	_add_stat_row(stats, "Strength", str(int(base.get("strength", 0))))
-	_add_stat_row(stats, "Dexterity", str(int(base.get("dexterity", 0))))
-	_add_stat_row(stats, "Intelligence", str(int(base.get("intelligence", 0))))
+	_add_stat_row(stats, "Здоровье", str(int(base.get("max_hp", 0))))
+	_add_stat_row(stats, "Мана", str(int(base.get("max_mana", 0))))
+	_add_stat_row(stats, "Урон", str(int(base.get("damage", 0))))
+	_add_stat_row(stats, "Скорость", "%d%%" % int(float(base.get("move_speed", 200.0)) / 2.2))
+	_add_stat_row(stats, "Крит", "%d%%" % int(float(base.get("crit_chance", 0.0)) * 100.0))
+	_add_stat_row(stats, "Сила", str(int(base.get("strength", 0))))
+	_add_stat_row(stats, "Ловкость", str(int(base.get("dexterity", 0))))
+	_add_stat_row(stats, "Интеллект", str(int(base.get("intelligence", 0))))
 
 	# Choose button.
 	var spacer := Control.new()
@@ -129,7 +129,7 @@ func _build_card(class_id: String, data: Dictionary) -> Control:
 	v.add_child(spacer)
 
 	var btn := Button.new()
-	btn.text = "Choose"
+	btn.text = "Выбрать"
 	btn.custom_minimum_size = Vector2(220, 64)
 	btn.add_theme_font_size_override("font_size", 22)
 	btn.add_theme_color_override("font_color", Color(1, 0.92, 0.7, 1))

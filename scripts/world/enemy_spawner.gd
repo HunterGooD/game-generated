@@ -187,14 +187,14 @@ const MUTATORS := {
 # Three effect sub-types each for green (player boons) and red (enemy escalation). A pillar
 # of that colour rolls one. Effects ACCUMULATE across the whole arena (GameManager fields).
 const GREEN_EFFECTS := {
-	"might": "Might — +15% damage",
-	"swift": "Swift — +12% move speed",
-	"fortune": "Fortune — heal + bonus XP",
+	"might": "Мощь — +15% урона",
+	"swift": "Стремительность — +12% скорости бега",
+	"fortune": "Удача — лечение + бонусный опыт",
 }
 const RED_EFFECTS := {
-	"brutality": "Brutality — enemies +40% power",
-	"frenzy": "Frenzy — events fire faster",
-	"horde": "Horde — +50% more enemies",
+	"brutality": "Свирепость — враги на 40% сильнее",
+	"frenzy": "Бешенство — события чаще",
+	"horde": "Орда — врагов на 50% больше",
 }
 var _arena_batch_timer: Timer = null
 var _arena_wave_timer: Timer = null
@@ -312,12 +312,16 @@ func _start_next_wave() -> void:
 			var pick: String = TYPE_ORDER[randi() % TYPE_ORDER.size()]
 			counts[pick] = int(counts.get(pick, 0)) + 1
 
-	# Stat / xp scaling factors — wave growth × run difficulty.
+	# Stat / xp scaling factors — wave growth × run difficulty × endless loop.
 	var diff: int = GameManager.run_difficulty if GameManager else 0
 	var d_hp: float = Difficulty.value(diff, "enemy_hp_mult", 1.0)
 	var d_dmg: float = Difficulty.value(diff, "enemy_dmg_mult", 1.0)
 	var d_reward: float = Difficulty.value(diff, "reward_mult", 1.0)
 	var d_spawn: float = Difficulty.value(diff, "spawn_rate_mult", 1.0)
+	if GameManager:
+		d_hp *= GameManager.loop_enemy_hp_mult()
+		d_dmg *= GameManager.loop_enemy_dmg_mult()
+		d_reward *= GameManager.loop_reward_mult()
 	var hp_mult: float = (1.0 + 0.08 * float(current_wave - 1)) * d_hp
 	var dmg_mult: float = (1.0 + 0.05 * float(int(floor(float(current_wave - 1) / 2.0)))) * d_dmg
 	# Arena empowerment pillars escalate the remaining waves.
@@ -679,7 +683,7 @@ func _arena_open_pillars() -> void:
 		_arena_pillars.append(pillar)
 	if GameManager:
 		GameManager.notice.emit(
-			"Choose a pillar to begin wave %d of %d" % [current_wave + 1, arena_waves],
+			"Выберите столп, чтобы начать волну %d из %d" % [current_wave + 1, arena_waves],
 			Color(0.95, 0.8, 0.4)
 		)
 
@@ -795,6 +799,10 @@ func _arena_wave_mults() -> Dictionary:
 	var d_hp: float = Difficulty.value(diff, "enemy_hp_mult", 1.0)
 	var d_dmg: float = Difficulty.value(diff, "enemy_dmg_mult", 1.0)
 	var d_reward: float = Difficulty.value(diff, "reward_mult", 1.0)
+	if GameManager:
+		d_hp *= GameManager.loop_enemy_hp_mult()
+		d_dmg *= GameManager.loop_enemy_dmg_mult()
+		d_reward *= GameManager.loop_reward_mult()
 	var power: float = GameManager.arena_enemy_power if GameManager else 1.0
 	# Wave mutators stack on top of the normal scaling for this wave only.
 	var mut_hp: float = 1.8 if _wave_mutator == "armored" else 1.0
@@ -878,7 +886,7 @@ func _on_any_enemy_died(ev) -> void:
 		actor.remove_meta("arena_event_reward")
 		if GameManager:
 			GameManager.arena_award(reward)
-			GameManager.notice.emit("Event cleared!  +%d coin" % reward, Color(0.45, 0.9, 0.5))
+			GameManager.notice.emit("Событие закрыто!  +%d монет" % reward, Color(0.45, 0.9, 0.5))
 
 
 # Volatile death blast: a VFX pop plus splash damage to the local player if they're inside the
@@ -951,10 +959,13 @@ func _combat_node_mode(type: String) -> String:
 
 func _node_combat_mults() -> Dictionary:
 	var diff: int = GameManager.run_difficulty if GameManager else 0
+	var loop_hp: float = GameManager.loop_enemy_hp_mult() if GameManager else 1.0
+	var loop_dmg: float = GameManager.loop_enemy_dmg_mult() if GameManager else 1.0
+	var loop_reward: float = GameManager.loop_reward_mult() if GameManager else 1.0
 	return {
-		"hp": Difficulty.value(diff, "enemy_hp_mult", 1.0),
-		"dmg": Difficulty.value(diff, "enemy_dmg_mult", 1.0),
-		"reward": Difficulty.value(diff, "reward_mult", 1.0),
+		"hp": Difficulty.value(diff, "enemy_hp_mult", 1.0) * loop_hp,
+		"dmg": Difficulty.value(diff, "enemy_dmg_mult", 1.0) * loop_dmg,
+		"reward": Difficulty.value(diff, "reward_mult", 1.0) * loop_reward,
 	}
 
 
@@ -1024,7 +1035,7 @@ func _start_elite_pack() -> void:
 			var pos: Vector2 = _clamp_in_room(center + Vector2(cos(ang), sin(ang)) * 280.0)
 			_spawn_one(t, float(m["hp"]) * 1.6, float(m["dmg"]) * 1.2, float(m["reward"]), float(m["reward"]), EnemyAffixes.roll(2), pos)
 	if GameManager:
-		GameManager.notice.emit("Elite pack — slay them all!", Color(0.92, 0.3, 0.82))
+		GameManager.notice.emit("Элитная стая — перебейте всех!", Color(0.92, 0.3, 0.82))
 
 
 func _finish_elite_node() -> void:
@@ -1034,7 +1045,7 @@ func _finish_elite_node() -> void:
 	_broadcast_wave_cleared(current_wave)
 	_switch_to_explore_music()
 	_spawn_loot_chest()  # reward
-	_finish_node_simple("Elite pack cleared!")
+	_finish_node_simple("Элитная стая зачищена!")
 
 
 # Boss node: a single boss fight (no waves). Defeat → loot + exit portal.
@@ -1116,7 +1127,7 @@ func _arena_start_boss() -> void:
 	if boss_id == "":
 		boss_id = "crimson_matron"
 	if GameManager:
-		GameManager.notice.emit("The arena's champion arrives!", Color(1.0, 0.35, 0.3))
+		GameManager.notice.emit("Прибывает чемпион арены!", Color(1.0, 0.35, 0.3))
 	# High effective wave + difficulty → a beefy finale boss.
 	var eff: int = current_wave + 4 + (GameManager.run_difficulty if GameManager else 0) * 2
 	_spawn_boss(boss_id, eff)
@@ -1124,9 +1135,9 @@ func _arena_start_boss() -> void:
 
 # Reward caches by rising cost → bigger scale, brighter colour, better loot.
 const REWARD_CACHES := [
-	{"label": "Small Cache", "cost": 30, "items": 1, "ilvl": 0, "scale": 1.0, "color": Color(0.40, 0.85, 0.50)},
-	{"label": "Large Cache", "cost": 70, "items": 2, "ilvl": 3, "scale": 1.35, "color": Color(0.40, 0.62, 1.0)},
-	{"label": "Grand Cache", "cost": 130, "items": 3, "ilvl": 6, "scale": 1.7, "color": Color(0.78, 0.42, 1.0)},
+	{"label": "Малый тайник", "cost": 30, "items": 1, "ilvl": 0, "scale": 1.0, "color": Color(0.40, 0.85, 0.50)},
+	{"label": "Большой тайник", "cost": 70, "items": 2, "ilvl": 3, "scale": 1.35, "color": Color(0.40, 0.62, 1.0)},
+	{"label": "Великий тайник", "cost": 130, "items": 3, "ilvl": 6, "scale": 1.7, "color": Color(0.78, 0.42, 1.0)},
 ]
 
 
@@ -1151,7 +1162,7 @@ func _finish_arena() -> void:
 		chest.global_position = _clamp_in_room(Vector2(start_x + spacing * float(idx), center.y))
 		idx += 1
 	var dump := ArenaChest.new()
-	dump.configure({"kind": "dump", "label": "Coffer", "scale": 0.7, "color": Color(1.0, 0.84, 0.30)})
+	dump.configure({"kind": "dump", "label": "Сундучок", "scale": 0.7, "color": Color(1.0, 0.84, 0.30)})
 	get_tree().current_scene.add_child(dump)
 	dump.global_position = _clamp_in_room(Vector2(start_x + spacing * float(idx), center.y))
 	# Exit portal, placed well above the chest row so it never overlaps them.
@@ -1161,7 +1172,7 @@ func _finish_arena() -> void:
 	if portal.has_signal("activated"):
 		portal.connect("activated", _on_arena_reward_portal)
 	if GameManager:
-		GameManager.notice.emit("Arena cleared! Open the chests, then take the portal to the map.", Color(1.0, 0.86, 0.5))
+		GameManager.notice.emit("Арена зачищена! Откройте сундуки и идите в портал к карте.", Color(1.0, 0.86, 0.5))
 
 
 func _clamp_in_room(pos: Vector2) -> Vector2:

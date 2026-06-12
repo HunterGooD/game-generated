@@ -89,7 +89,7 @@ func _build_campfire() -> void:
 	body.position = Vector2(-20, -20)
 	_campfire.add_child(body)
 	_campfire_label = Label.new()
-	_campfire_label.text = "Campfire — rest"
+	_campfire_label.text = "Костёр — привал"
 	_campfire_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_campfire_label.position = Vector2(-120, -96)
 	_campfire_label.custom_minimum_size = Vector2(240, 0)
@@ -159,7 +159,7 @@ func _process_campfire() -> void:
 	var in_range: bool = _player.global_position.distance_to(_campfire.global_position) <= INTERACT_RANGE
 	if in_range != _campfire_in_range:
 		_campfire_in_range = in_range
-		_campfire_label.text = "Campfire — rest   [E]" if in_range else "Campfire — rest"
+		_campfire_label.text = "Костёр — привал   [E]" if in_range else "Костёр — привал"
 	if in_range and Input.is_action_just_pressed("interact"):
 		_open_rest()
 
@@ -208,4 +208,4 @@ func _on_rest_closed() -> void:
 	if _campfire and is_instance_valid(_campfire):
 		_campfire.modulate = Color(0.5, 0.5, 0.5)
 	if _campfire_label:
-		_campfire_label.text = "Campfire — spent"
+		_campfire_label.text = "Костёр — использован"

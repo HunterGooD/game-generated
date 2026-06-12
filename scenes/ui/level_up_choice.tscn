@@ -41,7 +41,7 @@ alignment = 1
 [node name="Title" type="Label" parent="Root/Margin/VBox"]
 layout_mode = 2
 horizontal_alignment = 1
-text = "LEVEL UP"
+text = "НОВЫЙ УРОВЕНЬ"
 theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 10
@@ -50,7 +50,7 @@ theme_override_font_sizes/font_size = 56
 [node name="Subtitle" type="Label" parent="Root/Margin/VBox"]
 layout_mode = 2
 horizontal_alignment = 1
-text = "Choose one reward."
+text = "Выберите одну награду."
 theme_override_colors/font_color = Color(0.95, 0.4, 0.4, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5

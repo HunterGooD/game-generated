@@ -45,7 +45,7 @@ theme_override_colors/font_color = Color(1, 0.85, 0.5, 1)
 theme_override_colors/font_outline_color = Color(0.2, 0.05, 0.05, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 48
-text = "REWARD"
+text = "НАГРАДА"
 horizontal_alignment = 1
 
 [node name="Strip" type="Control" parent="Root" unique_id=1710966827]
@@ -105,7 +105,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 32
-text = "Item"
+text = "Предмет"
 horizontal_alignment = 1
 
 [node name="RarityLabel" type="Label" parent="Root/Detail/VBox" unique_id=1684569456]
@@ -113,14 +113,14 @@ layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 18
-text = "Common"
+text = "Обычный"
 horizontal_alignment = 1
 
 [node name="Ilvl" type="Label" parent="Root/Detail/VBox" unique_id=1576493576]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.75, 0.8, 1)
 theme_override_font_sizes/font_size = 14
-text = "Item Level 1"
+text = "Уровень предмета 1"
 horizontal_alignment = 1
 
 [node name="AffixList" type="VBoxContainer" parent="Root/Detail/VBox" unique_id=559668746]
@@ -145,10 +145,10 @@ alignment = 1
 custom_minimum_size = Vector2(220, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "Take"
+text = "Взять"
 
 [node name="Salvage" type="Button" parent="Root/Detail/VBox/HBox" unique_id=1796023324]
 custom_minimum_size = Vector2(280, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "Salvage"
+text = "Разобрать"

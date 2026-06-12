@@ -70,7 +70,7 @@ func _build_ui() -> void:
 	margin.add_child(vbox)
 
 	title_label = Label.new()
-	title_label.text = "PAUSED"
+	title_label.text = "ПАУЗА"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 32)
 	title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45, 1))
@@ -89,14 +89,14 @@ func _build_ui() -> void:
 	vbox.add_child(status_label)
 
 	continue_btn = Button.new()
-	continue_btn.text = "Continue"
+	continue_btn.text = "Продолжить"
 	continue_btn.custom_minimum_size = Vector2(0, 48)
 	continue_btn.add_theme_font_size_override("font_size", 20)
 	continue_btn.pressed.connect(_on_continue)
 	vbox.add_child(continue_btn)
 
 	exit_btn = Button.new()
-	exit_btn.text = "Return to Lobby" if is_coop else "Exit to Main Menu"
+	exit_btn.text = "Вернуться в лобби" if is_coop else "Выйти в главное меню"
 	exit_btn.custom_minimum_size = Vector2(0, 48)
 	exit_btn.add_theme_font_size_override("font_size", 20)
 	exit_btn.pressed.connect(_on_exit)
@@ -110,7 +110,7 @@ func _update_status_label() -> void:
 		status_label.visible = false
 		return
 	status_label.visible = true
-	status_label.text = "Waiting for your teammate to pause too…\nThe world keeps fighting until everyone is here."
+	status_label.text = "Ждём, пока товарищ тоже поставит паузу…\nМир продолжает бой, пока не соберутся все."
 
 
 func _unhandled_input(event: InputEvent) -> void:

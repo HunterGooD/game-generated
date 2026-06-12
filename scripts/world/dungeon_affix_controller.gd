@@ -82,7 +82,7 @@ func _announce() -> void:
 	var names: Array = []
 	for id in active_negatives:
 		names.append(DungeonAffixes.display_name(id))
-	GameManager.notice.emit("Dungeon affixes: %s" % ", ".join(names), Color(0.9, 0.55, 0.5))
+	GameManager.notice.emit("Аффиксы подземелья: %s" % ", ".join(names), Color(0.9, 0.55, 0.5))
 
 
 func _activate_hazards() -> void:
@@ -154,7 +154,7 @@ func disarm_hazards() -> void:
 		if id in ["suffocating_gloom", "heavens_wrath", "volatile_spheres"]:
 			had_damaging = true
 	if GameManager and had_damaging:
-		GameManager.notice.emit("The dungeon's curses dissipate!", Color(0.6, 0.9, 0.6))
+		GameManager.notice.emit("Проклятия подземелья рассеиваются!", Color(0.6, 0.9, 0.6))
 
 
 func _spawn_orb() -> void:
@@ -226,7 +226,7 @@ func _on_enemy_died_gold(ev) -> void:
 		GameManager.add_gold(40 + 20 * _difficulty)
 		if actor is Node2D:
 			_drop_cache((actor as Node2D).global_position)
-		GameManager.notice.emit("Gold Vein — a golden foe spilled its hoard!", Color(1.0, 0.84, 0.3))
+		GameManager.notice.emit("Золотая жила — золотой враг рассыпал свой клад!", Color(1.0, 0.84, 0.3))
 
 
 func _anoint_golden() -> void:
@@ -288,7 +288,7 @@ func _on_shrine_claimed(_node) -> void:
 	_apply_echo_buff()
 	if GameManager:
 		GameManager.notice.emit(
-			"Echo of Power — +%d%% damage / +%d%% speed" % [int((_echo_dmg - 1.0) * 100.0), int((_echo_spd - 1.0) * 100.0)],
+			"Эхо силы — +%d%% урона / +%d%% скорости" % [int((_echo_dmg - 1.0) * 100.0), int((_echo_spd - 1.0) * 100.0)],
 			Color(0.45, 0.7, 1.0)
 		)
 

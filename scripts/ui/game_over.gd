@@ -17,10 +17,10 @@ func _ready() -> void:
 	# (co-op: leave the lobby back to the menu).
 	if btn_menu:
 		btn_menu.pressed.connect(_on_hub)
-		btn_menu.text = "Return to Hub"
+		btn_menu.text = "Вернуться в хаб"
 	if btn_retry:
 		btn_retry.pressed.connect(_on_main_menu)
-		btn_retry.text = "Main Menu"
+		btn_retry.text = "Главное меню"
 
 	# Tween title pulse.
 	if title_label:
@@ -46,13 +46,13 @@ func _populate() -> void:
 	for c in stat_grid.get_children():
 		c.queue_free()
 	var data: Dictionary = GameManager.get_class_data()
-	var class_display: String = String(data.get("display", "Hero"))
+	var class_display: String = String(data.get("display", "Герой"))
 	var rows: Array = [
-		["Class", class_display],
-		["Level", str(GameManager.player_level)],
-		["Wave Reached", str(max(GameManager.highest_wave, 1))],
-		["Enemies Slain", str(GameManager.enemies_killed)],
-		["Gold Earned", str(GameManager.total_gold_earned)],
+		["Класс", class_display],
+		["Уровень", str(GameManager.player_level)],
+		["Лучшая волна", str(max(GameManager.highest_wave, 1))],
+		["Врагов убито", str(GameManager.enemies_killed)],
+		["Золота добыто", str(GameManager.total_gold_earned)],
 	]
 	for row in rows:
 		var l := Label.new()

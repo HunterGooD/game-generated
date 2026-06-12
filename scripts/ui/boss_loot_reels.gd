@@ -102,7 +102,7 @@ func _build_ui(wave: int, class_id: String) -> void:
 	add_child(dim)
 
 	heading = Label.new()
-	heading.text = "BOSS REWARD — CHOOSE ONE"
+	heading.text = "НАГРАДА БОССА — ВЫБЕРИТЕ ОДНУ"
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	heading.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	heading.offset_top = 60.0
@@ -252,7 +252,7 @@ func _on_reel_done(reel: Reel) -> void:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -10.0)
 	settled_count += 1
 	if settled_count >= reels.size() and prompt:
-		prompt.text = "Click a reward to take it"
+		prompt.text = "Кликните по награде, чтобы взять её"
 
 
 func _on_pick(index: int) -> void:

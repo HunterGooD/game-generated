@@ -108,7 +108,7 @@ func event_treasure(_player: Node2D) -> String:
 	if GameManager:
 		GameManager.add_gold_with_bonus(amt)
 		GameManager.heal_player(25)
-	return "Treasure  +%d gold" % amt
+	return "Сокровище  +%d золота" % amt
 
 
 func event_altar(player: Node2D, roll: float = -1.0) -> String:
@@ -119,22 +119,22 @@ func event_altar(player: Node2D, roll: float = -1.0) -> String:
 			player.call("apply_buff", 30.0, 1.30, 1.15)
 		if GameManager:
 			GameManager.heal_player(40)
-		return "Blessing  +30% power"
+		return "Благословение  +30% к силе"
 	_lose_hp(0.15)
-	return "Curse  lifeforce drained"
+	return "Проклятие  жизненная сила истощена"
 
 
 func event_roulette(_player: Node2D, roll: float = -1.0) -> String:
 	if GameManager == null or GameManager.gold < STAKE:
-		return "Not enough gold to gamble"
+		return "Недостаточно золота для ставки"
 	GameManager.gold -= STAKE
 	GameManager.gold_changed.emit(GameManager.gold)
 	if roll < 0.0:
 		roll = randf()
 	if roll < 0.5:
 		GameManager.add_gold(STAKE * 3)
-		return "Jackpot  +%d gold" % (STAKE * 2)
-	return "Lost  -%d gold" % STAKE
+		return "Джекпот  +%d золота" % (STAKE * 2)
+	return "Проигрыш  -%d золота" % STAKE
 
 
 func event_ritual(player: Node2D) -> String:
@@ -142,7 +142,7 @@ func event_ritual(player: Node2D) -> String:
 	_lose_hp(0.25)
 	if player and player.has_method("apply_buff"):
 		player.call("apply_buff", 45.0, 1.5, 1.25)
-	return "Ritual  power for blood"
+	return "Ритуал  сила за кровь"
 
 
 func _lose_hp(frac: float) -> void:

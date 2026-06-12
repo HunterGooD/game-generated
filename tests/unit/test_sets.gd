@@ -88,7 +88,35 @@ func test_bonus4_nodes_exist() -> void:
 
 
 # ── piece counting ────────────────────────────────────────────────────────────
-func test_jewelry_caps_at_one_piece() -> void:
+func test_every_jewelry_piece_counts() -> void:
+	# Ring + amulet of one set is a valid 2-piece (the second ring slot too).
+	InventorySystem.equipment[ItemDatabase.SLOT_AMULET] = _mk_set_piece(
+		"hunters_oath", "gothic_amulet"
+	)
+	InventorySystem.equipment[ItemDatabase.SLOT_RING_2] = _mk_set_piece(
+		"hunters_oath", "signet_ring"
+	)
+	var counts: Dictionary = InventorySystem.get_set_piece_counts()
+	assert_eq(int(counts.get("hunters_oath", 0)), 2, "amulet + ring2 = 2 pieces")
+	assert_eq(InventorySystem.get_total("crit_chance"), 6.0, "2pc bonus active from jewelry")
+	# Three sets at once across the doll all count independently.
+	InventorySystem.equipment[ItemDatabase.SLOT_HELMET] = _mk_set_piece(
+		"bastion_vow", "iron_helmet"
+	)
+	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece(
+		"bastion_vow", "plate_chest"
+	)
+	InventorySystem.equipment[ItemDatabase.SLOT_RING_1] = _mk_set_piece(
+		"cinderweave", "signet_ring"
+	)
+	counts = InventorySystem.get_set_piece_counts()
+	assert_eq(int(counts.get("hunters_oath", 0)), 2)
+	assert_eq(int(counts.get("bastion_vow", 0)), 2)
+	assert_eq(int(counts.get("cinderweave", 0)), 1)
+	assert_eq(InventorySystem.get_total("max_hp"), 40.0, "second set's 2pc active too")
+
+
+func test_five_pieces_activate_effect() -> void:
 	InventorySystem.equipment[ItemDatabase.SLOT_HELMET] = _mk_set_piece(
 		"hunters_oath", "iron_helmet"
 	)
@@ -98,20 +126,14 @@ func test_jewelry_caps_at_one_piece() -> void:
 	InventorySystem.equipment[ItemDatabase.SLOT_GLOVES] = _mk_set_piece(
 		"hunters_oath", "iron_gauntlets"
 	)
-	InventorySystem.equipment[ItemDatabase.SLOT_BOOTS] = _mk_set_piece(
-		"hunters_oath", "iron_greaves"
-	)
 	InventorySystem.equipment[ItemDatabase.SLOT_AMULET] = _mk_set_piece(
 		"hunters_oath", "gothic_amulet"
-	)
-	InventorySystem.equipment[ItemDatabase.SLOT_RING_1] = _mk_set_piece(
-		"hunters_oath", "signet_ring"
 	)
 	InventorySystem.equipment[ItemDatabase.SLOT_RING_2] = _mk_set_piece(
 		"hunters_oath", "signet_ring"
 	)
 	var counts: Dictionary = InventorySystem.get_set_piece_counts()
-	assert_eq(int(counts.get("hunters_oath", 0)), 5, "4 armor + capped jewelry = 5, not 7")
+	assert_eq(int(counts.get("hunters_oath", 0)), 5, "3 armor + 2 jewelry = 5")
 	InventorySystem._rebuild_transform_cache()
 	assert_true(InventorySystem.has_set_effect("hunt_mark"), "5pc effect active")
 

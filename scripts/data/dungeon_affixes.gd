@@ -13,52 +13,52 @@ const DEFS := {
 	# ── Negative (common, shown on the map) ──────────────────────────────
 	"suffocating_gloom":
 	{
-		"name": "Suffocating Gloom",
+		"name": "Удушающий мрак",
 		"polarity": -1,
 		"hidden": false,
 		"color": Color(0.45, 0.32, 0.55),
-		"desc": "A smoke cloud drifts after the party. Standing in it stacks damage — keep moving.",
+		"desc": "Облако дыма ползёт за отрядом. Стоять в нём — получать нарастающий урон, двигайтесь.",
 	},
 	"volatile_spheres":
 	{
-		"name": "Volatile Spheres",
+		"name": "Нестабильные сферы",
 		"polarity": -1,
 		"hidden": false,
 		"color": Color(1.0, 0.55, 0.2),
-		"desc": "Unstable orbs appear and detonate. Get clear before they blow.",
+		"desc": "Появляются нестабильные сферы и детонируют. Отходите до взрыва.",
 	},
 	"heavens_wrath":
 	{
-		"name": "Heaven's Wrath",
+		"name": "Гнев небес",
 		"polarity": -1,
 		"hidden": false,
 		"color": Color(0.55, 0.8, 1.0),
-		"desc": "Lightning hammers the party's positions, then relents. Sidestep the marks.",
+		"desc": "Молнии бьют по позициям отряда, затем стихают. Уходите с отметок.",
 	},
 	# ── Positive (rare, hidden until entered) ────────────────────────────
 	"gold_vein":
 	{
-		"name": "Gold Vein",
+		"name": "Золотая жила",
 		"polarity": 1,
 		"hidden": true,
 		"color": Color(1.0, 0.84, 0.3),
-		"desc": "Enemies gush gold; a rare golden foe drops a cache.",
+		"desc": "Из врагов сыплется золото; редкий золотой враг роняет клад.",
 	},
 	"echo_of_power":
 	{
-		"name": "Echo of Power",
+		"name": "Эхо силы",
 		"polarity": 1,
 		"hidden": true,
 		"color": Color(0.45, 0.7, 1.0),
-		"desc": "Shrine bursts grant a stacking buff that lasts the layer and carries on descent.",
+		"desc": "Всплески святилищ дают накапливающийся бафф на весь этаж, сохраняющийся при спуске.",
 	},
 	"fortunes_favor":
 	{
-		"name": "Fortune's Favor",
+		"name": "Благосклонность фортуны",
 		"polarity": 1,
 		"hidden": true,
 		"color": Color(0.5, 0.95, 0.55),
-		"desc": "The boss chest spins a fourth reel and favours higher rarities.",
+		"desc": "Сундук босса крутит четвёртый барабан и тяготеет к высоким редкостям.",
 	},
 }
 

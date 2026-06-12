@@ -21,10 +21,10 @@ const DECOR_PATHS := {
 }
 
 const ACTIVITY_DEFS := [
-	{"name": "chest", "icon": "crystal_blue", "label": "Treasure"},
-	{"name": "altar", "icon": "rune_circle", "label": "Altar"},
-	{"name": "roulette", "icon": "crystal_purple", "label": "Wheel"},
-	{"name": "ritual", "icon": "statue_guardian", "label": "Ritual"},
+	{"name": "chest", "icon": "crystal_blue", "label": "Сокровище"},
+	{"name": "altar", "icon": "rune_circle", "label": "Алтарь"},
+	{"name": "roulette", "icon": "crystal_purple", "label": "Колесо"},
+	{"name": "ritual", "icon": "statue_guardian", "label": "Ритуал"},
 ]
 
 @export var floor_layer: Node2D

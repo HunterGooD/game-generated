@@ -16,15 +16,15 @@ const SLOT_WEAPON_MAIN: int = 7
 const SLOT_WEAPON_OFF: int = 8
 
 const SLOT_NAMES: Dictionary = {
-	SLOT_HELMET: "Helmet",
-	SLOT_CHEST: "Chest",
-	SLOT_GLOVES: "Gloves",
-	SLOT_BOOTS: "Boots",
-	SLOT_AMULET: "Amulet",
-	SLOT_RING_1: "Ring 1",
-	SLOT_RING_2: "Ring 2",
-	SLOT_WEAPON_MAIN: "Main Hand",
-	SLOT_WEAPON_OFF: "Off Hand",
+	SLOT_HELMET: "Шлем",
+	SLOT_CHEST: "Доспех",
+	SLOT_GLOVES: "Перчатки",
+	SLOT_BOOTS: "Сапоги",
+	SLOT_AMULET: "Амулет",
+	SLOT_RING_1: "Кольцо 1",
+	SLOT_RING_2: "Кольцо 2",
+	SLOT_WEAPON_MAIN: "Правая рука",
+	SLOT_WEAPON_OFF: "Левая рука",
 }
 
 const SLOT_COUNT: int = 9
@@ -64,11 +64,11 @@ const RARITY_COLORS: Dictionary = {
 }
 
 const RARITY_DISPLAY: Dictionary = {
-	RARITY_COMMON: "Common",
-	RARITY_RARE: "Rare",
-	RARITY_LEGENDARY: "Legendary",
-	RARITY_SET: "Set",
-	RARITY_UNIQUE: "Unique",
+	RARITY_COMMON: "Обычный",
+	RARITY_RARE: "Редкий",
+	RARITY_LEGENDARY: "Легендарный",
+	RARITY_SET: "Комплектный",
+	RARITY_UNIQUE: "Уникальный",
 }
 
 # Salvage gold per rarity (multiplied by ilvl). Used by sell_item ONLY —
@@ -87,9 +87,9 @@ const RARITY_SALVAGE: Dictionary = {
 const MATERIAL_IDS: Array = ["scrap", "cloth", "essence"]
 
 const MATERIAL_DISPLAY: Dictionary = {
-	"scrap": "Scrap",
-	"cloth": "Cloth",
-	"essence": "Essence",
+	"scrap": "Лом",
+	"cloth": "Ткань",
+	"essence": "Эссенция",
 }
 
 const MATERIAL_COLORS: Dictionary = {
@@ -131,16 +131,16 @@ const SLOT_SALVAGE_MATERIAL: Dictionary = {
 #                    (generic sets resolve per class via grants_by_class).
 #   bonus5.effect  — mini-transform effect id, checked at the relevant combat
 #                    site via InventorySystem.has_set_effect().
-# Piece counting: helmet/chest/gloves/boots count 1 each; ALL jewelry together
-# contributes at most 1 — the 5th piece is "any one jewelry" by design.
+# Piece counting: every equipped piece counts (armor slots + amulet + both
+# rings), so jewelry-only pairs trigger 2pc and any mix can reach the 5pc cap.
 const SETS: Dictionary = {
 	"hunters_oath":
 	{
-		"name": "Hunter's Oath",
-		"flavor": "The prey is already dead.",
+		"name": "Клятва охотника",
+		"flavor": "Добыча уже мертва.",
 		"classes": [],
 		"theme_affixes": ["crit_chance", "crit_dmg", "dexterity"],
-		"bonus2": {"stats": {"crit_chance": 6}, "label": "+6% crit chance"},
+		"bonus2": {"stats": {"crit_chance": 6}, "label": "+6% к шансу крита"},
 		"bonus4":
 		{
 			"grants_by_class":
@@ -153,21 +153,21 @@ const SETS: Dictionary = {
 				"necromancer": {"node": "gravebinder_dexterity", "ranks": 2},
 				"druid": {"node": "grovekeeper_dexterity", "ranks": 2},
 			},
-			"label": "+2 ranks of your Finesse talent",
+			"label": "+2 ранга вашего таланта Ловкости",
 		},
 		"bonus5":
 		{
 			"effect": "hunt_mark",
-			"label": "Your hits mark prey: +4% damage taken per stack (max 5)",
+			"label": "Удары метят добычу: +4% получаемого урона за стак (макс. 5)",
 		},
 	},
 	"bastion_vow":
 	{
-		"name": "Bastion Vow",
-		"flavor": "The wall does not kneel.",
+		"name": "Обет бастиона",
+		"flavor": "Стена не преклоняет колен.",
 		"classes": [],
 		"theme_affixes": ["armor", "max_hp", "strength"],
-		"bonus2": {"stats": {"max_hp": 40, "armor": 10}, "label": "+40 max HP, +10 armor"},
+		"bonus2": {"stats": {"max_hp": 40, "armor": 10}, "label": "+40 к макс. здоровью, +10 к броне"},
 		"bonus4":
 		{
 			"grants_by_class":
@@ -180,128 +180,139 @@ const SETS: Dictionary = {
 				"necromancer": {"node": "deathlord_strength", "ranks": 2},
 				"druid": {"node": "primal_alpha_strength", "ranks": 2},
 			},
-			"label": "+2 ranks of your Might talent",
+			"label": "+2 ранга вашего таланта Мощи",
 		},
 		"bonus5":
 		{
 			"effect": "bastion_shield",
-			"label": "Below 30% HP: gain a shield for 25% max HP (30s cooldown)",
+			"label": "Ниже 30% здоровья: щит на 25% макс. здоровья (перезарядка 30 с)",
 		},
 	},
 	"cinderweave":
 	{
-		"name": "Cinderweave",
-		"flavor": "Everything returns to ash.",
+		"name": "Пепельное плетение",
+		"flavor": "Всё возвращается в пепел.",
 		"classes": ["mage"],
 		"theme_affixes": ["fire_dmg", "max_mana", "intelligence"],
-		"bonus2": {"stats": {"max_mana": 25}, "label": "+25 max mana"},
-		"bonus4": {"grants": {"node": "mt_radius", "ranks": 2}, "label": "+2 ranks of Meteor radius"},
+		"bonus2": {"stats": {"max_mana": 25}, "label": "+25 к макс. мане"},
+		"bonus4":
+		{"grants": {"node": "mt_radius", "ranks": 2}, "label": "+2 ранга радиуса Метеора"},
 		"bonus5":
 		{
 			"effect": "mage_emberfall",
-			"label": "Meteor impacts leave a burning fire ring",
+			"label": "Удары Метеора оставляют горящее огненное кольцо",
 		},
 	},
 	"warbreaker_plate":
 	{
-		"name": "Warbreaker Plate",
-		"flavor": "Forged in the breach.",
+		"name": "Латы сокрушителя войн",
+		"flavor": "Откованы в проломе.",
 		"classes": ["barbarian"],
 		"theme_affixes": ["damage", "max_hp", "strength"],
-		"bonus2": {"stats": {"damage": 12}, "label": "+12% damage"},
+		"bonus2": {"stats": {"damage": 12}, "label": "+12% к урону"},
 		"bonus4":
-		{"grants": {"node": "barb_cry_power", "ranks": 2}, "label": "+2 ranks of Battle Cry power"},
+		{
+			"grants": {"node": "barb_cry_power", "ranks": 2},
+			"label": "+2 ранга силы Боевого клича"
+		},
 		"bonus5":
 		{
 			"effect": "barb_aftershock",
-			"label": "Earthquake shockwaves root enemies for 0.6s",
+			"label": "Ударные волны Землетрясения обездвиживают врагов на 0,6 с",
 		},
 	},
 	"nightshade_silks":
 	{
-		"name": "Nightshade Silks",
-		"flavor": "A whisper, then silence.",
+		"name": "Шелка ночной тени",
+		"flavor": "Шёпот — и тишина.",
 		"classes": ["rogue"],
 		"theme_affixes": ["crit_chance", "move_speed", "dexterity"],
-		"bonus2": {"stats": {"move_speed": 8}, "label": "+8% move speed"},
+		"bonus2": {"stats": {"move_speed": 8}, "label": "+8% к скорости бега"},
 		"bonus4":
 		{
 			"grants": {"node": "rogue_knives_count", "ranks": 2},
-			"label": "+2 ranks of Fan of Knives blades",
+			"label": "+2 ранга клинков Веера ножей",
 		},
 		"bonus5":
 		{
 			"effect": "rogue_toxin",
-			"label": "Fan of Knives daggers leave poison puddles",
+			"label": "Кинжалы Веера ножей оставляют ядовитые лужи",
 		},
 	},
 	"stormcage_array":
 	{
-		"name": "Stormcage Array",
-		"flavor": "The sky obeys.",
+		"name": "Грозовая клеть",
+		"flavor": "Небо повинуется.",
 		"classes": ["stormcaller"],
 		"theme_affixes": ["damage", "max_mana", "crit_dmg"],
-		"bonus2": {"stats": {"max_mana": 20}, "label": "+20 max mana"},
+		"bonus2": {"stats": {"max_mana": 20}, "label": "+20 к макс. мане"},
 		"bonus4":
 		{
 			"grants": {"node": "storm_bolt_jumps", "ranks": 2},
-			"label": "+2 ranks of Storm Bolt jumps",
+			"label": "+2 ранга прыжков Цепного разряда",
 		},
 		"bonus5":
 		{
 			"effect": "storm_overcharge",
-			"label": "Static Discharge at 6+ stacks fires a free Sky Strike",
+			"label": "Разряд статики при 6+ стаках бесплатно бьёт Небесным ударом",
 		},
 	},
 	"covenant_threads":
 	{
-		"name": "Covenant Threads",
-		"flavor": "Every pact is paid in blood.",
+		"name": "Нити договора",
+		"flavor": "Каждый договор оплачен кровью.",
 		"classes": ["hexen"],
 		"theme_affixes": ["damage", "max_hp", "intelligence"],
-		"bonus2": {"stats": {"max_hp": 30}, "label": "+30 max HP"},
+		"bonus2": {"stats": {"max_hp": 30}, "label": "+30 к макс. здоровью"},
 		"bonus4":
 		{
 			"grants": {"node": "hexen_mark_duration", "ranks": 2},
-			"label": "+2 ranks of Hex Mark duration",
+			"label": "+2 ранга длительности Метки проклятия",
 		},
 		"bonus5":
 		{
 			"effect": "hexen_echo_mark",
-			"label": "Detonating a Hex Mark spreads it to a nearby unmarked enemy",
+			"label": "Подрыв Метки проклятия переносит её на ближайшего врага без метки",
 		},
 	},
 	"gravewrought_regalia":
 	{
-		"name": "Gravewrought Regalia",
-		"flavor": "Service does not end at death.",
+		"name": "Могильные регалии",
+		"flavor": "Служба не кончается со смертью.",
 		"classes": ["necromancer"],
 		"theme_affixes": ["max_mana", "damage", "intelligence"],
-		"bonus2": {"stats": {"max_mana": 20}, "label": "+20 max mana"},
+		"bonus2": {"stats": {"max_mana": 20}, "label": "+20 к макс. мане"},
 		"bonus4":
 		{
 			"grants": {"node": "necro_pact_power", "ranks": 2},
-			"label": "+2 ranks of Blood Pact power",
+			"label": "+2 ранга силы Кровавого договора",
 		},
 		"bonus5":
 		{
 			"effect": "necro_grave_burst",
-			"label": "Your minions explode in a bone nova when they die",
+			"label": "Ваши приспешники, умирая, взрываются костяной новой",
 		},
 	},
 	"wildheart_totems":
 	{
-		"name": "Wildheart Totems",
-		"flavor": "The forest remembers its own.",
+		"name": "Тотемы дикого сердца",
+		"flavor": "Лес помнит своих.",
 		"classes": ["druid"],
 		"theme_affixes": ["max_hp", "move_speed", "strength"],
-		"bonus2": {"stats": {"move_speed": 5, "max_hp": 20}, "label": "+5% move speed, +20 max HP"},
+		"bonus2":
+		{
+			"stats": {"move_speed": 5, "max_hp": 20},
+			"label": "+5% к скорости бега, +20 к макс. здоровью"
+		},
 		"bonus4":
-		{"grants": {"node": "wolf_duration", "ranks": 2}, "label": "+2 ranks of Wolf Form duration"},
+		{
+			"grants": {"node": "wolf_duration", "ranks": 2},
+			"label": "+2 ранга длительности Облика волка"
+		},
 		"bonus5":
 		{
 			"effect": "druid_thorns",
-			"label": "While shapeshifted, attackers take 15% of dealt damage",
+			"label": "В зверином облике атакующие получают 15% нанесённого урона",
 		},
 	},
 }
@@ -318,7 +329,7 @@ const BASE_ITEMS: Array = [
 		"id": "iron_helmet",
 		"kind": "armor",
 		"slot": SLOT_HELMET,
-		"title": "Iron Helmet",
+		"title": "Железный шлем",
 		"icon": "res://assets/sprites/items/gear_helmet_iron.png",
 		"class_lock": "",
 	},
@@ -326,7 +337,7 @@ const BASE_ITEMS: Array = [
 		"id": "plate_chest",
 		"kind": "armor",
 		"slot": SLOT_CHEST,
-		"title": "Plated Chestguard",
+		"title": "Латный нагрудник",
 		"icon": "res://assets/sprites/items/gear_chest_plate.png",
 		"class_lock": "",
 	},
@@ -334,7 +345,7 @@ const BASE_ITEMS: Array = [
 		"id": "iron_gauntlets",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Iron Gauntlets",
+		"title": "Железные рукавицы",
 		"icon": "res://assets/sprites/items/gear_gloves_gauntlets.png",
 		"class_lock": "",
 	},
@@ -342,7 +353,7 @@ const BASE_ITEMS: Array = [
 		"id": "iron_greaves",
 		"kind": "armor",
 		"slot": SLOT_BOOTS,
-		"title": "Iron Greaves",
+		"title": "Железные поножи",
 		"icon": "res://assets/sprites/items/gear_boots_greaves.png",
 		"class_lock": "",
 	},
@@ -350,7 +361,7 @@ const BASE_ITEMS: Array = [
 		"id": "gothic_amulet",
 		"kind": "armor",
 		"slot": SLOT_AMULET,
-		"title": "Gothic Pendant",
+		"title": "Готический кулон",
 		"icon": "res://assets/sprites/items/gear_amulet_pendant.png",
 		"class_lock": "",
 	},
@@ -358,7 +369,7 @@ const BASE_ITEMS: Array = [
 		"id": "signet_ring",
 		"kind": "armor",
 		"slot": SLOT_RING_1,
-		"title": "Signet Ring",
+		"title": "Перстень-печатка",
 		"icon": "res://assets/sprites/items/gear_ring_signet.png",
 		"class_lock": "",
 	},
@@ -367,7 +378,7 @@ const BASE_ITEMS: Array = [
 		"id": "barb_2h_axe",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Cleaving Axe",
+		"title": "Рубящий топор",
 		"icon": "res://assets/sprites/items/weapon_barb_2h_axe.png",
 		"class_lock": "barbarian",
 		"weapon_hands": 2,
@@ -377,7 +388,7 @@ const BASE_ITEMS: Array = [
 		"id": "barb_1h_axe",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "War Hatchet",
+		"title": "Боевая секира",
 		"icon": "res://assets/sprites/items/weapon_barb_1h_axe.png",
 		"class_lock": "barbarian",
 		"weapon_hands": 1,
@@ -388,7 +399,7 @@ const BASE_ITEMS: Array = [
 		"id": "rogue_dagger",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Curved Dagger",
+		"title": "Изогнутый кинжал",
 		"icon": "res://assets/sprites/items/weapon_rogue_dagger.png",
 		"class_lock": "rogue",
 		"weapon_hands": 1,
@@ -398,7 +409,7 @@ const BASE_ITEMS: Array = [
 		"id": "rogue_bow",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Hunting Bow",
+		"title": "Охотничий лук",
 		"icon": "res://assets/sprites/items/weapon_rogue_bow.png",
 		"class_lock": "rogue",
 		"weapon_hands": 2,
@@ -409,7 +420,7 @@ const BASE_ITEMS: Array = [
 		"id": "mage_wand",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Arcane Wand",
+		"title": "Чародейский жезл",
 		"icon": "res://assets/sprites/items/weapon_mage_wand.png",
 		"class_lock": "mage",
 		"weapon_hands": 1,
@@ -419,7 +430,7 @@ const BASE_ITEMS: Array = [
 		"id": "mage_staff",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Crystal Staff",
+		"title": "Хрустальный посох",
 		"icon": "res://assets/sprites/items/weapon_mage_staff.png",
 		"class_lock": "mage",
 		"weapon_hands": 1,
@@ -433,7 +444,7 @@ const BASE_ITEMS: Array = [
 		"id": "mage_spell_tome",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_OFF,
-		"title": "Spell Tome",
+		"title": "Том заклинаний",
 		"icon": "res://assets/sprites/items/weapon_mage_wand.png",
 		"class_lock": "mage",
 		"weapon_hands": 1,
@@ -449,11 +460,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "berserkers_halo",
 		"kind": "armor",
 		"slot": SLOT_HELMET,
-		"title": "Berserker's Halo",
+		"title": "Нимб берсерка",
 		"icon": "res://assets/sprites/items/unique_berserker_halo.png",
 		"class_lock": "barbarian",
 		"transform": "berserkers_halo",
-		"transform_desc": "Whirlwind leaves a ring of fire that burns enemies for 3 seconds.",
+		"transform_desc": "Вихрь оставляет огненное кольцо, обжигающее врагов 3 секунды.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 24},
@@ -466,11 +477,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "crimson_aegis",
 		"kind": "armor",
 		"slot": SLOT_CHEST,
-		"title": "Crimson Aegis",
+		"title": "Багровая эгида",
 		"icon": "res://assets/sprites/items/unique_crimson_aegis.png",
 		"class_lock": "barbarian",
 		"transform": "crimson_aegis",
-		"transform_desc": "Battle Cry creates a burning aura that damages every enemy nearby.",
+		"transform_desc": "Боевой клич создаёт пылающую ауру, ранящую всех врагов поблизости.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 50},
@@ -483,11 +494,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "quakegrasp_gauntlets",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Quake-Grasp Gauntlets",
+		"title": "Рукавицы землехвата",
 		"icon": "res://assets/sprites/items/unique_quakegrasp_gauntlets.png",
 		"class_lock": "barbarian",
 		"transform": "quakegrasp_gauntlets",
-		"transform_desc": "Earthquake sends 5 shockwaves instead of 3, and they travel faster.",
+		"transform_desc": "Землетрясение выпускает 5 ударных волн вместо 3, и они летят быстрее.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 20},
@@ -500,13 +511,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "worldcleaver",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Worldcleaver",
+		"title": "Мирокол",
 		"icon": "res://assets/sprites/items/unique_worldcleaver.png",
 		"class_lock": "barbarian",
 		"weapon_hands": 2,
 		"weapon_damage_mult": 2.0,
 		"transform": "worldcleaver",
-		"transform_desc": "Leap Slam unleashes a mini-earthquake on landing.",
+		"transform_desc": "Прыжок-удар обрушивает мини-землетрясение при приземлении.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 35},
@@ -520,11 +531,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "phantom_soles",
 		"kind": "armor",
 		"slot": SLOT_BOOTS,
-		"title": "Phantom Soles",
+		"title": "Призрачные подошвы",
 		"icon": "res://assets/sprites/items/unique_phantom_soles.png",
 		"class_lock": "rogue",
 		"transform": "phantom_soles",
-		"transform_desc": "Dashing slashes Smoke Bomb's cooldown by 60%.",
+		"transform_desc": "Рывок сокращает перезарядку Дымовой бомбы на 60%.",
 		"fixed_affixes":
 		[
 			{"id": "move_speed", "value": 20},
@@ -537,11 +548,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "venomweave",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Venomweave",
+		"title": "Ядоплетение",
 		"icon": "res://assets/sprites/items/unique_venomweave.png",
 		"class_lock": "rogue",
 		"transform": "venomweave",
-		"transform_desc": "Each Fan of Knives blade leaves a poison puddle.",
+		"transform_desc": "Каждый клинок Веера ножей оставляет ядовитую лужу.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 18},
@@ -554,11 +565,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "mark_of_coil",
 		"kind": "armor",
 		"slot": SLOT_AMULET,
-		"title": "Mark of the Coil",
+		"title": "Знак Кольца",
 		"icon": "res://assets/sprites/items/unique_mark_of_coil.png",
 		"class_lock": "rogue",
 		"transform": "mark_of_coil",
-		"transform_desc": "Caltrops detonate after 4 seconds, dealing burst damage.",
+		"transform_desc": "Шипы детонируют через 4 секунды, нанося взрывной урон.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 22},
@@ -571,13 +582,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "whisper_edge",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Whisper-Edge",
+		"title": "Шёпот-клинок",
 		"icon": "res://assets/sprites/items/unique_whisper_edge.png",
 		"class_lock": "rogue",
 		"weapon_hands": 1,
 		"weapon_damage_mult": 1.3,
 		"transform": "whisper_edge",
-		"transform_desc": "Stealth attacks deal radial damage in a wide arc around you.",
+		"transform_desc": "Атаки из скрытности бьют по площади широкой дугой вокруг вас.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 28},
@@ -591,11 +602,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "storm_sigil",
 		"kind": "armor",
 		"slot": SLOT_RING_1,
-		"title": "Storm Sigil",
+		"title": "Грозовая печать",
 		"icon": "res://assets/sprites/items/unique_storm_sigil.png",
 		"class_lock": "mage",
 		"transform": "storm_sigil",
-		"transform_desc": "Chain Lightning leaps to 3 extra targets.",
+		"transform_desc": "Цепная молния перескакивает на 3 дополнительные цели.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 18},
@@ -608,11 +619,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "frostwalker",
 		"kind": "armor",
 		"slot": SLOT_BOOTS,
-		"title": "Frostwalker",
+		"title": "Ледоход",
 		"icon": "res://assets/sprites/items/unique_frostwalker.png",
 		"class_lock": "mage",
 		"transform": "frostwalker",
-		"transform_desc": "Each step leaves an icy trail that slows enemies.",
+		"transform_desc": "Каждый шаг оставляет ледяной след, замедляющий врагов.",
 		"fixed_affixes":
 		[
 			{"id": "move_speed", "value": 18},
@@ -625,11 +636,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "pyrocrown",
 		"kind": "armor",
 		"slot": SLOT_HELMET,
-		"title": "Pyrocrown",
+		"title": "Пирокорона",
 		"icon": "res://assets/sprites/items/unique_pyrocrown.png",
 		"class_lock": "mage",
 		"transform": "pyrocrown",
-		"transform_desc": "Meteor lands faster and leaves a burning crater.",
+		"transform_desc": "Метеор падает быстрее и оставляет горящий кратер.",
 		"fixed_affixes":
 		[
 			{"id": "fire_dmg", "value": 40},
@@ -644,13 +655,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "cinder_cascade",
 		"kind": "armor",
 		"slot": SLOT_AMULET,
-		"title": "Cinder Cascade",
+		"title": "Каскад углей",
 		"icon": "res://assets/sprites/items/icon_skill_meteor.png",
 		"class_lock": "mage",
 		"transform": "shower_cascade",
 		"requires_transform": "meteor_shower",
-		"requires_label": "Requires talent: Meteor Shower",
-		"transform_desc": "Meteor Shower rains 2 additional meteors.",
+		"requires_label": "Требуется талант: Метеоритный дождь",
+		"transform_desc": "Метеоритный дождь обрушивает 2 дополнительных метеора.",
 		"fixed_affixes":
 		[
 			{"id": "fire_dmg", "value": 25},
@@ -662,13 +673,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "glacial_heart",
 		"kind": "armor",
 		"slot": SLOT_RING_1,
-		"title": "Glacial Heart",
+		"title": "Ледниковое сердце",
 		"icon": "res://assets/sprites/items/icon_skill_ice_bolt.png",
 		"class_lock": "mage",
 		"transform": "nova_glacial",
 		"requires_transform": "frost_nova",
-		"requires_label": "Requires talent: Frost Nova",
-		"transform_desc": "Frost Nova also chills — repeated novas freeze enemies solid.",
+		"requires_label": "Требуется талант: Морозная нова",
+		"transform_desc": "Морозная нова вдобавок охлаждает — повторные новы намертво замораживают врагов.",
 		"fixed_affixes":
 		[
 			{"id": "max_mana", "value": 25},
@@ -680,13 +691,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "abyssal_lens",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Abyssal Lens",
+		"title": "Линза бездны",
 		"icon": "res://assets/sprites/items/icon_skill_chain_lightning.png",
 		"class_lock": "mage",
 		"transform": "beam_twin",
 		"requires_transform": "death_beam",
-		"requires_label": "Requires talent: Death Beam",
-		"transform_desc": "Death Beam also fires a second beam behind you.",
+		"requires_label": "Требуется талант: Луч смерти",
+		"transform_desc": "Луч смерти выпускает второй луч позади вас.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 20},
@@ -698,13 +709,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "voidstaff",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Voidstaff",
+		"title": "Посох пустоты",
 		"icon": "res://assets/sprites/items/unique_voidstaff.png",
 		"class_lock": "mage",
 		"weapon_hands": 2,
 		"weapon_damage_mult": 1.9,
 		"transform": "voidstaff",
-		"transform_desc": "Magic Bolt pierces straight through every enemy.",
+		"transform_desc": "Магический снаряд пронзает всех врагов насквозь.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 32},
@@ -719,14 +730,14 @@ const UNIQUE_ITEMS: Array = [
 		"id": "voltaic_tonfa",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Voltaic Tonfa",
+		"title": "Вольтова тонфа",
 		"icon": "res://assets/sprites/items/icon_unique_basic_voltaic_tonfa.png",
 		"class_lock": "stormcaller",
 		"weapon_hands": 1,
 		"weapon_damage_mult": 1.45,
 		"transform": "basic_storm_voltaic_tonfa",
 		"transform_desc":
-		"Basic attack becomes a melee lightning tonfa that chains to a second target.",
+		"Базовая атака становится молниевой тонфой ближнего боя, перескакивающей на вторую цель.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 22},
@@ -739,11 +750,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "stormveil",
 		"kind": "armor",
 		"slot": SLOT_CHEST,
-		"title": "Stormveil",
+		"title": "Грозовая вуаль",
 		"icon": "res://assets/sprites/items/icon_storm_stormveil.png",
 		"class_lock": "stormcaller",
 		"transform": "storm_stormveil",
-		"transform_desc": "Storm Step blinds enemies along the path with a 1.5s slow.",
+		"transform_desc": "Грозовой шаг ослепляет врагов на пути, замедляя их на 1,5 с.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 30},
@@ -756,11 +767,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "heavens_spear",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Heaven's Spear",
+		"title": "Копьё небес",
 		"icon": "res://assets/sprites/items/icon_storm_heavens_spear.png",
 		"class_lock": "stormcaller",
 		"transform": "storm_heavens_spear",
-		"transform_desc": "Sky Strike leaves charged ground patches that shock enemies for 1.2s.",
+		"transform_desc": "Небесный удар оставляет заряженные участки земли, бьющие врагов током 1,2 с.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 20},
@@ -772,12 +783,12 @@ const UNIQUE_ITEMS: Array = [
 		"id": "capacitor_core",
 		"kind": "armor",
 		"slot": SLOT_AMULET,
-		"title": "Capacitor Core",
+		"title": "Ядро конденсатора",
 		"icon": "res://assets/sprites/items/icon_storm_capacitor_core.png",
 		"class_lock": "stormcaller",
 		"transform": "storm_capacitor_core",
 		"transform_desc":
-		"Raises Static Charge cap to 9. Static Discharge refunds half its cooldown on 6+ stacks.",
+		"Лимит Статического заряда повышен до 9. Разряд статики при 6+ стаках возвращает половину перезарядки.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 18},
@@ -792,12 +803,12 @@ const UNIQUE_ITEMS: Array = [
 		"id": "eternal_mark",
 		"kind": "armor",
 		"slot": SLOT_AMULET,
-		"title": "Eternal Mark",
+		"title": "Вечная метка",
 		"icon": "res://assets/sprites/items/icon_hexen_eternal_mark.png",
 		"class_lock": "hexen",
 		"transform": "hexen_eternal_mark",
 		"transform_desc":
-		"Hex Marks never expire on their own — only Soul Tether or Blood Whip detonates them.",
+		"Метки проклятия не истекают сами — их подрывают только Узы души или Кровавый хлыст.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 18},
@@ -809,11 +820,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "tether_shock",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Tether Shock",
+		"title": "Шок уз",
 		"icon": "res://assets/sprites/items/icon_hexen_tether_shock.png",
 		"class_lock": "hexen",
 		"transform": "hexen_tether_shock",
-		"transform_desc": "Soul Tether briefly stuns linked enemies on big initial hits.",
+		"transform_desc": "Узы души ненадолго оглушают связанных врагов при сильных первых ударах.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 20},
@@ -825,11 +836,11 @@ const UNIQUE_ITEMS: Array = [
 		"id": "bloodmoon_ritual",
 		"kind": "armor",
 		"slot": SLOT_HELMET,
-		"title": "Bloodmoon Ritual",
+		"title": "Ритуал кровавой луны",
 		"icon": "res://assets/sprites/items/icon_hexen_bloodmoon.png",
 		"class_lock": "hexen",
 		"transform": "hexen_bloodmoon",
-		"transform_desc": "Crimson Ritual bursts on expiry; kills inside refund its cooldown.",
+		"transform_desc": "Багровый ритуал взрывается по истечении; убийства внутри возвращают перезарядку.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 24},
@@ -843,16 +854,16 @@ const UNIQUE_ITEMS: Array = [
 		"id": "bone_spear_unique",
 		"kind": "weapon",
 		"slot": SLOT_WEAPON_MAIN,
-		"title": "Bone Spear",
+		"title": "Костяное копьё",
 		"icon": "res://assets/sprites/items/icon_necro_bone_spear.png",
 		"class_lock": "necromancer",
 		"weapon_hands": 2,
 		"weapon_damage_mult": 1.85,
 		"transform": "bone_spear_splinters",
 		"requires_transform": "necro_bone_spear",
-		"requires_label": "Requires talent: Bone Spear",
+		"requires_label": "Требуется талант: Костяное копьё",
 		"transform_desc":
-		"Bone Spear shatters on its final pierce into 3 splinter bolts (50% damage).",
+		"Костяное копьё на последнем пробитии раскалывается на 3 осколка (50% урона).",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 30},
@@ -864,14 +875,14 @@ const UNIQUE_ITEMS: Array = [
 		"id": "curse_field_unique",
 		"kind": "armor",
 		"slot": SLOT_CHEST,
-		"title": "Curse Field",
+		"title": "Поле проклятия",
 		"icon": "res://assets/sprites/items/icon_necro_curse_field.png",
 		"class_lock": "necromancer",
 		"transform": "curse_field_harvest",
 		"requires_transform": "necro_curse_field",
-		"requires_label": "Requires talent: Curse Field",
+		"requires_label": "Требуется талант: Поле проклятия",
 		"transform_desc":
-		"Enemies dying inside Curse Field extend it by 1s (up to +5s) and heal your minions 10%.",
+		"Враги, гибнущие в Поле проклятия, продлевают его на 1 с (до +5 с) и лечат приспешников на 10%.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 28},
@@ -886,13 +897,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "druid_hurricane_unique",
 		"kind": "armor",
 		"slot": SLOT_HELMET,
-		"title": "Eye of the Storm",
+		"title": "Око бури",
 		"icon": "res://assets/sprites/items/icon_druid_hurricane.png",
 		"class_lock": "druid",
 		"transform": "hurricane_twin",
 		"requires_transform": "druid_hurricane",
-		"requires_label": "Requires talent: Hurricane",
-		"transform_desc": "Casting Hurricane spawns a second, smaller hurricane (60% size/damage).",
+		"requires_label": "Требуется талант: Ураган",
+		"transform_desc": "Ураган призывает второй, меньший ураган (60% размера и урона).",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 22},
@@ -904,13 +915,13 @@ const UNIQUE_ITEMS: Array = [
 		"id": "druid_dire_wolf_unique",
 		"kind": "armor",
 		"slot": SLOT_GLOVES,
-		"title": "Alpha Predator",
+		"title": "Альфа-хищник",
 		"icon": "res://assets/sprites/items/icon_druid_dire_wolf.png",
 		"class_lock": "druid",
 		"transform": "dire_wolf_rend",
 		"requires_transform": "druid_dire_wolf",
-		"requires_label": "Requires talent: Dire Wolf",
-		"transform_desc": "In Dire Wolf form, bites rend: targets bleed for 60% damage over 3s.",
+		"requires_label": "Требуется талант: Лютый волк",
+		"transform_desc": "В облике лютого волка укусы рвут: цели кровоточат на 60% урона за 3 с.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 26},
@@ -933,7 +944,7 @@ const UNIQUE_ITEMS: Array = [
 const AFFIX_POOL: Array = [
 	{
 		"id": "armor",
-		"title": "Armor",
+		"title": "Броня",
 		"min": 4,
 		"max": 9,
 		"per_ilvl": 2.0,
@@ -943,7 +954,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "max_hp",
-		"title": "Max HP",
+		"title": "Макс. здоровье",
 		"min": 8,
 		"max": 18,
 		"per_ilvl": 3.0,
@@ -952,7 +963,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "max_mana",
-		"title": "Max Mana",
+		"title": "Макс. мана",
 		"min": 6,
 		"max": 14,
 		"per_ilvl": 2.0,
@@ -961,7 +972,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "hp_regen",
-		"title": "HP Regen",
+		"title": "Восст. здоровья",
 		"min": 1,
 		"max": 2,
 		"per_ilvl": 0.4,
@@ -970,7 +981,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "damage",
-		"title": "Damage",
+		"title": "Урон",
 		"min": 4,
 		"max": 8,
 		"per_ilvl": 1.5,
@@ -987,7 +998,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "move_speed",
-		"title": "Move Speed",
+		"title": "Скорость бега",
 		"min": 4,
 		"max": 8,
 		"per_ilvl": 0.6,
@@ -996,7 +1007,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "crit_chance",
-		"title": "Crit Chance",
+		"title": "Шанс крита",
 		"min": 3,
 		"max": 7,
 		"per_ilvl": 0.4,
@@ -1013,7 +1024,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "crit_dmg",
-		"title": "Crit Damage",
+		"title": "Крит. урон",
 		"min": 8,
 		"max": 16,
 		"per_ilvl": 1.2,
@@ -1030,7 +1041,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "fire_dmg",
-		"title": "Fire Damage",
+		"title": "Урон огнём",
 		"min": 5,
 		"max": 10,
 		"per_ilvl": 1.0,
@@ -1047,7 +1058,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "gold_gain",
-		"title": "Gold Gain",
+		"title": "Добыча золота",
 		"min": 8,
 		"max": 16,
 		"per_ilvl": 1.2,
@@ -1056,7 +1067,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "xp_gain",
-		"title": "XP Gain",
+		"title": "Получение опыта",
 		"min": 6,
 		"max": 12,
 		"per_ilvl": 0.8,
@@ -1065,7 +1076,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "cdr",
-		"title": "Cooldown Reduction",
+		"title": "Сокращение перезарядки",
 		"min": 3,
 		"max": 6,
 		"per_ilvl": 0.3,
@@ -1075,7 +1086,7 @@ const AFFIX_POOL: Array = [
 	# Attributes — universal: legal on every slot.
 	{
 		"id": "strength",
-		"title": "Strength",
+		"title": "Сила",
 		"min": 1,
 		"max": 3,
 		"per_ilvl": 0.5,
@@ -1084,7 +1095,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "dexterity",
-		"title": "Dexterity",
+		"title": "Ловкость",
 		"min": 1,
 		"max": 3,
 		"per_ilvl": 0.5,
@@ -1093,7 +1104,7 @@ const AFFIX_POOL: Array = [
 	},
 	{
 		"id": "intelligence",
-		"title": "Intelligence",
+		"title": "Интеллект",
 		"min": 1,
 		"max": 3,
 		"per_ilvl": 0.5,
@@ -1141,7 +1152,7 @@ static func affixes_for_slot(slot: int) -> Array:
 
 
 static func slot_name(slot: int) -> String:
-	return String(SLOT_NAMES.get(slot, "Unknown"))
+	return String(SLOT_NAMES.get(slot, "Неизвестно"))
 
 
 static func find_set(set_id: String) -> Dictionary:
@@ -1235,21 +1246,21 @@ static func salvage_materials_for(slot: int, rarity: String, ilvl: int) -> Dicti
 	return out
 
 
-# "120g + 3 Scrap + 2 Essence" — for merchant buttons, tooltips and salvage previews.
+# «120з + 3 Лом + 2 Эссенция» — для кнопок торговца, подсказок и предпросмотра разбора.
 static func format_cost(cost: Dictionary) -> String:
 	if cost.is_empty():
 		return "—"
 	var parts: Array = []
 	var g: int = int(cost.get("gold", 0))
 	if g > 0:
-		parts.append("%dg" % g)
+		parts.append("%dз" % g)
 	for id in MATERIAL_IDS:
 		var n: int = int(cost.get(id, 0))
 		if n > 0:
 			parts.append("%d %s" % [n, String(MATERIAL_DISPLAY.get(id, id))])
 	var stones: Dictionary = cost.get("stones", {})
 	for set_id in stones:
-		parts.append("%d Stone" % int(stones[set_id]))
+		parts.append("%d Камень" % int(stones[set_id]))
 	if parts.is_empty():
-		return "free"
+		return "бесплатно"
 	return " + ".join(parts)

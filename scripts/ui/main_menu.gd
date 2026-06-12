@@ -224,7 +224,7 @@ func _build_mode_modal() -> Control:
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	margin.add_child(vb)
 	var title := Label.new()
-	title.text = "CHOOSE YOUR PATH"
+	title.text = "ВЫБЕРИТЕ СВОЙ ПУТЬ"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1, 0.85, 0.5, 1))
@@ -232,28 +232,28 @@ func _build_mode_modal() -> Control:
 	title.add_theme_constant_override("outline_size", 5)
 	vb.add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "Descend alone — or bring up to 3 friends"
+	subtitle.text = "Спускайтесь в одиночку — или возьмите до 3 друзей"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 14)
 	subtitle.add_theme_color_override("font_color", Color(0.85, 0.78, 0.62, 1))
 	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	subtitle.add_theme_constant_override("outline_size", 3)
 	vb.add_child(subtitle)
-	var solo_btn := _modal_button("PLAY SOLO", Color(0.95, 0.7, 0.4, 1))
+	var solo_btn := _modal_button("ИГРАТЬ СОЛО", Color(0.95, 0.7, 0.4, 1))
 	solo_btn.pressed.connect(
 		func():
 			_close_modal()
 			_go_to_lobby("solo")
 	)
 	vb.add_child(solo_btn)
-	var mp_btn := _modal_button("ONLINE CO-OP", Color(1.0, 0.4, 0.35, 1))
+	var mp_btn := _modal_button("СЕТЕВОЙ КООПЕРАТИВ", Color(1.0, 0.4, 0.35, 1))
 	mp_btn.pressed.connect(
 		func():
 			_close_modal()
 			_go_to_lobby("multiplayer")
 	)
 	vb.add_child(mp_btn)
-	var cancel_btn := _modal_button("Cancel", Color(0.85, 0.78, 0.62, 1))
+	var cancel_btn := _modal_button("Отмена", Color(0.85, 0.78, 0.62, 1))
 	cancel_btn.custom_minimum_size = Vector2(220, 56)
 	cancel_btn.pressed.connect(_close_modal)
 	vb.add_child(cancel_btn)

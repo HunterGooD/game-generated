@@ -15,7 +15,7 @@ var item_count: int = 1
 var ilvl_bonus: int = 0
 var chest_scale: float = 1.0
 var color: Color = Color(0.4, 0.85, 0.5)
-var label_text: String = "Cache"
+var label_text: String = "Тайник"
 var wave_hint: int = 10
 
 var _label: Label = null
@@ -108,13 +108,13 @@ func _open() -> void:
 	if kind == "dump":
 		var gold_gained: int = GameManager.arena_dump_to_gold()
 		if GameManager:
-			GameManager.notice.emit("Coffer emptied — +%d gold" % gold_gained, Color(1.0, 0.84, 0.3))
+			GameManager.notice.emit("Сундучок опустошён — +%d золота" % gold_gained, Color(1.0, 0.84, 0.3))
 		_consume()
 		return
 	# Priced cache.
 	if not GameManager.arena_spend(cost):
 		if GameManager:
-			GameManager.notice.emit("Not enough coin for %s" % label_text, Color(0.85, 0.5, 0.4))
+			GameManager.notice.emit("Недостаточно монет для «%s»" % label_text, Color(0.85, 0.5, 0.4))
 		return  # leave it — the player may open a cheaper one
 	var cls: String = String(GameManager.player_class)
 	for i in item_count:

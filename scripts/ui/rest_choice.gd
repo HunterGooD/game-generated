@@ -35,15 +35,15 @@ func _build() -> void:
 	dim.add_child(vb)
 
 	var title := Label.new()
-	title.text = "Campfire — Rest"
+	title.text = "Костёр — привал"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.7, 0.35))
 	vb.add_child(title)
 
-	vb.add_child(_button("Mend — full heal", _mend))
-	vb.add_child(_button("Train — +%d XP" % XP_BONUS, _train))
-	vb.add_child(_button("Prosper — +%d gold" % GOLD_BONUS, _prosper))
+	vb.add_child(_button("Исцелиться — полное лечение", _mend))
+	vb.add_child(_button("Тренироваться — +%d опыта" % XP_BONUS, _train))
+	vb.add_child(_button("Поживиться — +%d золота" % GOLD_BONUS, _prosper))
 
 	# Talent respec — campfire-only. Spends the rest like the other boons (the
 	# whole overlay closes on pick), priced per refunded point.
@@ -51,7 +51,7 @@ func _build() -> void:
 		var refund: int = GameManager.talent_respec_refund()
 		if refund > 0:
 			var cost: int = refund * RESPEC_GOLD_PER_POINT
-			var b := _button("Respec — refund %d talent pts (%d gold)" % [refund, cost], _respec)
+			var b := _button("Сброс талантов — вернуть %d очков (%d золота)" % [refund, cost], _respec)
 			b.disabled = GameManager.gold < cost
 			vb.add_child(b)
 

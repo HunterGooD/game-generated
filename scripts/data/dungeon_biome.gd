@@ -8,7 +8,7 @@ extends RefCounted
 const DEFS := {
 	"ruins":
 	{
-		"name": "Ancient Ruins",
+		"name": "Древние руины",
 		"floor": Color(0.6, 0.6, 0.72),
 		"wall": Color(0.5, 0.5, 0.72),
 		"light": Color(0.62, 0.6, 0.78),
@@ -20,7 +20,7 @@ const DEFS := {
 	},
 	"crypt":
 	{
-		"name": "Forgotten Crypt",
+		"name": "Забытый склеп",
 		"floor": Color(0.42, 0.44, 0.52),
 		"wall": Color(0.34, 0.36, 0.5),
 		"light": Color(0.34, 0.36, 0.46),  # darker → oppressive crypt gloom
@@ -30,7 +30,7 @@ const DEFS := {
 	},
 	"frost":
 	{
-		"name": "Frostbound Vault",
+		"name": "Морозное хранилище",
 		"floor": Color(0.62, 0.72, 0.85),
 		"wall": Color(0.5, 0.62, 0.82),
 		"light": Color(0.66, 0.74, 0.9),
@@ -40,7 +40,7 @@ const DEFS := {
 	},
 	"garden":
 	{
-		"name": "Overgrown Garden",
+		"name": "Заросший сад",
 		"floor": Color(0.5, 0.66, 0.5),
 		"wall": Color(0.42, 0.58, 0.46),
 		"light": Color(0.6, 0.74, 0.58),
@@ -50,7 +50,7 @@ const DEFS := {
 	},
 	"infernal":
 	{
-		"name": "Infernal Depths",
+		"name": "Адские глубины",
 		"floor": Color(0.8, 0.5, 0.45),
 		"wall": Color(0.66, 0.4, 0.4),
 		"light": Color(0.85, 0.55, 0.45),
@@ -74,7 +74,7 @@ static func get_def(biome: String) -> Dictionary:
 
 
 static func display_name(biome: String) -> String:
-	return String(get_def(biome).get("name", "Dungeon"))
+	return String(get_def(biome).get("name", "Подземелье"))
 
 
 static func floor_tint(biome: String) -> Color:

@@ -475,7 +475,7 @@ func _spawn_boss() -> void:
 			if is_instance_valid(b) and b.has_signal("boss_defeated") and not b.is_connected("boss_defeated", _on_boss_defeated):
 				b.connect("boss_defeated", _on_boss_defeated)
 	if GameManager:
-		GameManager.notice.emit("The dungeon's guardian awakens!", Color(1.0, 0.4, 0.35))
+		GameManager.notice.emit("Страж подземелья пробуждается!", Color(1.0, 0.4, 0.35))
 
 
 func _on_boss_defeated(_boss_id: String, reward: String) -> void:
@@ -558,7 +558,7 @@ func _spawn_portals(boss_center: Vector2) -> void:
 	if exit_portal.has_signal("activated"):
 		exit_portal.connect("activated", _on_exit)
 
-	var msg := "Boss slain! Take the portal to the map."
+	var msg := "Босс повержен! Идите в портал к карте."
 	if bool(_layer.call("has_descent")) and (GameManager.dungeon_depth if GameManager else 0) < 4:
 		var descent: Node2D = PORTAL_SCENE.instantiate()
 		add_child(descent)
@@ -567,7 +567,7 @@ func _spawn_portals(boss_center: Vector2) -> void:
 		if descent.has_signal("activated"):
 			descent.connect("activated", _on_descend)
 		var next_level: int = (GameManager.dungeon_depth if GameManager else 0) + 2
-		msg = "Boss slain!  Left portal → map.  Right portal → Level %d (×1.5 loot, harder)." % next_level
+		msg = "Босс повержен!  Левый портал → карта.  Правый портал → уровень %d (×1.5 добычи, сложнее)." % next_level
 	if GameManager:
 		GameManager.notice.emit(msg, Color(1.0, 0.86, 0.5))
 
@@ -582,7 +582,7 @@ func _on_descend() -> void:
 		GameManager.dungeon_depth += 1
 		# Deeper loot luck stacks a little each layer (the ×1.5-loot feel).
 		GameManager.dungeon_loot_luck += 0.15
-		GameManager.notice.emit("Descending to Level %d…" % (GameManager.dungeon_depth + 1), Color(1.0, 0.6, 0.5))
+		GameManager.notice.emit("Спуск на уровень %d…" % (GameManager.dungeon_depth + 1), Color(1.0, 0.6, 0.5))
 	get_tree().reload_current_scene()  # rebuild the dungeon one layer deeper
 
 
@@ -635,4 +635,4 @@ func _build_fallback() -> void:
 	if portal.has_signal("activated"):
 		portal.connect("activated", _on_exit)
 	if GameManager:
-		GameManager.notice.emit("Dungeon (fallback room) — take the portal to the map.", Color(1.0, 0.86, 0.5))
+		GameManager.notice.emit("Подземелье (запасная комната) — идите в портал к карте.", Color(1.0, 0.86, 0.5))

@@ -34,26 +34,26 @@ const ULT_NODES := [
 	{
 		"id": "ult_power",
 		"kind": "ult",
-		"name": "Awakened Might",
-		"desc": "+10% ultimate (R) damage per rank.",
+		"name": "Пробуждённая мощь",
+		"desc": "+10% урона ультимейта (R) за ранг.",
 		"max_ranks": -1,
 	},
 	{
 		"id": "ult_haste",
 		"kind": "ult",
-		"name": "Awakened Tempo",
-		"desc": "-5% ultimate (R) cooldown per rank (max -50%).",
+		"name": "Пробуждённый темп",
+		"desc": "−5% перезарядки ультимейта (R) за ранг (макс. −50%).",
 		"max_ranks": ULT_HASTE_MAX_RANKS,
 	},
 ]
 
 # Shorthand builders keep the tree tables readable.
 static func _stat(branch_id: String, stat: String) -> Dictionary:
-	const NAMES := {"strength": "Might", "dexterity": "Finesse", "intelligence": "Insight"}
+	const NAMES := {"strength": "Мощь", "dexterity": "Ловкость", "intelligence": "Прозрение"}
 	const DESCS := {
-		"strength": "+2 Strength per rank (melee/basic damage, max HP).",
-		"dexterity": "+2 Dexterity per rank (attack speed, move speed, crit).",
-		"intelligence": "+2 Intelligence per rank (skill damage, mana, cooldowns).",
+		"strength": "+2 Силы за ранг (урон в ближнем бою и базовый, макс. здоровье).",
+		"dexterity": "+2 Ловкости за ранг (скорость атаки, скорость бега, крит).",
+		"intelligence": "+2 Интеллекта за ранг (урон навыков, мана, перезарядки).",
 	}
 	return {
 		"id": "%s_%s" % [branch_id, stat],
@@ -83,7 +83,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "battlemage",
-					"name": "Battlemage",
+					"name": "Боевой маг",
 					"stat": "strength",
 					"tiers":
 					[
@@ -94,7 +94,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "elementalist",
-					"name": "Elementalist",
+					"name": "Элементалист",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -105,7 +105,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "chronomancer",
-					"name": "Chronomancer",
+					"name": "Хрономант",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -119,7 +119,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "berserker",
-					"name": "Berserker",
+					"name": "Берсерк",
 					"stat": "strength",
 					"tiers":
 					[
@@ -128,8 +128,8 @@ static func branches_for(cls: String) -> Array:
 							{
 								"id": "berserker_grip",
 								"kind": "perk",
-								"name": "Berserker's Grip",
-								"desc": "Wield TWO two-handed weapons at once. Weapon damage stacks.",
+								"name": "Хватка берсерка",
+								"desc": "Носите ДВА двуручных оружия разом. Урон оружия складывается.",
 								"max_ranks": 1,
 							}
 						],
@@ -137,7 +137,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "warchief",
-					"name": "Warchief",
+					"name": "Вождь",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -147,7 +147,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "titanbreaker",
-					"name": "Titanbreaker",
+					"name": "Крушитель титанов",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -160,7 +160,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "assassin",
-					"name": "Assassin",
+					"name": "Ассасин",
 					"stat": "strength",
 					"tiers":
 					[
@@ -170,7 +170,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "trickster",
-					"name": "Trickster",
+					"name": "Ловкач",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -180,7 +180,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "venomancer",
-					"name": "Venomancer",
+					"name": "Отравитель",
 					"stat": "intelligence",
 					"tiers": [[_stat("venomancer", "intelligence"), _mod("rogue_poison_damage")]],
 				},
@@ -189,7 +189,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "primal_alpha",
-					"name": "Primal Alpha",
+					"name": "Первобытный альфа",
 					"stat": "strength",
 					"tiers":
 					[
@@ -200,7 +200,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "grovekeeper",
-					"name": "Grovekeeper",
+					"name": "Хранитель рощи",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -211,7 +211,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "stormshaper",
-					"name": "Stormshaper",
+					"name": "Ваятель бурь",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -225,7 +225,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "deathlord",
-					"name": "Deathlord",
+					"name": "Лорд смерти",
 					"stat": "strength",
 					"tiers":
 					[
@@ -235,7 +235,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "bone_architect",
-					"name": "Bone Architect",
+					"name": "Костяной зодчий",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -246,7 +246,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "gravebinder",
-					"name": "Gravebinder",
+					"name": "Могильный вязатель",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -259,7 +259,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "blood_witch",
-					"name": "Blood Witch",
+					"name": "Кровавая ведьма",
 					"stat": "strength",
 					"tiers":
 					[
@@ -270,7 +270,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "curseweaver",
-					"name": "Curseweaver",
+					"name": "Ткачиха проклятий",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -281,7 +281,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "coven_mother",
-					"name": "Coven Mother",
+					"name": "Мать ковена",
 					"stat": "dexterity",
 					"tiers":
 					[
@@ -294,7 +294,7 @@ static func branches_for(cls: String) -> Array:
 			return [
 				{
 					"id": "thunderblade",
-					"name": "Thunderblade",
+					"name": "Громовой клинок",
 					"stat": "strength",
 					"tiers":
 					[
@@ -304,7 +304,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "tempest_lord",
-					"name": "Tempest Lord",
+					"name": "Повелитель бури",
 					"stat": "intelligence",
 					"tiers":
 					[
@@ -315,7 +315,7 @@ static func branches_for(cls: String) -> Array:
 				},
 				{
 					"id": "conductor",
-					"name": "Conductor",
+					"name": "Проводник",
 					"stat": "dexterity",
 					"tiers":
 					[

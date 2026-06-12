@@ -166,15 +166,15 @@ func _build_preroom_ui() -> void:
 	vb.add_theme_constant_override("separation", 14)
 	margin.add_child(vb)
 
-	var title := _label("ONLINE CO-OP", 34, Color(1, 0.85, 0.5, 1))
+	var title := _label("СЕТЕВОЙ КООПЕРАТИВ", 34, Color(1, 0.85, 0.5, 1))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
 
-	preroom_status = _label("Host or join a session", 17, Color(0.85, 0.78, 0.62, 1))
+	preroom_status = _label("Создайте сессию или присоединитесь", 17, Color(0.85, 0.78, 0.62, 1))
 	preroom_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(preroom_status)
 
-	var server_lbl := _label("Server address", 14, Color(0.9, 0.7, 0.4, 1))
+	var server_lbl := _label("Адрес сервера", 14, Color(0.9, 0.7, 0.4, 1))
 	server_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(server_lbl)
 
@@ -188,7 +188,7 @@ func _build_preroom_ui() -> void:
 	vb.add_child(server_input)
 
 	# Host count picker.
-	var host_lbl := _label("Host a session — choose lobby size", 14, Color(0.9, 0.7, 0.4, 1))
+	var host_lbl := _label("Создать сессию — выберите размер лобби", 14, Color(0.9, 0.7, 0.4, 1))
 	host_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(host_lbl)
 
@@ -203,17 +203,17 @@ func _build_preroom_ui() -> void:
 		host_count_buttons.append(b)
 	_pick_count(4)
 
-	host_btn = _make_button("HOST GAME", 320, 70, 22)
+	host_btn = _make_button("СОЗДАТЬ ИГРУ", 320, 70, 22)
 	host_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	host_btn.pressed.connect(_on_host)
 	vb.add_child(host_btn)
 
-	var join_lbl := _label("Or join a friend — enter their code", 14, Color(0.9, 0.7, 0.4, 1))
+	var join_lbl := _label("Или зайдите к другу — введите его код", 14, Color(0.9, 0.7, 0.4, 1))
 	join_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(join_lbl)
 
 	join_input = LineEdit.new()
-	join_input.placeholder_text = "ROOM CODE"
+	join_input.placeholder_text = "КОД КОМНАТЫ"
 	join_input.max_length = 8
 	join_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	join_input.custom_minimum_size = Vector2(280, 50)
@@ -221,12 +221,12 @@ func _build_preroom_ui() -> void:
 	join_input.add_theme_font_size_override("font_size", 28)
 	vb.add_child(join_input)
 
-	join_btn = _make_button("JOIN GAME", 320, 70, 22)
+	join_btn = _make_button("ПРИСОЕДИНИТЬСЯ", 320, 70, 22)
 	join_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	join_btn.pressed.connect(_on_join)
 	vb.add_child(join_btn)
 
-	var back_btn := _make_button("Back to Menu", 220, 50, 16)
+	var back_btn := _make_button("Назад в меню", 220, 50, 16)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back_btn.pressed.connect(_on_back_to_menu)
 	vb.add_child(back_btn)
@@ -254,7 +254,7 @@ func _build_inroom_ui() -> void:
 	vb.offset_top = 30
 	vb.offset_bottom = -30
 
-	var title := _label("THE PARTY GATHERS", 38, Color(1, 0.85, 0.5, 1))
+	var title := _label("ОТРЯД СОБИРАЕТСЯ", 38, Color(1, 0.85, 0.5, 1))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
 
@@ -263,10 +263,10 @@ func _build_inroom_ui() -> void:
 	code_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	code_row.add_theme_constant_override("separation", 16)
 	vb.add_child(code_row)
-	code_label = _label("ROOM CODE: ----", 32, Color(1.0, 0.4, 0.35, 1))
+	code_label = _label("КОД КОМНАТЫ: ----", 32, Color(1.0, 0.4, 0.35, 1))
 	code_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	code_row.add_child(code_label)
-	copy_code_btn = _make_button("Copy Code", 180, 56, 16)
+	copy_code_btn = _make_button("Скопировать код", 180, 56, 16)
 	copy_code_btn.pressed.connect(_copy_code)
 	code_row.add_child(copy_code_btn)
 
@@ -275,15 +275,15 @@ func _build_inroom_ui() -> void:
 	url_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	url_row.add_theme_constant_override("separation", 16)
 	vb.add_child(url_row)
-	url_label = _label("Share this URL with friends: …", 14, Color(0.78, 0.72, 0.55, 1))
+	url_label = _label("Поделитесь ссылкой с друзьями: …", 14, Color(0.78, 0.72, 0.55, 1))
 	url_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	url_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	url_row.add_child(url_label)
-	copy_url_btn = _make_button("Copy URL", 180, 48, 14)
+	copy_url_btn = _make_button("Скопировать URL", 180, 48, 14)
 	copy_url_btn.pressed.connect(_copy_url)
 	url_row.add_child(copy_url_btn)
 
-	status_label = _label("Waiting for the host to start...", 18, Color(0.9, 0.85, 0.6, 1))
+	status_label = _label("Ждём, пока хост начнёт...", 18, Color(0.9, 0.85, 0.6, 1))
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(status_label)
 
@@ -298,7 +298,7 @@ func _build_inroom_ui() -> void:
 		slot_panels.append(card)
 
 	# Class chooser row.
-	var your_lbl := _label("YOUR CHARACTER", 24, Color(1.0, 0.85, 0.4, 1))
+	var your_lbl := _label("ВАШ ПЕРСОНАЖ", 24, Color(1.0, 0.85, 0.4, 1))
 	your_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(your_lbl)
 
@@ -325,14 +325,14 @@ func _build_inroom_ui() -> void:
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	btn_row.add_theme_constant_override("separation", 18)
 	vb.add_child(btn_row)
-	ready_btn = _make_button("READY", 260, 72, 26)
+	ready_btn = _make_button("ГОТОВ", 260, 72, 26)
 	ready_btn.pressed.connect(_toggle_ready)
 	btn_row.add_child(ready_btn)
-	start_btn = _make_button("START GAME", 320, 72, 26)
+	start_btn = _make_button("НАЧАТЬ ИГРУ", 320, 72, 26)
 	start_btn.disabled = true
 	start_btn.pressed.connect(_on_start)
 	btn_row.add_child(start_btn)
-	leave_btn = _make_button("Leave", 180, 56, 16)
+	leave_btn = _make_button("Выйти", 180, 56, 16)
 	leave_btn.pressed.connect(_on_leave)
 	btn_row.add_child(leave_btn)
 
@@ -347,7 +347,7 @@ func _build_slot_card(idx: int) -> PanelContainer:
 	card.add_child(vb)
 	var name_lbl := Label.new()
 	name_lbl.name = "Name"
-	name_lbl.text = "Empty"
+	name_lbl.text = "Пусто"
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.add_theme_font_size_override("font_size", 18)
 	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.65, 0.55, 1))
@@ -491,15 +491,15 @@ func _enter_solo() -> void:
 		NetManager.max_players = 1
 	_show_state("inroom")
 	if code_label:
-		code_label.text = "SOLO RUN"
+		code_label.text = "ОДИНОЧНЫЙ ЗАБЕГ"
 	if url_label:
-		url_label.text = "Pick a class and start your descent."
+		url_label.text = "Выберите класс и начните своё нисхождение."
 	if copy_code_btn:
 		copy_code_btn.visible = false
 	if copy_url_btn:
 		copy_url_btn.visible = false
 	if status_label:
-		status_label.text = "Pick a class and press READY to begin."
+		status_label.text = "Выберите класс и нажмите ГОТОВ, чтобы начать."
 	_refresh_inroom()
 
 
@@ -511,7 +511,7 @@ func _apply_server_address() -> bool:
 	var raw: String = server_input.text.strip_edges()
 	if raw == "":
 		if preroom_status:
-			preroom_status.text = "Enter server address"
+			preroom_status.text = "Введите адрес сервера"
 		return false
 	if ":" in raw:
 		var parts: PackedStringArray = raw.split(":", false, 1)
@@ -538,7 +538,7 @@ func _on_host() -> void:
 	NetManager.is_multiplayer = true
 	NetManager.create_room(picked_count)
 	if preroom_status:
-		preroom_status.text = "Creating room..."
+		preroom_status.text = "Создаём комнату..."
 	if host_btn:
 		host_btn.disabled = true
 	if join_btn:
@@ -555,14 +555,14 @@ func _on_join() -> void:
 	var code: String = join_input.text.strip_edges().to_upper()
 	if code.length() < 3:
 		if preroom_status:
-			preroom_status.text = "Enter a valid room code"
+			preroom_status.text = "Введите корректный код комнаты"
 		return
 	NetManager.is_multiplayer = true
 	NetManager.is_host = false
 	NetManager.connect_to_room(code)
 	NetManager.room_code = code
 	if preroom_status:
-		preroom_status.text = "Joining " + code + "..."
+		preroom_status.text = "Заходим в " + code + "..."
 	if host_btn:
 		host_btn.disabled = true
 	if join_btn:
@@ -581,10 +581,10 @@ func _on_room_created(code: String) -> void:
 	# Show the code right away and move to in-room.
 	_show_state("inroom")
 	if code_label:
-		code_label.text = "ROOM CODE: %s" % code
+		code_label.text = "КОД КОМНАТЫ: %s" % code
 	_set_url_label()
 	if status_label:
-		status_label.text = "Waiting for players (1/%d)..." % NetManager.max_players
+		status_label.text = "Ждём игроков (1/%d)..." % NetManager.max_players
 
 
 func _on_peer_joined(player_id: int, total: int) -> void:
@@ -592,10 +592,10 @@ func _on_peer_joined(player_id: int, total: int) -> void:
 	if state == "preroom":
 		_show_state("inroom")
 		if code_label:
-			code_label.text = "ROOM CODE: %s" % NetManager.room_code
+			code_label.text = "КОД КОМНАТЫ: %s" % NetManager.room_code
 		_set_url_label()
 	if status_label:
-		status_label.text = "Connected: %d / %d" % [total, NetManager.max_players]
+		status_label.text = "Подключено: %d / %d" % [total, NetManager.max_players]
 	# Mark this player slot as occupied (even before class picked).
 	peer_classes[player_id] = peer_classes.get(player_id, "")
 	peer_ready[player_id] = peer_ready.get(player_id, false)
@@ -611,7 +611,7 @@ func _on_peer_joined(player_id: int, total: int) -> void:
 
 func _on_all_joined() -> void:
 	if status_label:
-		status_label.text = "All players present. Pick your class and press READY."
+		status_label.text = "Все игроки на месте. Выберите класс и нажмите ГОТОВ."
 
 
 func _on_ws_open() -> void:
@@ -622,17 +622,17 @@ func _on_ws_open() -> void:
 	if state == "preroom" and NetManager and NetManager.is_multiplayer:
 		_show_state("inroom")
 		if code_label and NetManager.room_code != "":
-			code_label.text = "ROOM CODE: %s" % NetManager.room_code
+			code_label.text = "КОД КОМНАТЫ: %s" % NetManager.room_code
 		_set_url_label()
 		if status_label:
-			status_label.text = "Connected — waiting for the host to start the run..."
+			status_label.text = "Подключено — ждём, пока хост начнёт забег..."
 
 
 func _on_peer_disconnected(pid: int) -> void:
 	if pid < 0:
 		# Server / host disconnect — bounce to main menu.
 		if status_label:
-			status_label.text = "Connection lost — returning to menu..."
+			status_label.text = "Связь потеряна — возвращаемся в меню..."
 		var t := get_tree().create_timer(1.6)
 		t.timeout.connect(_on_back_to_menu)
 		return
@@ -643,7 +643,7 @@ func _on_peer_disconnected(pid: int) -> void:
 
 func _on_conn_failed(reason: String) -> void:
 	if preroom_status:
-		preroom_status.text = "Connection failed: " + reason
+		preroom_status.text = "Не удалось подключиться: " + reason
 	if host_btn:
 		host_btn.disabled = false
 	if join_btn:
@@ -686,7 +686,7 @@ func _pick_class(class_id: String) -> void:
 func _toggle_ready() -> void:
 	if local_class == "":
 		if status_label:
-			status_label.text = "Pick a class first!"
+			status_label.text = "Сначала выберите класс!"
 		return
 	local_ready = not local_ready
 	if AudioManager:
@@ -707,7 +707,7 @@ func _on_start() -> void:
 		return
 	if not _all_players_ready():
 		if status_label:
-			status_label.text = "All players must be READY first."
+			status_label.text = "Сначала все игроки должны нажать ГОТОВ."
 		return
 	NetManager.send("lobby_start", {})
 	_do_start()
@@ -751,18 +751,18 @@ func _refresh_inroom() -> void:
 		)
 		if not occupied:
 			if name_lbl:
-				name_lbl.text = "Empty"
+				name_lbl.text = "Пусто"
 			if portrait:
 				portrait.texture = null
 				portrait.modulate = Color(0.4, 0.4, 0.4, 0.6)
 			if class_lbl:
-				class_lbl.text = "Waiting..."
+				class_lbl.text = "Ожидание..."
 			if ready_lbl:
 				ready_lbl.text = ""
 			continue
 		var is_local: bool = i == (NetManager.local_player_id if NetManager else 0)
 		if name_lbl:
-			name_lbl.text = "P%d (you)" % (i + 1) if is_local else "P%d" % (i + 1)
+			name_lbl.text = "И%d (вы)" % (i + 1) if is_local else "И%d" % (i + 1)
 		var cid: String = local_class if is_local else String(peer_classes.get(i, ""))
 		if cid != "":
 			var data: Dictionary = GameManager.get_class_data(cid) if GameManager else {}
@@ -779,10 +779,10 @@ func _refresh_inroom() -> void:
 				portrait.texture = null
 				portrait.modulate = Color(0.4, 0.4, 0.4, 0.6)
 			if class_lbl:
-				class_lbl.text = "Picking..."
+				class_lbl.text = "Выбирает..."
 		var r: bool = local_ready if is_local else bool(peer_ready.get(i, false))
 		if ready_lbl:
-			ready_lbl.text = "✓ READY" if r else ""
+			ready_lbl.text = "✓ ГОТОВ" if r else ""
 
 	# Highlight selected class button.
 	for b in class_buttons:
@@ -792,7 +792,7 @@ func _refresh_inroom() -> void:
 
 	# Ready button text.
 	if ready_btn:
-		_set_btn_text(ready_btn, "UNREADY" if local_ready else "READY")
+		_set_btn_text(ready_btn, "НЕ ГОТОВ" if local_ready else "ГОТОВ")
 		_set_btn_color(
 			ready_btn, Color(0.4, 1.0, 0.5, 1) if local_ready else Color(1.0, 0.85, 0.45, 1)
 		)
@@ -829,7 +829,7 @@ func _set_url_label() -> void:
 	var url: String = _get_current_url()
 	if url_label:
 		url_label.text = (
-			"Friends open: %s   (Choose → Join → %s)"
+			"Друзья открывают: %s   (Выбрать → Присоединиться → %s)"
 			% [url, NetManager.room_code if NetManager else "----"]
 		)
 
@@ -847,8 +847,8 @@ func _get_current_url() -> String:
 			raw = raw.substr(0, h)
 		if raw != "":
 			return raw
-		return "this game's URL"
-	return "this game's URL"
+		return "адрес этой игры"
+	return "адрес этой игры"
 
 
 func _copy_code() -> void:
@@ -865,7 +865,7 @@ func _copy_code() -> void:
 	else:
 		DisplayServer.clipboard_set(code)
 	if status_label:
-		status_label.text = "Code copied — share it with friends!"
+		status_label.text = "Код скопирован — поделитесь с друзьями!"
 
 
 func _copy_url() -> void:
@@ -876,7 +876,7 @@ func _copy_url() -> void:
 	else:
 		DisplayServer.clipboard_set(url)
 	if status_label:
-		status_label.text = "URL copied — paste it to a friend!"
+		status_label.text = "Ссылка скопирована — отправьте её другу!"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

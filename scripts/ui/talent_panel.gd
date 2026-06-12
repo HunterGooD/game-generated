@@ -72,7 +72,7 @@ func _build_chrome() -> void:
 	margin.add_child(v)
 
 	var title := Label.new()
-	title.text = "Talents — %s   [T]" % _class_display()
+	title.text = "Таланты — %s   [T]" % _class_display()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(1, 0.92, 0.65))
@@ -99,7 +99,7 @@ func _build_chrome() -> void:
 	footer.add_child(_stats_label)
 
 	var close_btn := Button.new()
-	close_btn.text = "Close"
+	close_btn.text = "Закрыть"
 	close_btn.custom_minimum_size = Vector2(140, 40)
 	close_btn.pressed.connect(_close)
 	footer.add_child(close_btn)
@@ -120,7 +120,7 @@ func _rebuild() -> void:
 	var branches: Array = TalentTrees.branches_for(cls)
 	if branches.is_empty():
 		var empty := Label.new()
-		empty.text = "This class has no talent tree yet."
+		empty.text = "У этого класса пока нет дерева талантов."
 		_columns_row.add_child(empty)
 	for b in branches.size():
 		_columns_row.add_child(_build_branch_column(cls, b, branches[b]))
@@ -266,7 +266,7 @@ func _on_node_hover(node: Dictionary, reason: String) -> void:
 	var meta: String = ""
 	var slot: int = TalentTrees.node_slot(node)
 	if slot >= 0:
-		meta = "Affects: %s" % RewardData.slot_name(slot)
+		meta = "Влияет на: %s" % RewardData.slot_name(slot)
 	if reason != "":
 		meta += ("    " if meta != "" else "") + reason
 	var rarity: String = "unique" if kind == "transform" else "common"
@@ -283,9 +283,9 @@ func _on_node_exit() -> void:
 func _refresh_footer() -> void:
 	if GameManager == null or _points_label == null:
 		return
-	_points_label.text = "Points: %d" % GameManager.talent_points
+	_points_label.text = "Очки: %d" % GameManager.talent_points
 	_stats_label.text = (
-		"Str %d  •  Dex %d  •  Int %d      respec at any campfire"
+		"Сила %d  •  Лвк %d  •  Инт %d      сброс у любого костра"
 		% [
 			GameManager.get_effective_strength(),
 			GameManager.get_effective_dexterity(),

@@ -102,7 +102,7 @@ func _build_difficulty_picker() -> void:
 		vb.add_child(wait)
 		return
 	var title := Label.new()
-	title.text = "Choose Difficulty"
+	title.text = "Выберите сложность"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 34)
 	title.add_theme_color_override("font_color", Color(1.0, 0.86, 0.55))
@@ -111,7 +111,7 @@ func _build_difficulty_picker() -> void:
 		var info: Dictionary = Difficulty.get_tier(tier)
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(320, 52)
-		b.text = "%s   (enemies ×%.1f hp / ×%.1f dmg, loot +%d%%)" % [
+		b.text = "%s   (враги ×%.1f здор. / ×%.1f урона, добыча +%d%%)" % [
 			String(info.get("name", "?")),
 			float(info.get("enemy_hp_mult", 1.0)),
 			float(info.get("enemy_dmg_mult", 1.0)),
@@ -241,7 +241,7 @@ func _refresh_force_btn() -> void:
 		# unanimous vote) or the party count is stale after a disconnect.
 		var voted: int = RunFlow._valid_votes().size()
 		_force_btn.disabled = voted < 1
-		_force_btn.text = "Travel ▶ (%d/%d)" % [voted, RunFlow.party_size()]
+		_force_btn.text = "Идти ▶ (%d/%d)" % [voted, RunFlow.party_size()]
 
 
 func _style_button(b: Button, tint: Color, bright: bool) -> void:
@@ -276,7 +276,15 @@ func _build_chrome() -> void:
 	var header := Label.new()
 	header.position = Vector2(24, 18)
 	var diff_name: String = Difficulty.name_of(GameManager.run_difficulty)
-	header.text = "Run Map — %s" % diff_name
+	header.text = "Карта забега — %s" % diff_name
+	# Endless loops raise the stakes — make the current loop visible up top.
+	if GameManager.run_loop > 0:
+		header.text += "  •  Виток %d  (+%d%% здоровья, +%d%% урона, +%d%% удачи добычи)" % [
+			GameManager.run_loop,
+			int(round((GameManager.loop_enemy_hp_mult() - 1.0) * 100.0)),
+			int(round((GameManager.loop_enemy_dmg_mult() - 1.0) * 100.0)),
+			int(round(GameManager.loop_loot_luck() * 100.0)),
+		]
 	header.add_theme_font_size_override("font_size", 22)
 	header.add_theme_color_override("font_color", Color(0.92, 0.9, 0.78))
 	_root.add_child(header)
@@ -290,11 +298,10 @@ func _build_chrome() -> void:
 	_root.add_child(_banner)
 
 	var close := Button.new()
-	close.text = "Close"
 	close.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	close.position = Vector2(-104, 16)
 	close.custom_minimum_size = Vector2(120, 36)
-	close.text = "Back to Hub"
+	close.text = "Назад в хаб"
 	close.pressed.connect(_on_close)
 	_root.add_child(close)
 
@@ -337,12 +344,22 @@ func _on_node_entered(node: Dictionary) -> void:
 	if _banner:
 		var affixes: Array = node.get("affixes", [])
 		var extra: String = "  [%s]" % ", ".join(affixes) if not affixes.is_empty() else ""
-		_banner.text = "Entered: %s%s" % [String(node.get("type", "?")).capitalize(), extra]
+		const TYPE_NAMES := {
+			"dungeon": "Подземелье",
+			"arena": "Арена",
+			"merchant": "Торговец",
+			"campfire": "Костёр",
+			"elite": "Элита",
+			"boss": "Босс",
+			"event": "Событие",
+		}
+		var t: String = String(node.get("type", "?"))
+		_banner.text = "Вошли: %s%s" % [String(TYPE_NAMES.get(t, t.capitalize())), extra]
 	_refresh()
 
 
 func _on_completed() -> void:
 	if _banner:
 		_banner.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-		_banner.text = "★ RUN COMPLETE — the uber-boss falls ★"
+		_banner.text = "★ ЗАБЕГ ПРОЙДЕН — убер-босс пал ★"
 	_refresh()

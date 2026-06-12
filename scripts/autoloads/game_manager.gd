@@ -40,10 +40,10 @@ signal arena_timer(seconds_left: int)
 const CLASSES := {
 	"barbarian":
 	{
-		"display": "Barbarian",
+		"display": "Варвар",
 		"primary": "strength",
-		"primary_label": "Strength",
-		"description": "Brutal close-quarters berserker. Hard to kill, hard to outhit.",
+		"primary_label": "Сила",
+		"description": "Свирепый берсерк ближнего боя. Трудно убить, трудно перебить.",
 		"portrait": "res://assets/sprites/items/portrait_barbarian.png",
 		"sprite_idle": "res://assets/sprites/characters/barbarian/barbarian_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/barbarian/barbarian_walk.png",
@@ -79,10 +79,10 @@ const CLASSES := {
 	},
 	"rogue":
 	{
-		"display": "Rogue",
+		"display": "Разбойник",
 		"primary": "dexterity",
-		"primary_label": "Dexterity",
-		"description": "Lightning-fast knife-thrower. Devastating crits, paper-thin defense.",
+		"primary_label": "Ловкость",
+		"description": "Молниеносный метатель ножей. Сокрушительные криты, бумажная защита.",
 		"portrait": "res://assets/sprites/items/portrait_rogue.png",
 		"sprite_idle": "res://assets/sprites/characters/rogue/rogue_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/rogue/rogue_walk.png",
@@ -118,10 +118,10 @@ const CLASSES := {
 	},
 	"mage":
 	{
-		"display": "Mage",
+		"display": "Маг",
 		"primary": "intelligence",
-		"primary_label": "Intelligence",
-		"description": "Spell-slinger from the ruin order. Fragile body, devastating mana pool.",
+		"primary_label": "Интеллект",
+		"description": "Заклинатель из ордена руин. Хрупкое тело, сокрушительный запас маны.",
 		"portrait": "res://assets/sprites/items/portrait_mage.png",
 		"sprite_idle": "res://assets/sprites/characters/archmage/archmage_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/archmage/archmage_walk.png",
@@ -157,11 +157,11 @@ const CLASSES := {
 	},
 	"stormcaller":
 	{
-		"display": "Stormcaller",
+		"display": "Буревестница",
 		"primary": "dexterity",
-		"primary_label": "Voltage",
+		"primary_label": "Напряжение",
 		"description":
-		"Lightning-fueled melee mage. Chains bolts between foes, dashes through storms, calls strikes from the sky.",
+		"Боевой маг молний. Пускает разряды между врагами, проносится сквозь бури и призывает удары с небес.",
 		"portrait": "res://assets/sprites/items/portrait_stormcaller.webp",
 		"sprite_idle": "res://assets/sprites/characters/stormcaller_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/stormcaller_walk.png",
@@ -198,11 +198,11 @@ const CLASSES := {
 	},
 	"hexen":
 	{
-		"display": "Crimson Hexen",
+		"display": "Багровая ведьма",
 		"primary": "intelligence",
-		"primary_label": "Hexcraft",
+		"primary_label": "Ведовство",
 		"description":
-		"Mistress of marks and chains. Marks foes, links them with crimson tethers, then detonates the whole pack.",
+		"Госпожа меток и цепей. Метит врагов, связывает их багровыми узами и подрывает всю стаю разом.",
 		"portrait": "res://assets/sprites/items/portrait_crimson_hexen.webp",
 		"sprite_idle": "res://assets/sprites/characters/crimson_hexen_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/crimson_hexen_walk.png",
@@ -239,11 +239,11 @@ const CLASSES := {
 	},
 	"necromancer":
 	{
-		"display": "Necromancer",
+		"display": "Некромант",
 		"primary": "intelligence",
-		"primary_label": "Death",
+		"primary_label": "Смерть",
 		"description":
-		"Master of bone and curse. Raises soldiers and tanks from the dust, then sacrifices his own blood to empower them.",
+		"Повелитель костей и проклятий. Поднимает из праха бойцов и щитоносцев, а затем жертвует собственную кровь, чтобы усилить их.",
 		"portrait": "res://assets/sprites/items/portrait_necromancer.webp",
 		"sprite_idle": "res://assets/sprites/characters/necromancer_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/necromancer_walk.png",
@@ -280,11 +280,11 @@ const CLASSES := {
 	},
 	"druid":
 	{
-		"display": "Druid",
+		"display": "Друид",
 		"primary": "intelligence",
-		"primary_label": "Wisdom",
+		"primary_label": "Мудрость",
 		"description":
-		"Wild-shaper. Wears wolf or bear flesh, calls down stone armor, summons spirit beasts.",
+		"Оборотень дикой природы. Носит плоть волка или медведя, призывает каменную броню и духов-зверей.",
 		"portrait": "res://assets/sprites/items/portrait_druid.webp",
 		"sprite_idle": "res://assets/sprites/characters/druid_human_idle.png",
 		"sprite_walk": "res://assets/sprites/characters/druid_human_walk.png",
@@ -388,6 +388,15 @@ var current_floor: int = 1
 # enemy HP/damage, elite chance/affixes, spawn density, loot rarity and rewards. Host
 # owns this in co-op (broadcast with the run so every peer scales identically).
 var run_difficulty: int = 0
+# Endless-run loop counter ("Greater Rift" style): each post-uber-boss Continue
+# increments it and rolls a fresh map. Loops stack multiplicative pressure on
+# enemies AND extra loot luck on top of the difficulty tier (numbers below are
+# core-mechanic placeholders — balance pass later). 0 = first map of the run.
+const LOOP_ENEMY_HP_PER: float = 0.20
+const LOOP_ENEMY_DMG_PER: float = 0.15
+const LOOP_REWARD_PER: float = 0.10
+const LOOP_LOOT_LUCK_PER: float = 0.05
+var run_loop: int = 0
 # Active run-map traversal (null until a run is started). Host-authoritative in co-op:
 # only the host advances it; clients rebuild the same map from the broadcast seed and
 # follow the host's chosen node (replication is a Phase-1 relay addition — see run_travel_to).
@@ -511,6 +520,7 @@ func reset_run() -> void:
 	current_floor = 1
 	run_state = null
 	run_node_active = {}
+	run_loop = 0
 	player_stats_changed.emit()
 	gold_changed.emit(gold)
 	materials_changed.emit()
@@ -525,6 +535,24 @@ func start_run(difficulty: int, seed_value: int = -1) -> void:
 	run_seed = seed_value if seed_value >= 0 else int(randi())
 	run_state = RunState.new(RunMap.generate(run_seed, run_difficulty))
 	run_started.emit()
+
+
+# ── Endless-loop scaling (multiplies ON TOP of the difficulty tier) ───────────
+func loop_enemy_hp_mult() -> float:
+	return 1.0 + LOOP_ENEMY_HP_PER * float(run_loop)
+
+
+func loop_enemy_dmg_mult() -> float:
+	return 1.0 + LOOP_ENEMY_DMG_PER * float(run_loop)
+
+
+func loop_reward_mult() -> float:
+	return 1.0 + LOOP_REWARD_PER * float(run_loop)
+
+
+# Additive rarity-luck bonus folded into LootRoller._roll_rarity.
+func loop_loot_luck() -> float:
+	return LOOP_LOOT_LUCK_PER * float(run_loop)
 
 
 # Travel onto node `id` if it's a legal next step. Host-authoritative: a co-op client
@@ -848,7 +876,7 @@ func get_talent_rank(node_id: String) -> int:
 func talent_block_reason(node_id: String) -> String:
 	var info: Dictionary = TalentTrees.node_info(player_class, node_id)
 	if info.is_empty():
-		return "Unknown talent"
+		return "Неизвестный талант"
 	var node: Dictionary = info["node"]
 	var kind: String = String(node["kind"])
 	var max_r: int = TalentTrees.max_ranks(node)
@@ -861,14 +889,14 @@ func talent_block_reason(node_id: String) -> String:
 	)
 	var reason: String = ""
 	if talent_points <= 0:
-		reason = "No talent points"
+		reason = "Нет очков талантов"
 	elif max_r >= 0 and int(talents.get(node_id, 0)) >= max_r:
-		reason = "Already at max rank"
+		reason = "Уже максимальный ранг"
 	elif kind == "ult" and (player_spec_path == "" or player_spec_path == SpecPaths.MORTAL_ID):
-		reason = "Requires an ascension"
+		reason = "Требуется вознесение"
 	elif not tier_ok:
 		reason = (
-			"Requires %d points in this branch"
+			"Нужно %d очков в этой ветви"
 			% (TalentTrees.POINTS_PER_TIER * int(info["tier_index"]))
 		)
 	elif kind == "transform":
@@ -878,7 +906,7 @@ func talent_block_reason(node_id: String) -> String:
 		if ss != null and ss.has_method("get_transform"):
 			var current: String = String(ss.call("get_transform", TalentTrees.node_slot(node)))
 			if current != "" and current != String(node["transform"]):
-				reason = "That skill slot is already transformed"
+				reason = "Этот слот навыка уже преобразован"
 	return reason
 
 
