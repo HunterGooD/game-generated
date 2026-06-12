@@ -486,6 +486,9 @@ func _on_boss_defeated(_boss_id: String, reward: String) -> void:
 	# Boss slain = the level is cleared: remove the remaining enemies so the reward pick is
 	# safe (the reels pause solo, but this also covers co-op and any in-flight attackers).
 	_clear_enemies()
+	# Full clear also dispels the layer's damaging curses — no gloom tick or orb
+	# blast while you browse the reward reels / walk to the portals.
+	get_tree().call_group("dungeon_affix_controller", "disarm_hazards")
 	_award_boss_reels(reward)
 	_spawn_portals(center)
 
@@ -517,6 +520,9 @@ func _on_boss_reward_msg(type: String, msg: Dictionary, _from: int) -> void:
 	if _boss_done:
 		return
 	_boss_done = true
+	# Mirror the host's full-clear curse dispel on this client (kills the
+	# replicated gloom/orb visuals; their damage was host-gated anyway).
+	get_tree().call_group("dungeon_affix_controller", "disarm_hazards")
 	_spawn_reels_for_reward(String(msg.get("tier", "")), int(msg.get("wave", 1)))
 
 

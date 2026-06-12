@@ -146,14 +146,18 @@ func reduce_all_cooldowns(amount: float) -> void:
 
 
 func _process(delta: float) -> void:
+	# Intelligence speeds up cooldown recovery (universal stat effect).
+	var tick: float = delta
+	if GameManager:
+		tick = delta * GameManager.get_stat_cooldown_rate()
 	for i in cooldowns.size():
 		if cooldowns[i] > 0.0:
 			var prev: float = cooldowns[i]
-			cooldowns[i] = max(0.0, cooldowns[i] - delta)
+			cooldowns[i] = max(0.0, cooldowns[i] - tick)
 			if prev > 0.0 and cooldowns[i] == 0.0:
 				cooldown_finished.emit(i)
 	if ascension_cd > 0.0:
-		ascension_cd = max(0.0, ascension_cd - delta)
+		ascension_cd = max(0.0, ascension_cd - tick)
 
 
 # Ascension ability (R). Set when a spec path is chosen (player._on_spec_path_chosen).
@@ -183,7 +187,11 @@ func get_ascension_cooldown_remaining() -> float:
 
 func get_ascension_cooldown_total() -> float:
 	var d: SkillDefinition = SkillCatalog.get_def(ascension_skill_id)
-	return d.cooldown if d else 1.0
+	if d == null:
+		return 1.0
+	# Mirror the Awakened Tempo trim so the HUD ring matches the real cooldown.
+	var haste_ranks: int = GameManager.get_talent_rank("ult_haste") if GameManager else 0
+	return d.cooldown * maxf(0.5, 1.0 - TalentTrees.ULT_HASTE_PER_RANK * float(haste_ranks))
 
 
 # Cast the chosen ascension ability. Separate cooldown from the 4 skill slots;
@@ -200,12 +208,22 @@ func cast_ascension(caster: Node2D, mouse_world: Vector2) -> bool:
 	if cost > 0.0 and (GameManager == null or not GameManager.spend_mana(cost)):
 		skill_failed.emit(-1, "mana")
 		return false
-	ascension_cd = def.cooldown
+	# Ult talent cluster: Awakened Tempo trims the cooldown, Awakened Might
+	# multiplies the damage (ranks live in GameManager.talents).
+	var haste_ranks: int = GameManager.get_talent_rank("ult_haste") if GameManager else 0
+	var power_ranks: int = GameManager.get_talent_rank("ult_power") if GameManager else 0
+	ascension_cd = (
+		def.cooldown * maxf(0.5, 1.0 - TalentTrees.ULT_HASTE_PER_RANK * float(haste_ranks))
+	)
 	if AudioManager:
 		AudioManager.play_sfx_path(def.sfx_path, -6.0)
 	var base_damage: int = GameManager.player_damage if GameManager else 14
 	var buff_mult: float = _player_buff_dmg(caster)
-	var scaled_damage: int = int(round(float(base_damage) * def.damage_mult * buff_mult))
+	var stat_mult: float = GameManager.get_stat_skill_damage_mult() if GameManager else 1.0
+	var ult_mult: float = 1.0 + TalentTrees.ULT_POWER_PER_RANK * float(power_ranks)
+	var scaled_damage: int = int(
+		round(float(base_damage) * def.damage_mult * buff_mult * stat_mult * ult_mult)
+	)
 	var mods: Dictionary = {"transform": "", "caster": caster}
 	for key in def.mod_wiring:
 		# Ascension abilities don't use slot-modifiers, but honor const-only wiring.
@@ -287,7 +305,23 @@ func apply_transform(slot: int, transform_id: String) -> void:
 func get_modifier(slot: int, modifier_id: String) -> int:
 	if slot < 0 or slot >= modifiers.size():
 		return 0
-	return int(modifiers[slot].get(modifier_id, 0))
+	var own: int = int(modifiers[slot].get(modifier_id, 0))
+	# Unique items grant FREE ranks of talent modifier nodes while equipped
+	# (they no longer replace skills) — fold those in live, no syncing.
+	if GameManager and GameManager.use_talent_tree:
+		own += TalentTrees.item_grant_ranks(modifier_id)
+	return own
+
+
+# Wipe all run-acquired skill upgrades (talent respec). The caller re-applies
+# whatever must survive (e.g. the ascension's own transforms).
+func clear_run_upgrades() -> void:
+	for i in modifiers.size():
+		modifiers[i] = {}
+	for i in transforms.size():
+		transforms[i] = ""
+	active_transforms.clear()
+	skill_ids_changed.emit()
 
 
 func get_transform(slot: int) -> String:
@@ -313,9 +347,12 @@ func get_transform(slot: int) -> String:
 
 
 # Returns the slot-swap transform id granted by an equipped unique item for this
-# slot, or "" if none. (Item uniques only set the has_unique flag; this is what
-# turns that flag into an actual slot swap.)
+# slot, or "" if none. LEGACY-ONLY: under the talent tree, equipped uniques grant
+# free node ranks instead of replacing skills (skill replacement is a deliberate
+# tree choice now) — see TalentTrees.ITEM_NODE_GRANTS.
 func _equipped_item_transform_for_slot(slot: int) -> String:
+	if GameManager and GameManager.use_talent_tree:
+		return ""
 	if InventorySystem == null or not InventorySystem.has_method("has_unique"):
 		return ""
 	for tid in SkillCatalog.ITEM_TRANSFORM_SLOT:
@@ -367,13 +404,20 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	# "<prefix>_<skill>_damage" all flow through here with no per-skill wiring.
 	var stack_bonus: float = 0.0
 	if slot >= 0 and slot < modifiers.size():
-		for mod_id in modifiers[slot]:
+		var counts: Dictionary = modifiers[slot].duplicate()
+		# Item-granted free ranks count too (the player may never have bought the node).
+		if GameManager and GameManager.use_talent_tree:
+			var granted: Dictionary = TalentTrees.item_granted_modifiers(slot)
+			for mod_id in granted:
+				counts[mod_id] = int(counts.get(mod_id, 0)) + int(granted[mod_id])
+		for mod_id in counts:
 			if String(mod_id).ends_with("_damage"):
-				stack_bonus += 0.3 * float(modifiers[slot][mod_id])
-	# Buff multiplier (from Battle Cry etc.).
+				stack_bonus += 0.3 * float(counts[mod_id])
+	# Buff multiplier (from Battle Cry etc.) and Intelligence skill-damage scaling.
 	var buff_mult: float = _player_buff_dmg(caster)
+	var stat_mult: float = GameManager.get_stat_skill_damage_mult() if GameManager else 1.0
 	var scaled_damage: int = int(
-		round(float(base_damage) * dmg_mult * (1.0 + stack_bonus) * buff_mult)
+		round(float(base_damage) * dmg_mult * (1.0 + stack_bonus) * buff_mult * stat_mult)
 	)
 
 	# Build per-skill modifier dict and delegate the spawn.

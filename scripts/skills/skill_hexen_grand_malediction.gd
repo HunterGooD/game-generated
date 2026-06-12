@@ -30,15 +30,34 @@ func _ready() -> void:
 					continue
 				if global_position.distance_to((e as Node2D).global_position) > RADIUS:
 					continue
-				if e.has_method("apply_vulnerable"):
-					e.call("apply_vulnerable", 6.0, 0.25)
-				if e.has_method("apply_bleed"):
-					e.call("apply_bleed", 4.0, float(damage) * 0.2)
-				if e.has_method("add_curse_stack"):
-					e.call("add_curse_stack")
+				_curse(e)
 				# Already Hex-Marked → detonate now.
 				if e.has_meta("hex_marked") and e.has_method("take_damage"):
 					e.call("take_damage", int(round(float(damage) * 1.5)), global_position)
 					e.set_meta("hex_marked", false)
 	var t := get_tree().create_timer(0.4)
 	t.timeout.connect(queue_free)
+
+
+# Roll 3 distinct mini-curses per the spec: Frailty (-armor → takes more),
+# Misfortune (attacks whiff), Agony (DoT), Doom (corpse-burst). Power scales
+# with the ability damage. Falls back to legacy vulnerable+stack for enemies
+# without the named-curse API (bosses).
+func _curse(e: Node) -> void:
+	if not e.has_method("apply_curse"):
+		if e.has_method("apply_vulnerable"):
+			e.call("apply_vulnerable", 6.0, 0.25)
+		if e.has_method("add_curse_stack"):
+			e.call("add_curse_stack")
+		return
+	var pool: Array = ["frailty", "misfortune", "agony", "doom"]
+	pool.shuffle()
+	for i in 3:
+		var id: String = String(pool[i])
+		var power: float = 0.0
+		match id:
+			"agony":
+				power = float(damage) * 0.35
+			"doom":
+				power = float(damage) * 1.5
+		e.call("apply_curse", id, 6.0, power)

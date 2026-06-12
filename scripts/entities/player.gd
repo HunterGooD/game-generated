@@ -146,6 +146,12 @@ const PREDATOR_STACK_MAX: int = 5
 const PREDATOR_DURATION: float = 4.0
 # Blood Witch Pain Dividend: HP lost banks into the next skill's burst (up to +50%).
 var pain_bank: float = 0.0
+# Scarlet Possession (Blood Witch R) — time left + lash counter for the
+# every-3rd-strike heal.
+var possession_t: float = 0.0
+var _possession_strikes: int = 0
+# Rootbound Spirits (Grovekeeper) — leaf-spirit spawn cooldown.
+var _rootbound_cd: float = 0.0
 # Tempest Lord Static Cascade: a nearby enemy death zaps other foes. Re-entrancy
 # guard stops a cascade kill from chaining into an infinite same-frame loop.
 var _cascading: bool = false
@@ -170,6 +176,7 @@ func _ready() -> void:
 	collision_mask = 1
 	_setup_components()
 	_apply_class()
+	_restore_run_upgrades()
 	if footstep_timer == null:
 		var t := Timer.new()
 		t.name = "FootstepTimer"
@@ -254,6 +261,23 @@ func _on_downed_changed(downed: bool) -> void:
 			ns.call("broadcast_player_downed")
 
 
+# A fresh player (scene change between run nodes, dungeon descent, hub→run)
+# spawns with an EMPTY SkillSystem — modifiers, transforms and the ascension R
+# all lived on the old instance. Restore them from the persistent autoload
+# state, or the ult "mysteriously disappears" after the first node transition.
+func _restore_run_upgrades() -> void:
+	if GameManager == null or skill_system == null:
+		return
+	# Talent-bought skill upgrades first (modifiers + transform nodes)...
+	if GameManager.has_method("reapply_talent_effects"):
+		GameManager.reapply_talent_effects(skill_system)
+	# ...then the ascension (its R binding, basic-attack swap and transforms win
+	# any slot disputes, same as at choose time).
+	var path_id: String = String(GameManager.player_spec_path)
+	if path_id != "":
+		_on_spec_path_chosen(path_id)
+
+
 func _on_spec_path_chosen(path_id: String) -> void:
 	# Bind the chosen path's R ability to our SkillSystem (empty ability = stat-only
 	# path; the cast just no-ops).
@@ -263,6 +287,11 @@ func _on_spec_path_chosen(path_id: String) -> void:
 	var ability: String = String(p.get("ability", ""))
 	if ability != "" and skill_system.has_method("set_ascension"):
 		skill_system.call("set_ascension", ability)
+	# Elementalist: show the banked orbs orbiting the character (combo feedback).
+	if path_id == "elementalist" and get_node_or_null("ElemOrbRing") == null:
+		var ring := ElemOrbRing.new()
+		ring.name = "ElemOrbRing"
+		add_child(ring)
 	# Path may replace the basic attack (Battlemage → melee fire blade) and swap
 	# skill slots (transforms). Re-derive the basic attack, and apply any slot
 	# transforms the path defines.
@@ -386,8 +415,8 @@ func _sync_component_stats_from_game_manager() -> void:
 	var next_damage := float(GameManager.get_effective_damage())
 	var next_max_mana := float(GameManager.get_effective_max_mana())
 	var next_mana_regen := 8.0
-	var next_attack_speed := 1.0
-	var next_crit_chance := float(GameManager.player_crit_chance)
+	var next_attack_speed := float(GameManager.get_stat_attack_speed_mult())
+	var next_crit_chance := float(GameManager.get_effective_crit_chance())
 	var next_crit_damage := float(GameManager.player_crit_damage)
 
 	if not is_equal_approx(_runtime_base_stats.max_health, next_max_health):
@@ -493,6 +522,10 @@ func _physics_process(delta: float) -> void:
 			_remove_buff()
 	if flameblade_t > 0.0:
 		flameblade_t -= delta
+	if possession_t > 0.0:
+		possession_t -= delta
+	if _rootbound_cd > 0.0:
+		_rootbound_cd -= delta
 	if aura_t > 0.0:
 		aura_t -= delta
 		if aura_t <= 0.0:
@@ -574,8 +607,12 @@ func _physics_process(delta: float) -> void:
 			or (GameManager and GameManager.spend_mana(basic_attack_mana_cost))
 		):
 			_perform_basic_attack()
-			# Blood Frenzy: +35% attack speed → shorter interval.
-			basic_attack_cd = basic_attack_interval / (1.35 if frenzy_t > 0.0 else 1.0)
+			# Blood Frenzy: +35% attack speed → shorter interval. Dexterity adds
+			# its universal attack-speed multiplier on top.
+			var atk_speed: float = 1.35 if frenzy_t > 0.0 else 1.0
+			if GameManager:
+				atk_speed *= GameManager.get_stat_attack_speed_mult()
+			basic_attack_cd = basic_attack_interval / atk_speed
 
 	# Skills.
 	if not is_dashing:
@@ -638,11 +675,16 @@ func _update_animation() -> void:
 # DASH
 func _perform_dash() -> void:
 	dash_cd = DASH_COOLDOWN
-	var mouse_pos: Vector2 = get_global_mouse_position()
-	var dir: Vector2 = mouse_pos - global_position
-	if dir.length_squared() < 0.001:
-		dir = (Vector2.RIGHT if facing_right else Vector2.LEFT)
+	# Dash follows MOVEMENT input (where you're running), not the cursor — you
+	# aim with the mouse while repositioning with WASD, so escaping shouldn't
+	# yank you toward your attack target. Standing still: dash the way you face.
+	var dir: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if dir.length_squared() < 0.01:
+		dir = Vector2.RIGHT if facing_right else Vector2.LEFT
 	dir = dir.normalized()
+	# Assassin: any dash opens the Backstab Window (spec: "after a dash/smoke").
+	if GameManager and String(GameManager.player_spec_path) == "assassin":
+		start_backstab(2.0)
 
 	match dash_kind:
 		"barbarian":
@@ -1110,6 +1152,7 @@ func heal_amount(amount: int) -> void:
 		if frac < 0.20:
 			a = int(round(float(a) * 0.7))
 	GameManager.heal_player(a)
+	_maybe_rootbound_spirit()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1122,6 +1165,74 @@ func add_shield(amount: float, cap: float = -1.0) -> void:
 		shield_hp = min(shield_hp, cap)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(global_position, Color(0.6, 0.85, 1.0, 1), 5)
+	_maybe_rootbound_spirit()
+
+
+# Rootbound Spirits (Grovekeeper passive): healing or shielding conjures a small
+# leaf spirit that darts at the nearest enemy. Internal 2s cooldown so aura
+# ticks don't flood the field.
+func _maybe_rootbound_spirit() -> void:
+	if _rootbound_cd > 0.0 or GameManager == null or not is_inside_tree():
+		return
+	if String(GameManager.player_spec_path) != "grovekeeper":
+		return
+	var scene_root := get_tree().current_scene
+	if scene_root == null:
+		return
+	_rootbound_cd = 2.0
+	var s := LeafSpirit.new()
+	scene_root.add_child(s)
+	s.global_position = global_position + Vector2(randf_range(-26.0, 26.0), randf_range(-40.0, -12.0))
+
+
+# Shared Grave (Gravebinder passive): the nearest living minion carries up to
+# 20% of incoming damage; if the transfer kills it, the corpse bursts in a
+# Death Pulse against nearby enemies.
+func _shared_grave_redirect(amount: int) -> int:
+	if amount <= 1 or GameManager == null:
+		return amount
+	if String(GameManager.player_spec_path) != "gravebinder":
+		return amount
+	var tree := get_tree()
+	if tree == null:
+		return amount
+	var best: Node2D = null
+	var best_d: float = 420.0
+	for m in tree.get_nodes_in_group("pet_ally"):
+		if not is_instance_valid(m) or not (m is Node2D):
+			continue
+		if m.get("hp") == null or int(m.get("hp")) <= 0:
+			continue
+		var d: float = global_position.distance_to((m as Node2D).global_position)
+		if d < best_d:
+			best_d = d
+			best = m
+	if best == null:
+		return amount
+	var redirected: int = maxi(1, int(round(float(amount) * 0.2)))
+	if best.has_method("take_damage"):
+		best.call("take_damage", redirected, global_position)
+	if int(best.get("hp")) <= 0:
+		_shared_grave_pulse(best.global_position)
+	elif VfxManager:
+		VfxManager.spawn_hit_sparks(best.global_position, Color(0.5, 0.9, 0.6, 1), 5)
+	return amount - redirected
+
+
+func _shared_grave_pulse(pos: Vector2) -> void:
+	var tree := get_tree()
+	if tree == null or GameManager == null:
+		return
+	var dmg: int = maxi(1, int(round(float(GameManager.get_effective_damage()) * 0.8)))
+	for e in tree.get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or bool(e.get("dead")):
+			continue
+		if pos.distance_to((e as Node2D).global_position) > 150.0:
+			continue
+		if e.has_method("take_damage"):
+			e.call("take_damage", dmg, pos)
+	if VfxManager:
+		VfxManager.spawn_explosion(pos, 1.1, Color(0.4, 0.9, 0.6, 1))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1341,7 +1452,9 @@ func _perform_basic_attack() -> void:
 	dir = dir.normalized()
 	var base_dmg: int = GameManager.get_effective_damage() if GameManager else 14
 	# get_buff_damage_mult folds in active buff × ally aura × Pain Engine.
-	var dmg: int = int(round(float(base_dmg) * get_buff_damage_mult()))
+	# Strength scales every basic attack (universal stat effect).
+	var stat_mult: float = GameManager.get_stat_basic_damage_mult() if GameManager else 1.0
+	var dmg: int = int(round(float(base_dmg) * get_buff_damage_mult() * stat_mult))
 	# Battlemage stacks empower melee basics; Flameblade ignites foes in front.
 	if basic_attack_kind == "melee" or basic_attack_kind == "claw":
 		dmg = int(round(float(dmg) * get_battlemage_melee_mult()))
@@ -1856,6 +1969,9 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	# Warchief Hold the Line: near an ally, part of the hit is absorbed and that
 	# ally gains brief damage reduction.
 	amount = _hold_the_line(amount)
+	# Gravebinder Shared Grave: up to 20% of the hit is borne by the nearest
+	# minion; a minion slain by the transfer bursts in a small Death Pulse.
+	amount = _shared_grave_redirect(amount)
 	# Battlemage armor stacks + ally aura reduce the hit before anything else.
 	var dr: float = min(0.8, get_battlemage_dr() + aura_dr)
 	if dr > 0.0:
@@ -1907,6 +2023,42 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
 		_bank_pain(applied_amount)
 	return true
+
+
+# ── Blood Witch: Scarlet Possession (R) ──────────────────────────────────────
+# 20s blood trance: Blood Whip is wider and hits everything on the lash line,
+# each cast pays 1% current HP (banked into Pain Dividend), every 3rd lash
+# heals per enemy struck, and below 35% HP the whip hits +40% harder.
+func start_possession(duration: float) -> void:
+	possession_t = maxf(possession_t, duration)
+	_possession_strikes = 0
+
+
+func is_possessed() -> bool:
+	return possession_t > 0.0
+
+
+# Called by Blood Whip once per cast while possessed.
+func possession_on_whip(enemies_hit: int) -> void:
+	if not is_possessed() or GameManager == null:
+		return
+	var cost: int = maxi(1, int(round(float(GameManager.player_hp) * 0.01)))
+	if GameManager.player_hp - cost >= 1:
+		GameManager.player_hp -= cost
+		_bank_pain(cost)
+		GameManager.player_stats_changed.emit()
+	_possession_strikes += 1
+	if _possession_strikes % 3 == 0 and enemies_hit > 0:
+		var heal: int = int(round(float(GameManager.player_max_hp) * 0.02 * float(enemies_hit)))
+		heal_amount(maxi(1, heal))
+
+
+# Whip damage multiplier under possession — the low-HP execution edge.
+func possession_whip_mult() -> float:
+	if not is_possessed() or GameManager == null:
+		return 1.0
+	var frac: float = float(GameManager.player_hp) / float(maxi(1, GameManager.player_max_hp))
+	return 1.4 if frac < 0.35 else 1.0
 
 
 # Blood Witch Pain Dividend: accumulate self-harm, capped at 60% of max HP worth.

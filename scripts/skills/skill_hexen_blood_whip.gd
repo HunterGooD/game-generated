@@ -13,6 +13,9 @@ var damage: int = 18
 var direction: Vector2 = Vector2.RIGHT
 var visual_only: bool = false
 var _caster: Node = null
+# Scarlet Possession trance: wider lash that strikes EVERYTHING on the line,
+# +40% under 35% HP, and reports the cast back for HP cost / 3rd-strike heal.
+var _possessed: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -22,6 +25,10 @@ func setup_context(ctx: SkillContext) -> void:
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	visual_only = ctx.is_visual_only
 	_caster = ctx.caster
+	if _caster and _caster.has_method("is_possessed"):
+		_possessed = bool(_caster.call("is_possessed"))
+	if _possessed and _caster and _caster.has_method("possession_whip_mult"):
+		damage = int(round(float(damage) * float(_caster.call("possession_whip_mult"))))
 	if visual_only:
 		set_meta("visual_only", true)
 	rotation = direction.angle()
@@ -35,7 +42,7 @@ func _ready() -> void:
 	if ResourceLoader.exists(path):
 		lash.texture = load(path) as Texture2D
 	lash.modulate = Color(1.0, 0.2, 0.35, 0.95)
-	lash.scale = Vector2(2.6, 0.5)
+	lash.scale = Vector2(2.6, 0.8 if _possessed else 0.5)
 	lash.position = Vector2(REACH * 0.5, 0)
 	add_child(lash)
 	var tw := lash.create_tween().set_parallel(true)
@@ -52,9 +59,14 @@ func _resolve_hit() -> void:
 	if tree == null:
 		return
 	var caster_pos: Vector2 = global_position
-	# Walk along the whip line, first enemy hit gets yanked.
+	# Walk along the whip line. Normal lash: first enemy hit gets yanked.
+	# Possessed lash is wider and strikes EVERY enemy along the line (only the
+	# first gets the pull, so the trance doesn't yank a crowd onto the witch).
+	var tolerance: float = 85.0 if _possessed else 60.0
 	var step: float = 36.0
 	var hits: int = int(REACH / step)
+	var struck: Dictionary = {}
+	var pulled: bool = false
 	for i in hits + 1:
 		var p: Vector2 = caster_pos + direction * (step * float(i))
 		for e in tree.get_nodes_in_group("enemy"):
@@ -62,22 +74,41 @@ func _resolve_hit() -> void:
 				continue
 			if e.get("dead") == true:
 				continue
-			if p.distance_to((e as Node2D).global_position) <= 60.0:
-				_apply_to(e, caster_pos)
-				return  # stop on first hit
+			if struck.has(e.get_instance_id()):
+				continue
+			if p.distance_to((e as Node2D).global_position) <= tolerance:
+				struck[e.get_instance_id()] = true
+				_apply_to(e, caster_pos, not pulled)
+				pulled = true
+				if not _possessed:
+					_report_cast(struck.size())
+					return  # normal whip stops on first hit
+	_report_cast(struck.size())
 
 
-func _apply_to(target: Node, caster_pos: Vector2) -> void:
+# Possession bookkeeping (HP cost + every-3rd-lash heal), once per cast.
+func _report_cast(enemies_hit: int) -> void:
+	if _possessed and _caster and _caster.has_method("possession_on_whip"):
+		_caster.call("possession_on_whip", enemies_hit)
+
+
+func _apply_to(target: Node, caster_pos: Vector2, allow_pull: bool = true) -> void:
 	# Detonate existing hex if present.
 	if target.has_meta("hex_marked") and bool(target.get_meta("hex_marked", false)):
 		var hex_node = target.get_meta("hex_mark_node", null)
 		if hex_node and is_instance_valid(hex_node) and hex_node.has_method("detonate"):
 			hex_node.call("detonate")
-	# Damage + fresh mark.
+	# Damage + fresh mark (the lash curses what it touches).
 	if target.has_method("take_damage"):
 		target.call("take_damage", damage, caster_pos)
 	target.set_meta("hex_marked", true)
+	if target.has_method("add_curse_stack"):
+		target.call("add_curse_stack")
 	# Pull / dash.
+	if not allow_pull:
+		if VfxManager:
+			VfxManager.spawn_hit_sparks((target as Node2D).global_position, Color(1.0, 0.2, 0.35, 1), 5)
+		return
 	var to_target: Vector2 = (target as Node2D).global_position - caster_pos
 	var dist: float = to_target.length()
 	if dist <= 1.0:

@@ -10,6 +10,8 @@ signal player_died
 signal player_downed_changed(is_downed: bool)
 signal player_revived
 signal player_levelled_up(new_level: int)
+# In-run talent tree: fired when talent points are gained, spent, or respecced.
+signal talents_changed
 signal spec_path_offered
 signal spec_path_chosen(path_id: String)
 signal gold_changed(new_gold: int)
@@ -354,6 +356,19 @@ var player_crit_damage: float = 1.5
 var player_strength: int = 5
 var player_dexterity: int = 5
 var player_intelligence: int = 5
+# In-run talent tree (V2 level-ups). When the flag is on, a level-up grants a
+# talent point spent in the TalentTrees UI instead of opening the 3-card overlay
+# (legacy path kept intact behind the flag for future modes). `talents` maps
+# node_id → ranks bought (item-granted free ranks are NOT stored here — they're
+# read live from equipment via TalentTrees.item_grant_ranks).
+var use_talent_tree: bool = true
+var talent_points: int = 0
+var talents: Dictionary = {}
+# Meta-progression grain: meta XP per character level-up (+3 per difficulty
+# tier), plus a flat bonus for finishing the run (+50 per tier). Deliberately
+# NOT proportional to run XP — that curve is exponential.
+const META_XP_PER_CHAR_LEVEL: int = 12
+const META_XP_RUN_COMPLETE_BONUS: int = 150
 var gold: int = 0
 
 # Run state.
@@ -455,6 +470,8 @@ func reset_run() -> void:
 	player_strength = int(base.get("strength", 5))
 	player_dexterity = int(base.get("dexterity", 5))
 	player_intelligence = int(base.get("intelligence", 5))
+	talent_points = 0
+	talents = {}
 	# Meta-mirror passives — fold the player's persistent tree bonuses on top of the base
 	# stat line so every run starts already empowered. Per-player & local in co-op (each
 	# peer applies its own save to its own player). Empty {} when the class has no tree.
@@ -528,6 +545,13 @@ func coop_apply_travel(id: int) -> bool:
 # ── Hero preference (persisted) ───────────────────────────────────────────────
 func _ready() -> void:
 	_load_prefs()
+	# Finishing a run pays a meta-XP bonus on top of the per-level grain.
+	run_completed.connect(_award_meta_completion_bonus)
+
+
+func _award_meta_completion_bonus() -> void:
+	if player_class != "" and MetaProgress != null:
+		MetaProgress.award_xp(player_class, META_XP_RUN_COMPLETE_BONUS + 50 * run_difficulty)
 
 
 # Record the chosen hero so the hub spawns you as it next time.
@@ -665,6 +689,15 @@ func add_xp(amount: int, apply_mult: bool = true) -> void:
 		player_strength += int(growth.get("strength", 0))
 		player_dexterity += int(growth.get("dexterity", 0))
 		player_intelligence += int(growth.get("intelligence", 0))
+		if use_talent_tree:
+			talent_points += 1
+			talents_changed.emit()
+		# Meta progression: a fixed grain per CHARACTER level (not per raw XP —
+		# run XP grows ×1.35 per level, so mirroring it gave thousands of meta
+		# levels on a deep run). A run to ~char 50 ≈ 600-900 meta XP ≈ 3-4 meta
+		# levels at the start of the linear meta curve.
+		if player_class != "" and MetaProgress != null:
+			MetaProgress.award_xp(player_class, META_XP_PER_CHAR_LEVEL + 3 * run_difficulty)
 		player_levelled_up.emit(player_level)
 	# Spec path offer — once, when the player reaches the milestone level and their
 	# class actually has paths defined. game_world shows the choice overlay after
@@ -677,10 +710,8 @@ func add_xp(amount: int, apply_mult: bool = true) -> void:
 	):
 		_spec_path_offered = true
 		spec_path_offered.emit()
-	# Mirror run XP into the player's persistent meta level (local & per-class). 1:1 for now
-	# — the rate is a polish-time tuning knob. Co-op: each peer feeds its own local class.
-	if player_class != "" and MetaProgress != null:
-		MetaProgress.award_xp(player_class, amount)
+	# (Meta XP is granted per character LEVEL inside the loop above, plus a
+	# completion bonus on run_completed — never per raw run XP.)
 	player_stats_changed.emit()
 
 
@@ -724,6 +755,181 @@ func _apply_stat_dict(s: Dictionary) -> void:
 	player_strength += int(s.get("strength", 0))
 	player_dexterity += int(s.get("dexterity", 0))
 	player_intelligence += int(s.get("intelligence", 0))
+
+
+# ── In-run talent tree ────────────────────────────────────────────────────────
+# Total rank of a node: bought ranks + free ranks from equipped unique items.
+func get_talent_rank(node_id: String) -> int:
+	return int(talents.get(node_id, 0)) + TalentTrees.item_grant_ranks(node_id)
+
+
+# Why a node can't be bought right now ("" = it can). The panel uses this both
+# to disable buttons and to explain the gate in the tooltip.
+func talent_block_reason(node_id: String) -> String:
+	var info: Dictionary = TalentTrees.node_info(player_class, node_id)
+	if info.is_empty():
+		return "Unknown talent"
+	var node: Dictionary = info["node"]
+	var kind: String = String(node["kind"])
+	var max_r: int = TalentTrees.max_ranks(node)
+	# Ult nodes ignore tier gates — they're gated on the ascension instead.
+	var tier_ok: bool = (
+		kind == "ult"
+		or TalentTrees.tier_unlocked(
+			player_class, int(info["branch_index"]), int(info["tier_index"]), talents
+		)
+	)
+	var reason: String = ""
+	if talent_points <= 0:
+		reason = "No talent points"
+	elif max_r >= 0 and int(talents.get(node_id, 0)) >= max_r:
+		reason = "Already at max rank"
+	elif kind == "ult" and (player_spec_path == "" or player_spec_path == SpecPaths.MORTAL_ID):
+		reason = "Requires an ascension"
+	elif not tier_ok:
+		reason = (
+			"Requires %d points in this branch"
+			% (TalentTrees.POINTS_PER_TIER * int(info["tier_index"]))
+		)
+	elif kind == "transform":
+		# One transform per slot — an ascension (or another node) may already
+		# hold this slot, and apply_transform would silently overwrite it.
+		var ss := _find_skill_system()
+		if ss != null and ss.has_method("get_transform"):
+			var current: String = String(ss.call("get_transform", TalentTrees.node_slot(node)))
+			if current != "" and current != String(node["transform"]):
+				reason = "That skill slot is already transformed"
+	return reason
+
+
+func spend_talent_point(node_id: String) -> bool:
+	if talent_block_reason(node_id) != "":
+		return false
+	var info: Dictionary = TalentTrees.node_info(player_class, node_id)
+	var node: Dictionary = info["node"]
+	talents[node_id] = int(talents.get(node_id, 0)) + 1
+	talent_points -= 1
+	_apply_talent_rank(node)
+	talents_changed.emit()
+	return true
+
+
+func _apply_talent_rank(node: Dictionary) -> void:
+	match String(node["kind"]):
+		"stat":
+			_apply_stat_dict({String(node["stat"]): int(node["amount"])})
+			player_stats_changed.emit()
+		"modifier":
+			var ss := _find_skill_system()
+			if ss != null:
+				ss.call("add_modifier", TalentTrees.node_slot(node), String(node["modifier"]))
+		"transform":
+			var ss := _find_skill_system()
+			if ss != null:
+				ss.call("apply_transform", TalentTrees.node_slot(node), String(node["transform"]))
+		"perk":
+			if String(node["id"]) == "berserker_grip" and InventorySystem:
+				InventorySystem.grant_berserker_grip()
+		"ult":
+			pass  # Read live by SkillSystem.cast_ascension via get_talent_rank.
+
+
+# Points spent that a respec would refund (perks are kept — Berserker's Grip
+# can't be un-granted once two 2H weapons may be equipped).
+func talent_respec_refund() -> int:
+	var refund: int = 0
+	for node_id in talents:
+		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
+		if info.is_empty() or String(info["node"]["kind"]) == "perk":
+			continue
+		refund += int(talents[node_id])
+	return refund
+
+
+# Refund all non-perk talents: revert stat ranks, wipe run modifiers/transforms,
+# then re-apply the ascension's own transforms (those are not talents).
+func respec_talents() -> void:
+	var refund: int = talent_respec_refund()
+	if refund <= 0:
+		return
+	var kept: Dictionary = {}
+	for node_id in talents:
+		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
+		if info.is_empty():
+			continue
+		var node: Dictionary = info["node"]
+		if String(node["kind"]) == "perk":
+			kept[node_id] = talents[node_id]
+		elif String(node["kind"]) == "stat":
+			_apply_stat_dict({String(node["stat"]): -int(node["amount"]) * int(talents[node_id])})
+	talents = kept
+	talent_points += refund
+	var ss := _find_skill_system()
+	if ss != null and ss.has_method("clear_run_upgrades"):
+		ss.call("clear_run_upgrades")
+		if player_spec_path != "" and player_spec_path != SpecPaths.MORTAL_ID:
+			var p: Dictionary = SpecPaths.find(player_class, player_spec_path)
+			var transforms: Dictionary = p.get("transforms", {})
+			for slot in transforms:
+				ss.call("apply_transform", int(slot), String(transforms[slot]))
+	player_stats_changed.emit()
+	talents_changed.emit()
+
+
+# Re-apply bought talent skill effects to a FRESH SkillSystem (the player node —
+# and its SkillSystem child — is recreated on every scene change, dropping all
+# run-acquired modifiers/transforms). Called from player._restore_run_upgrades.
+# Stat ranks live on this autoload and perks on InventorySystem, so only the
+# skill-side effects need replaying.
+func reapply_talent_effects(ss: Node) -> void:
+	if ss == null or not use_talent_tree:
+		return
+	for node_id in talents:
+		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
+		if info.is_empty():
+			continue
+		var node: Dictionary = info["node"]
+		match String(node["kind"]):
+			"modifier":
+				for _i in int(talents[node_id]):
+					ss.call("add_modifier", TalentTrees.node_slot(node), String(node["modifier"]))
+			"transform":
+				ss.call("apply_transform", TalentTrees.node_slot(node), String(node["transform"]))
+
+
+func _find_skill_system() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var ps := tree.get_nodes_in_group("player")
+	if ps.is_empty():
+		return null
+	return ps[0].get_node_or_null("SkillSystem")
+
+
+# ── Universal stat effects (Str/Dex/Int) ─────────────────────────────────────
+# Identical formulas for every class so off-profile builds work (fast mages,
+# clever barbarians). Flat HP/mana/move-speed pieces live in the get_effective_*
+# getters below; these are the multipliers combat code reads.
+func get_stat_basic_damage_mult() -> float:
+	return 1.0 + 0.01 * float(player_strength)
+
+
+func get_stat_skill_damage_mult() -> float:
+	return 1.0 + 0.01 * float(player_intelligence)
+
+
+func get_stat_attack_speed_mult() -> float:
+	return 1.0 + 0.01 * float(player_dexterity)
+
+
+# Cooldowns tick this much faster per point of Intelligence.
+func get_stat_cooldown_rate() -> float:
+	return 1.0 + 0.003 * float(player_intelligence)
+
+
+func get_effective_crit_chance() -> float:
+	return player_crit_chance + 0.003 * float(player_dexterity)
 
 
 func damage_player(amount: int) -> void:
@@ -809,7 +1015,7 @@ func regen_mana(amount: float) -> void:
 
 
 func roll_crit() -> bool:
-	return randf() < player_crit_chance
+	return randf() < get_effective_crit_chance()
 
 
 func compute_attack_damage(base_damage: int) -> Array:
@@ -821,7 +1027,7 @@ func compute_attack_damage(base_damage: int) -> Array:
 			crit_bonus = float(InventorySystem.call("get_crit_chance_bonus"))
 		if InventorySystem.has_method("get_crit_dmg_bonus"):
 			crit_dmg_bonus = float(InventorySystem.call("get_crit_dmg_bonus"))
-	var crit: bool = randf() < (player_crit_chance + crit_bonus)
+	var crit: bool = randf() < (get_effective_crit_chance() + crit_bonus)
 	var dmg: int = base_damage
 	if crit:
 		dmg = int(round(float(base_damage) * (player_crit_damage + crit_dmg_bonus)))
@@ -842,26 +1048,28 @@ func get_effective_damage() -> int:
 	return int(round(base * wmult * (1.0 + dmg_bonus)))
 
 
-# Effective max HP including +max_hp affixes.
+# Effective max HP including +max_hp affixes and Strength (+5 HP per point).
 func get_effective_max_hp() -> int:
 	var bonus: int = 0
 	if InventorySystem and InventorySystem.has_method("get_max_hp_bonus"):
 		bonus = int(InventorySystem.call("get_max_hp_bonus"))
-	return player_max_hp + bonus
+	return player_max_hp + bonus + 5 * player_strength
 
 
+# Effective max mana including affixes and Intelligence (+3 mana per point).
 func get_effective_max_mana() -> int:
 	var bonus: int = 0
 	if InventorySystem and InventorySystem.has_method("get_max_mana_bonus"):
 		bonus = int(InventorySystem.call("get_max_mana_bonus"))
-	return player_max_mana + bonus
+	return player_max_mana + bonus + 3 * player_intelligence
 
 
+# Effective move speed: Dexterity adds +2 flat per point, then item multipliers.
 func get_effective_move_speed() -> float:
 	var bonus: float = 0.0
 	if InventorySystem and InventorySystem.has_method("get_move_speed_mult_bonus"):
 		bonus = float(InventorySystem.call("get_move_speed_mult_bonus"))
-	return player_move_speed * (1.0 + bonus)
+	return (player_move_speed + 2.0 * float(player_dexterity)) * (1.0 + bonus)
 
 
 func get_effective_armor() -> int:

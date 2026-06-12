@@ -29,6 +29,9 @@ const FORTUNE_LOOT_LUCK: float = 0.5
 
 var active_negatives: Array = []  # affix id strings
 var active_positives: Array = []
+# Set once the layer is fully cleared (boss down): damaging curses stop hitting
+# and stop spawning. Positives (gold vein, shrines, loot luck) keep working.
+var _disarmed: bool = false
 var _orb_timer: Timer = null
 var _golden_timer: Timer = null
 var _difficulty: int = 0
@@ -131,7 +134,32 @@ func _find_net_sync() -> Node:
 	return tree.current_scene.get_node_or_null("NetSync")
 
 
+# Full clear (boss defeated): kill every live damaging hazard and stop new ones
+# from appearing. Called via the "dungeon_affix_controller" group from
+# dungeon_runner on BOTH the host (boss_defeated) and clients (boss_reward msg),
+# so replicated gloom clouds / orbs vanish for everyone.
+func disarm_hazards() -> void:
+	if _disarmed:
+		return
+	_disarmed = true
+	if _orb_timer and is_instance_valid(_orb_timer):
+		_orb_timer.stop()
+	var tree := get_tree()
+	if tree:
+		for h in tree.get_nodes_in_group("dungeon_hazard"):
+			if is_instance_valid(h):
+				h.queue_free()
+	var had_damaging: bool = false
+	for id in active_negatives:
+		if id in ["suffocating_gloom", "heavens_wrath", "volatile_spheres"]:
+			had_damaging = true
+	if GameManager and had_damaging:
+		GameManager.notice.emit("The dungeon's curses dissipate!", Color(0.6, 0.9, 0.6))
+
+
 func _spawn_orb() -> void:
+	if _disarmed:
+		return
 	if GameManager and GameManager.game_over:
 		return
 	var player := _nearest_player()

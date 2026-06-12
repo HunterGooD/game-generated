@@ -18,6 +18,8 @@ var tick_t: float = 0.0
 var life_t: float = LIFETIME
 var sprite: Sprite2D = null
 var killed_inside: bool = false
+# Enemies already cursed by THIS ritual (one visible curse stack per visit).
+var _cursed_ids: Dictionary = {}
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -74,6 +76,12 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to((e as Node2D).global_position) <= RADIUS:
 			if e.has_method("take_damage"):
 				e.call("take_damage", int(round(float(damage) * TICK_DMG_FRAC)), global_position)
+			# First touch of the sigil curses the enemy (visible stack), once
+			# per ritual so the counter reads as "zones visited", not a blur.
+			var eid: int = e.get_instance_id()
+			if not _cursed_ids.has(eid) and e.has_method("add_curse_stack"):
+				_cursed_ids[eid] = true
+				e.call("add_curse_stack")
 			hits_this_tick += 1
 	# Heal the Hexen per tick based on enemies drained.
 	if hits_this_tick > 0 and GameManager:

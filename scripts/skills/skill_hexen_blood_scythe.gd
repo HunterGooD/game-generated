@@ -10,6 +10,10 @@ const CURSE_BONUS: float = 0.4
 var damage: int = 24
 var direction: Vector2 = Vector2.RIGHT
 var visual_only: bool = false
+# Scarlet Possession: the trance empowers the scythe exactly like the whip it
+# replaced (low-HP bonus, HP cost, every-3rd-strike heal).
+var _caster: Node = null
+var _possessed: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -18,6 +22,11 @@ func setup_context(ctx: SkillContext) -> void:
 	damage = dmg
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	visual_only = ctx.is_visual_only
+	_caster = ctx.caster
+	if _caster and _caster.has_method("is_possessed"):
+		_possessed = bool(_caster.call("is_possessed"))
+	if _possessed and _caster and _caster.has_method("possession_whip_mult"):
+		damage = int(round(float(damage) * float(_caster.call("possession_whip_mult"))))
 	if visual_only:
 		set_meta("visual_only", true)
 	rotation = direction.angle()
@@ -45,6 +54,7 @@ func _hit() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	var struck: int = 0
 	for e in tree.get_nodes_in_group("enemy"):
 		if not is_instance_valid(e) or bool(e.get("dead")):
 			continue
@@ -58,3 +68,6 @@ func _hit() -> void:
 			e.call("take_damage", dmg, global_position)
 		if e.has_method("apply_bleed"):
 			e.call("apply_bleed", 3.0, float(damage) * 0.3)
+		struck += 1
+	if _possessed and _caster and _caster.has_method("possession_on_whip"):
+		_caster.call("possession_on_whip", struck)

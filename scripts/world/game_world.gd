@@ -36,6 +36,7 @@ const ACTIVITY_DEFS := [
 
 const CLASS_SELECTOR_SCENE: PackedScene = preload("res://scenes/ui/class_selector.tscn")
 const LEVEL_UP_SCENE: PackedScene = preload("res://scenes/ui/level_up_choice.tscn")
+const TALENT_PANEL_SCRIPT: Script = preload("res://scripts/ui/talent_panel.gd")
 const GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over.tscn")
 const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
 const WORLD_BACKDROP_SCRIPT: Script = preload("res://scripts/world/world_backdrop.gd")
@@ -46,6 +47,8 @@ var level_up_active: bool = false
 # open the 3-card overlay when it's safe (it can be minimised + reopened). Much kinder
 # in co-op where the world keeps running.
 var _level_up_btn: Button = null
+# Open talent panel (GameManager.use_talent_tree mode); null when closed.
+var _talent_panel: CanvasLayer = null
 # The current level-up's rolled cards, kept so minimising + reopening shows the SAME offer
 # (no free re-roll). Cleared only when a card is actually taken — the next level rolls fresh.
 var _saved_offers: Array = []
@@ -160,6 +163,11 @@ func _ready() -> void:
 	# Listen for level-ups so we can queue choice overlays.
 	if GameManager:
 		GameManager.player_levelled_up.connect(_on_player_levelled_up)
+		# Talent-tree mode: the button mirrors unspent points (they survive scene
+		# changes on the autoload, unlike the per-world pending_level_ups counter).
+		GameManager.talents_changed.connect(_refresh_level_up_button)
+		if GameManager.use_talent_tree and GameManager.talent_points > 0:
+			call_deferred("_refresh_level_up_button")
 		GameManager.spec_path_offered.connect(_on_spec_path_offered)
 		GameManager.spec_path_chosen.connect(_on_spec_path_chosen)
 		GameManager.player_revived.connect(_on_player_revived_retry_spec)
@@ -200,6 +208,10 @@ func _spawn_class_selector() -> void:
 
 
 func _on_player_levelled_up(_lv: int) -> void:
+	# Talent-tree mode: the point was already granted by GameManager.add_xp and
+	# talents_changed refreshed the button — nothing to queue here.
+	if GameManager and GameManager.use_talent_tree:
+		return
 	pending_level_ups += 1
 	# Don't slam a modal in the player's face mid-fight — surface a HUD button they
 	# open when it's safe.
@@ -225,8 +237,9 @@ func _ensure_level_up_button() -> void:
 	_level_up_btn.anchor_right = 0.0
 	_level_up_btn.anchor_top = 1.0
 	_level_up_btn.anchor_bottom = 1.0
-	_level_up_btn.offset_left = 24
-	_level_up_btn.offset_right = 244
+	# Shifted right of the HP globe (bottom-left corner is the health flask now).
+	_level_up_btn.offset_left = 178
+	_level_up_btn.offset_right = 398
 	_level_up_btn.offset_top = -190
 	_level_up_btn.offset_bottom = -134
 	_level_up_btn.visible = false
@@ -244,17 +257,59 @@ func _refresh_level_up_button() -> void:
 	_ensure_level_up_button()
 	if _level_up_btn == null:
 		return
-	var show: bool = pending_level_ups > 0 and not level_up_active
+	var show: bool
+	if GameManager and GameManager.use_talent_tree:
+		# Talent mode: surface unspent points; hide while the panel is open.
+		var pts: int = GameManager.talent_points
+		show = pts > 0 and (_talent_panel == null or not is_instance_valid(_talent_panel))
+		if show:
+			_level_up_btn.text = "⬆ TALENTS ×%d" % pts if pts > 1 else "⬆ TALENTS"
+	else:
+		show = pending_level_ups > 0 and not level_up_active
+		if show:
+			_level_up_btn.text = (
+				"⬆ LEVEL UP ×%d" % pending_level_ups if pending_level_ups > 1 else "⬆ LEVEL UP"
+			)
 	_level_up_btn.visible = show
-	if show:
-		_level_up_btn.text = (
-			"⬆ LEVEL UP ×%d" % pending_level_ups if pending_level_ups > 1 else "⬆ LEVEL UP"
-		)
 	# Keep the awakening button in sync (it hides while a level-up overlay is open).
 	_refresh_spec_button()
 
 
+# Toggle the talent panel (button or [T]). Stays usable with 0 points — you can
+# always browse the tree; only spending is gated.
+func _toggle_talent_panel() -> void:
+	if _talent_panel != null and is_instance_valid(_talent_panel):
+		_talent_panel.queue_free()
+		_talent_panel = null
+		_refresh_level_up_button()
+		return
+	var panel: CanvasLayer = TALENT_PANEL_SCRIPT.new()
+	panel.closed.connect(_on_talent_panel_closed)
+	add_child(panel)
+	_talent_panel = panel
+	_refresh_level_up_button()
+
+
+func _on_talent_panel_closed() -> void:
+	_talent_panel = null
+	_refresh_level_up_button()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if (
+		event.is_action_pressed("open_talents")
+		and GameManager
+		and GameManager.use_talent_tree
+		and not GameManager.game_over
+	):
+		_toggle_talent_panel()
+		get_viewport().set_input_as_handled()
+
+
 func _open_level_up_choice() -> void:
+	if GameManager and GameManager.use_talent_tree:
+		_toggle_talent_panel()
+		return
 	if level_up_active or pending_level_ups <= 0:
 		return
 	level_up_active = true
@@ -335,8 +390,9 @@ func _ensure_spec_button() -> void:
 	_spec_btn.anchor_right = 0.0
 	_spec_btn.anchor_top = 1.0
 	_spec_btn.anchor_bottom = 1.0
-	_spec_btn.offset_left = 24
-	_spec_btn.offset_right = 244
+	# Stacked above the level-up button, clear of the HP globe.
+	_spec_btn.offset_left = 178
+	_spec_btn.offset_right = 398
 	_spec_btn.offset_top = -258
 	_spec_btn.offset_bottom = -202
 	_spec_btn.visible = false

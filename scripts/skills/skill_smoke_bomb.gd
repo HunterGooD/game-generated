@@ -38,6 +38,14 @@ func _ready() -> void:
 		var p := _resolve_caster()
 		if p and p.has_method("apply_stealth"):
 			p.call("apply_stealth", DURATION)
+		# Assassin: vanishing into smoke opens the Backstab Window (per spec).
+		if (
+			p
+			and p.has_method("start_backstab")
+			and GameManager
+			and String(GameManager.player_spec_path) == "assassin"
+		):
+			p.call("start_backstab", 2.0)
 
 	var t := get_tree().create_timer(DURATION + 0.2)
 	t.timeout.connect(queue_free)

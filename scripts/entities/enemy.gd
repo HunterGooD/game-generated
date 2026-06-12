@@ -114,6 +114,31 @@ const POISON_MAX: int = 10
 # Curse stacks: generic distinct-debuff counter (Hexen Threefold Curse / Coven Sin).
 var curse_stacks: int = 0
 var curse_t: float = 0.0
+# Named Hexen curses: id → seconds left. "hex" is the generic stack the base kit
+# applies; Grand Malediction rolls the four flavored ones. Effects:
+#   frailty    — takes +15% damage (receive_damage_payload)
+#   misfortune — 25% chance any attack whiffs (_misfortune_whiff)
+#   agony      — DoT (ticks in _tick_status)
+#   doom       — corpse-burst that damages OTHER enemies on death
+# Threefold Curse (local player is Curseweaver): every 3rd unique curse applied
+# to this enemy triggers a Hex Burst and spreads one curse to a neighbour.
+var curses: Dictionary = {}
+var agony_dps: float = 0.0
+var _agony_tick_t: float = 0.0
+var _doom_damage: int = 0
+var _unique_curses_seen: int = 0
+# Shared Sin (Coven Mother) / Conductive Teamwork (Conductor) — per-enemy
+# internal cooldowns + the Sin counter (5 stacks → curse burst).
+var sin_stacks: int = 0
+var _sin_icd: float = 0.0
+var _conductive_icd: float = 0.0
+const CURSE_TIME: float = 6.0
+const FRAILTY_AMP: float = 0.15
+const MISFORTUNE_MISS_CHANCE: float = 0.25
+const DOOM_RADIUS: float = 160.0
+const THREEFOLD_EVERY: int = 3
+const THREEFOLD_MULT: float = 1.2
+const CURSE_SPREAD_RADIUS: float = 200.0
 var hp_bar_shown: bool = false
 var retarget_t: float = 0.0
 
@@ -281,6 +306,13 @@ func reset_for_reuse() -> void:
 	poison_t = 0.0
 	curse_stacks = 0
 	curse_t = 0.0
+	curses = {}
+	agony_dps = 0.0
+	_doom_damage = 0
+	_unique_curses_seen = 0
+	sin_stacks = 0
+	_sin_icd = 0.0
+	_conductive_icd = 0.0
 	slow_t = 0.0
 	slow_mult = 1.0
 	taunt_target = null
@@ -737,6 +769,8 @@ func _apply_melee_damage() -> void:
 		return
 	var dist: float = global_position.distance_to(player.global_position)
 	if dist <= attack_range + 20.0:
+		if _misfortune_whiff():
+			return
 		if hitbox:
 			_activate_melee_hitbox()
 		else:
@@ -855,6 +889,8 @@ func _aoe_blast(target_pos: Vector2, telegraph: Sprite2D) -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	if _misfortune_whiff():
+		return
 	var radius: float = 130.0
 	var dmg: int = int(round(float(attack_damage) * 1.4))
 	if ai_component == null:
@@ -894,6 +930,8 @@ func _perform_ranged_attack() -> void:
 		var t := get_tree().create_timer(0.3)
 		t.timeout.connect(_restore_idle_sprite)
 	if not is_instance_valid(player):
+		return
+	if _misfortune_whiff():
 		return
 	var dir: Vector2 = (player.global_position - global_position).normalized()
 	var proj := ENEMY_PROJECTILE_SCENE.instantiate()
@@ -945,6 +983,9 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	# Vulnerable / Armor Break amplifies all incoming damage.
 	if vuln_t > 0.0 and vuln_amp > 0.0:
 		amount = int(round(float(amount) * (1.0 + vuln_amp)))
+	# Frailty curse — cursed flesh takes more from everything.
+	if curses.has("frailty"):
+		amount = int(round(float(amount) * (1.0 + FRAILTY_AMP)))
 	# Soul Tether mirror — broadcast a fraction of this hit to other linked
 	# enemies. has_meta() guard avoids the get_meta-missing-key spam when no
 	# Hexen tether is active.
@@ -976,6 +1017,9 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		if VfxManager:
 			VfxManager.spawn_hit_sparks(global_position, Color(0.45, 0.62, 1.0, 1), 8)
 		return false
+	# Ascension passives reacting to this hit (Shared Sin / Conductive Teamwork).
+	# After the puppet fork so they run host/solo-side only; DoT ticks excluded.
+	_ally_passive_hooks(payload)
 	var previous_hp: int = hp
 	var knockback: Vector2 = payload.knockback
 	if knockback == Vector2.ZERO and payload.source is Node2D:
@@ -1160,13 +1204,212 @@ func get_poison_stacks() -> int:
 
 
 # Curse: track distinct debuffs over a window; returns the running stack count so
-# callers (Hexen) can trigger bursts on every Nth unique curse.
+# callers (Hexen) can trigger bursts on every Nth unique curse. Routes through
+# the named-curse system as the generic "hex" so the base kit and the flavored
+# Malediction curses share one model (and one Threefold counter).
 func add_curse_stack() -> int:
 	if dead:
 		return 0
-	curse_stacks += 1
-	curse_t = 6.0
+	apply_curse("hex")
 	return curse_stacks
+
+
+# Apply a named Hexen curse. `power` is curse-specific: agony = DPS,
+# doom = burst damage. Every application bumps the visible stack counter;
+# a curse id NEW to this enemy also advances the Threefold counter.
+func apply_curse(id: String, duration: float = CURSE_TIME, power: float = 0.0) -> void:
+	if dead:
+		return
+	var is_new: bool = not curses.has(id)
+	curses[id] = duration
+	match id:
+		"agony":
+			agony_dps = maxf(agony_dps, power)
+		"doom":
+			_doom_damage = maxi(_doom_damage, int(power))
+	curse_stacks += 1
+	curse_t = maxf(curse_t, duration)
+	if is_new:
+		_unique_curses_seen += 1
+		_maybe_threefold_burst()
+
+
+# Threefold Curse (Curseweaver passive): every 3rd unique curse on this enemy
+# detonates a Hex Burst and spreads one curse to the nearest uncursed neighbour.
+# Keyed off the LOCAL player's spec (host-side sim, same limitation as the other
+# ascension passives).
+func _maybe_threefold_burst() -> void:
+	if GameManager == null or String(GameManager.player_spec_path) != "curseweaver":
+		return
+	if _unique_curses_seen <= 0 or _unique_curses_seen % THREEFOLD_EVERY != 0:
+		return
+	var dmg: int = maxi(1, int(round(float(GameManager.get_effective_damage()) * THREEFOLD_MULT)))
+	take_damage(dmg, global_position)
+	if VfxManager:
+		VfxManager.spawn_explosion(global_position, 0.9, Color(0.7, 0.2, 0.8, 1))
+	_spread_one_curse()
+
+
+func _spread_one_curse() -> void:
+	if curses.is_empty():
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var best: Node = null
+	var best_d: float = CURSE_SPREAD_RADIUS
+	for e in tree.get_nodes_in_group("enemy"):
+		if e == self or not is_instance_valid(e) or bool(e.get("dead")):
+			continue
+		if not e.has_method("apply_curse"):
+			continue
+		var d: float = global_position.distance_to((e as Node2D).global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best == null:
+		return
+	var ids: Array = curses.keys()
+	var pick: String = String(ids[randi() % ids.size()])
+	var power: float = agony_dps if pick == "agony" else float(_doom_damage)
+	best.call("apply_curse", pick, float(curses[pick]), power)
+	if VfxManager:
+		VfxManager.spawn_hit_sparks((best as Node2D).global_position, Color(0.7, 0.2, 0.8, 1), 6)
+
+
+# Misfortune curse: the attack whiffs entirely. Checked at every outgoing-damage
+# site (melee, AoE, ranged); grey sparks sell the fumble.
+func _misfortune_whiff() -> bool:
+	if not curses.has("misfortune"):
+		return false
+	if randf() >= MISFORTUNE_MISS_CHANCE:
+		return false
+	if VfxManager:
+		VfxManager.spawn_hit_sparks(global_position, Color(0.6, 0.6, 0.65, 0.9), 5)
+	return true
+
+
+func _apply_agony_tick() -> void:
+	if dead or agony_dps <= 0.0:
+		return
+	var tick: int = max(1, int(round(agony_dps * 0.5)))
+	receive_damage_payload(
+		DamageInstance.new(float(tick), null, self, [&"curse"], [], false, Vector2.ZERO)
+	)
+
+
+# DoT ticks must not feed on-hit passives (burn/agony would farm Sin stacks).
+func _is_dot_payload(payload: DamageInstance) -> bool:
+	for tag in payload.tags:
+		if tag in [&"burn", &"bleed", &"poison", &"curse", &"environment"]:
+			return true
+	return false
+
+
+# Passives of the LOCAL player's ascension that react to this enemy being hit.
+# Host-side sim like every other ascension passive (client allies' procs are a
+# relay follow-up).
+func _ally_passive_hooks(payload: DamageInstance) -> void:
+	if dead or GameManager == null or _is_dot_payload(payload):
+		return
+	match String(GameManager.player_spec_path):
+		"coven_mother":
+			# Shared Sin: hits on a cursed/hex-marked foe pay the coven — mana
+			# to the witch, a sliver of shield to the attacker, and a Sin stack;
+			# the 5th stack detonates as a curse burst.
+			if _sin_icd > 0.0:
+				return
+			if not (has_meta("hex_marked") or curse_stacks > 0):
+				return
+			_sin_icd = 0.4
+			GameManager.regen_mana(2.0)
+			var attacker := _payload_player(payload)
+			if attacker and attacker.has_method("add_shield"):
+				attacker.call("add_shield", 4.0, float(GameManager.get_effective_max_hp()) * 0.15)
+			sin_stacks += 1
+			if sin_stacks >= 5:
+				sin_stacks = 0
+				_sin_burst()
+		"conductor":
+			# Conductive Teamwork: hits on a static-marked foe arc to neighbours
+			# (≤1 proc / 0.8s per enemy).
+			if _conductive_icd > 0.0 or not _elem_seen.has("storm"):
+				return
+			_conductive_icd = 0.8
+			_conductive_zap()
+
+
+# The player behind this hit, falling back to the local player (solo, or when
+# the source is a skill node without a caster backref).
+func _payload_player(payload: DamageInstance) -> Node:
+	if payload.attacker and is_instance_valid(payload.attacker) and payload.attacker.is_in_group("player"):
+		return payload.attacker
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for p in tree.get_nodes_in_group("player"):
+		if is_instance_valid(p) and not p.is_in_group("remote_player"):
+			return p
+	return null
+
+
+func _sin_burst() -> void:
+	if GameManager == null:
+		return
+	var dmg: int = maxi(1, int(round(float(GameManager.get_effective_damage()))))
+	if VfxManager:
+		VfxManager.spawn_explosion(global_position, 1.0, Color(0.65, 0.15, 0.7, 1))
+	take_damage(dmg, global_position)
+	var tree := get_tree()
+	if tree == null:
+		return
+	for e in tree.get_nodes_in_group("enemy"):
+		if e == self or not is_instance_valid(e) or bool(e.get("dead")):
+			continue
+		if global_position.distance_to((e as Node2D).global_position) > 140.0:
+			continue
+		if e.has_method("take_damage"):
+			e.call("take_damage", dmg, global_position)
+
+
+func _conductive_zap() -> void:
+	if GameManager == null:
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var dmg: int = maxi(1, int(round(float(GameManager.get_effective_damage()) * 0.4)))
+	var zapped: int = 0
+	for e in tree.get_nodes_in_group("enemy"):
+		if e == self or not is_instance_valid(e) or bool(e.get("dead")):
+			continue
+		if global_position.distance_to((e as Node2D).global_position) > 220.0:
+			continue
+		if e.has_method("take_damage"):
+			e.call("take_damage", dmg, global_position)
+		if e.has_method("mark_element"):
+			e.call("mark_element", "storm")
+		if VfxManager:
+			VfxManager.spawn_hit_sparks((e as Node2D).global_position, Color(0.6, 0.8, 1.0, 1), 6)
+		zapped += 1
+		if zapped >= 2:
+			break
+
+
+# Doom curse payoff: the corpse bursts, damaging OTHER enemies around it.
+func _doom_burst() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	if VfxManager:
+		VfxManager.spawn_explosion(global_position, 1.2, Color(0.5, 0.1, 0.6, 1))
+	for e in tree.get_nodes_in_group("enemy"):
+		if e == self or not is_instance_valid(e) or bool(e.get("dead")):
+			continue
+		if global_position.distance_to((e as Node2D).global_position) > DOOM_RADIUS:
+			continue
+		if e.has_method("take_damage"):
+			e.call("take_damage", maxi(1, _doom_damage), global_position)
 
 
 # Active debuffs for the floating status row above the enemy. Each entry:
@@ -1210,7 +1453,24 @@ func get_active_statuses() -> Array:
 	if fractured_t > 0.0:
 		out.append({"id": "fracture", "label": "X", "color": Color(0.9, 0.6, 1.0), "progress": clampf(fractured_t / 5.0, 0.0, 1.0)})
 	if curse_t > 0.0:
-		out.append({"id": "curse", "label": "K", "color": Color(0.55, 0.2, 0.6), "progress": clampf(curse_t / 6.0, 0.0, 1.0)})
+		# Show the stack count so curse builds can read their ramp at a glance.
+		var k_label: String = "K" if curse_stacks <= 1 else "K%d" % curse_stacks
+		out.append({"id": "curse", "label": k_label, "color": Color(0.55, 0.2, 0.6), "progress": clampf(curse_t / 6.0, 0.0, 1.0)})
+	var named_curses := {
+		"frailty": {"label": "W", "color": Color(0.7, 0.5, 0.75)},
+		"misfortune": {"label": "M", "color": Color(0.45, 0.45, 0.6)},
+		"agony": {"label": "A", "color": Color(0.85, 0.25, 0.5)},
+		"doom": {"label": "D", "color": Color(0.35, 0.05, 0.45)},
+	}
+	for cid in named_curses:
+		if curses.has(cid):
+			var meta: Dictionary = named_curses[cid]
+			out.append({
+				"id": cid,
+				"label": meta["label"],
+				"color": meta["color"],
+				"progress": clampf(float(curses[cid]) / CURSE_TIME, 0.0, 1.0),
+			})
 	if taunt_t > 0.0:
 		out.append({"id": "taunt", "label": "T", "color": Color(0.95, 0.85, 0.3), "progress": clampf(taunt_t / 1.0, 0.0, 1.0)})
 	return out
@@ -1264,6 +1524,24 @@ func _tick_status(delta: float) -> void:
 		curse_t -= delta
 		if curse_t <= 0.0:
 			curse_stacks = 0
+	if not curses.is_empty():
+		for cid in curses.keys():
+			curses[cid] = float(curses[cid]) - delta
+			if float(curses[cid]) <= 0.0:
+				curses.erase(cid)
+				if cid == "agony":
+					agony_dps = 0.0
+				elif cid == "doom":
+					_doom_damage = 0
+		if curses.has("agony") and agony_dps > 0.0:
+			_agony_tick_t -= delta
+			if _agony_tick_t <= 0.0:
+				_agony_tick_t = 0.5
+				_apply_agony_tick()
+	if _sin_icd > 0.0:
+		_sin_icd -= delta
+	if _conductive_icd > 0.0:
+		_conductive_icd -= delta
 
 
 # Burn DoT damage. Host-authoritative (puppets never reach here). Routes through
@@ -1496,6 +1774,9 @@ func _die() -> void:
 	# elemental burst, splashing nearby foes (host-side / solo only).
 	if fractured_t > 0.0 and not is_puppet:
 		_fracture_explosion()
+	# Doom curse payoff — the cursed corpse bursts against its own kind.
+	if curses.has("doom") and _doom_damage > 0 and not is_puppet:
+		_doom_burst()
 	# Brood Mother bursts into a small swarm on death.
 	if is_brood_mother:
 		_spawn_hatchlings(6)

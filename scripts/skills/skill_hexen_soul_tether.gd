@@ -42,6 +42,9 @@ func _ready() -> void:
 			if bool(e.get_meta("hex_marked", false)):
 				linked.append(e)
 				e.set_meta("tether_node", self)
+				# Tethering deepens the curse (visible stack).
+				if e.has_method("add_curse_stack"):
+					e.call("add_curse_stack")
 	if linked.size() < 2:
 		# Need at least 2 marked enemies. Detonate the single mark for value.
 		if linked.size() == 1:

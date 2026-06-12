@@ -10,6 +10,8 @@ extends CanvasLayer
 
 const XP_BONUS: int = 60
 const GOLD_BONUS: int = 120
+# Talent respec price per refunded point (perk ranks are kept, see respec_talents).
+const RESPEC_GOLD_PER_POINT: int = 20
 
 signal closed
 
@@ -43,6 +45,16 @@ func _build() -> void:
 	vb.add_child(_button("Train — +%d XP" % XP_BONUS, _train))
 	vb.add_child(_button("Prosper — +%d gold" % GOLD_BONUS, _prosper))
 
+	# Talent respec — campfire-only. Spends the rest like the other boons (the
+	# whole overlay closes on pick), priced per refunded point.
+	if GameManager and GameManager.use_talent_tree:
+		var refund: int = GameManager.talent_respec_refund()
+		if refund > 0:
+			var cost: int = refund * RESPEC_GOLD_PER_POINT
+			var b := _button("Respec — refund %d talent pts (%d gold)" % [refund, cost], _respec)
+			b.disabled = GameManager.gold < cost
+			vb.add_child(b)
+
 
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
@@ -67,6 +79,16 @@ func _train() -> void:
 func _prosper() -> void:
 	if GameManager:
 		GameManager.add_gold(GOLD_BONUS)
+	_close()
+
+
+func _respec() -> void:
+	if GameManager:
+		var cost: int = GameManager.talent_respec_refund() * RESPEC_GOLD_PER_POINT
+		if GameManager.gold >= cost:
+			GameManager.gold -= cost
+			GameManager.gold_changed.emit(GameManager.gold)
+			GameManager.respec_talents()
 	_close()
 
 

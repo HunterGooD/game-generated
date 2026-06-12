@@ -131,8 +131,12 @@ func is_repeatable(class_id: String, node_id: String) -> bool:
 
 
 # ── progression ───────────────────────────────────────────────────────────────
-# Add run XP to a class's persistent meta level. Local & per-class; mid-level XP stays in
-# memory until a level-up (persisted immediately) or run_completed (flushed via _save).
+# Add meta XP to a class's persistent meta level. Callers convert run progress
+# to meta XP BEFORE calling (see GameManager: per character level-up, not per
+# raw run XP — run XP grows exponentially with character level while meta level
+# costs grow linearly, so mirroring raw XP exploded into thousands of meta
+# levels on a deep run). Local & per-class; mid-level XP stays in memory until
+# a level-up (persisted immediately) or run_completed (flushed via _save).
 func award_xp(class_id: String, amount: int) -> void:
 	if amount <= 0 or class_id == "":
 		return

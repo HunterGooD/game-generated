@@ -54,6 +54,9 @@ func _ready() -> void:
 	# Tag enemy with a meta flag so Soul Tether can find marked enemies.
 	marked_enemy.set_meta("hex_marked", true)
 	marked_enemy.set_meta("hex_mark_node", self)
+	# The mark IS a curse — feed the visible stack counter / curse synergies.
+	if marked_enemy.has_method("add_curse_stack"):
+		marked_enemy.call("add_curse_stack")
 	# Crimson outline shader marks the enemy visibly.
 	_apply_outline(marked_enemy, Color(1.0, 0.2, 0.35, 1.0))
 	_show_aura_at(marked_enemy.global_position)

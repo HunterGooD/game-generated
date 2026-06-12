@@ -592,7 +592,7 @@ const UNIQUE_ITEMS: Array = [
 		"weapon_damage_mult": 1.85,
 		"transform": "necro_bone_spear",
 		"transform_desc":
-		"Raise Skeleton is replaced by a piercing bone-spear projectile (3 enemy pierce).",
+		"Grants 2 free ranks of Crimson Vow (Blood Pact minion damage) while equipped.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 30},
@@ -608,7 +608,7 @@ const UNIQUE_ITEMS: Array = [
 		"icon": "res://assets/sprites/items/icon_necro_curse_field.png",
 		"class_lock": "necromancer",
 		"transform": "necro_curse_field",
-		"transform_desc": "Raise Knight is replaced by a curse zone (+50% damage taken inside).",
+		"transform_desc": "Grants 2 free ranks of Plated Bones (Bone Knight HP) while equipped.",
 		"fixed_affixes":
 		[
 			{"id": "armor", "value": 28},
@@ -627,7 +627,8 @@ const UNIQUE_ITEMS: Array = [
 		"icon": "res://assets/sprites/items/icon_druid_hurricane.png",
 		"class_lock": "druid",
 		"transform": "druid_hurricane",
-		"transform_desc": "Wolf Form is replaced by a hurricane that chases enemies for 8s.",
+		"transform_desc":
+		"Grants 2 free ranks of Wild Endurance (Wolf Form duration) while equipped.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 22},
@@ -644,7 +645,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "druid",
 		"transform": "druid_dire_wolf",
 		"transform_desc":
-		"Bear Form is replaced by Dire Wolf Form — wolf moveset with crimson tint.",
+		"Grants 2 free ranks of Iron Hide (Bear Form duration) while equipped.",
 		"fixed_affixes":
 		[
 			{"id": "damage", "value": 26},

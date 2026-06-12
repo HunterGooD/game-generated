@@ -142,6 +142,14 @@ const SKILL_MODIFIERS := [
 		"stack_bonus": "+1 max spirit pet"
 	},
 	{
+		"id": "spirit_summon_damage",
+		"slot": 3,
+		"title": "Feral Spirits",
+		"desc": "+30% Summon Spirit damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
 		"id": "eagle_duration",
 		"slot": 4,
 		"title": "Sky Lord",
@@ -182,12 +190,36 @@ const SKILL_MODIFIERS := [
 		"rarity": "common",
 		"stack_bonus": "+30% radius"
 	},
+	{
+		"id": "necro_pulse_damage",
+		"slot": 3,
+		"title": "Grave Resonance",
+		"desc": "+30% Death Pulse damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
 	# BARBARIAN — slots: Whirlwind(0), Leap Slam(1), Battle Cry(2), Earthquake(3)
 	{
 		"id": "barb_whirl_damage",
 		"slot": 0,
 		"title": "Reaving Spin",
 		"desc": "+30% Whirlwind damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "barb_leap_damage",
+		"slot": 1,
+		"title": "Crater Maker",
+		"desc": "+30% Leap Slam damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "barb_quake_damage",
+		"slot": 3,
+		"title": "Tectonic Fury",
+		"desc": "+30% Earthquake damage",
 		"rarity": "common",
 		"stack_bonus": "+30% damage"
 	},
@@ -232,6 +264,22 @@ const SKILL_MODIFIERS := [
 		"rarity": "common",
 		"stack_bonus": "+4s duration"
 	},
+	{
+		"id": "rogue_caltrops_damage",
+		"slot": 0,
+		"title": "Serrated Spikes",
+		"desc": "+30% Caltrops damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "rogue_poison_damage",
+		"slot": 2,
+		"title": "Virulent Brew",
+		"desc": "+30% Poison Vial damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
 	# HEXEN — slots: Hex Mark(0), Blood Whip(1), Soul Tether(2), Crimson Ritual(3)
 	{
 		"id": "hexen_mark_damage",
@@ -257,6 +305,22 @@ const SKILL_MODIFIERS := [
 		"rarity": "common",
 		"stack_bonus": "+30% damage"
 	},
+	{
+		"id": "hexen_tether_damage",
+		"slot": 2,
+		"title": "Soul Drain",
+		"desc": "+30% Soul Tether damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "hexen_ritual_damage",
+		"slot": 3,
+		"title": "Sanguine Crescendo",
+		"desc": "+30% Crimson Ritual damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
 	# STORMCALLER — slots: Chain Bolt(0), Storm Step(1), Sky Strike(2), Static Discharge(3)
 	{
 		"id": "storm_bolt_damage",
@@ -279,6 +343,14 @@ const SKILL_MODIFIERS := [
 		"slot": 2,
 		"title": "Thunderhead",
 		"desc": "+30% Sky Strike damage",
+		"rarity": "common",
+		"stack_bonus": "+30% damage"
+	},
+	{
+		"id": "storm_discharge_damage",
+		"slot": 3,
+		"title": "Overload",
+		"desc": "+30% Static Discharge damage",
 		"rarity": "common",
 		"stack_bonus": "+30% damage"
 	},

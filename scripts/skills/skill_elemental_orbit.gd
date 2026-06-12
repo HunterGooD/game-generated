@@ -67,12 +67,9 @@ func _ready() -> void:
 
 
 func _spawn_orb(origin: Vector2, element: String, vdir: Vector2) -> void:
-	var spr := Sprite2D.new()
-	var path := "res://assets/sprites/effects/fire_flame.png"
-	if ResourceLoader.exists(path):
-		spr.texture = load(path) as Texture2D
-	spr.modulate = ELEM_COLOR.get(element, Color(1, 1, 1, 1))
-	spr.scale = Vector2(0.6, 0.6) * (1.3 if prismatic else 1.0)
+	# Same shader orb the ring shows orbiting the player (ElemOrbRing.make_orb) —
+	# the banked ball visibly flies off instead of morphing into a fire-wall flame.
+	var spr := ElemOrbRing.make_orb(element, 34.0 * (1.35 if prismatic else 1.0))
 	spr.global_position = origin
 	add_child(spr)
 	_orbs.append({"el": element, "spr": spr, "pos": origin, "vel": vdir * ORB_SPEED, "hit": {}, "t": 0.0})
@@ -85,8 +82,7 @@ func _process(delta: float) -> void:
 			continue
 		orb["t"] += delta
 		orb["pos"] += orb["vel"] * delta
-		(orb["spr"] as Sprite2D).global_position = orb["pos"]
-		(orb["spr"] as Sprite2D).rotation += delta * 8.0
+		(orb["spr"] as Node2D).global_position = orb["pos"]
 		if visual_only or tree == null:
 			continue
 		for e in tree.get_nodes_in_group("enemy"):

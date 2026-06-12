@@ -21,9 +21,31 @@ extends CanvasLayer
 const XP_SHADER: Shader = preload("res://assets/ui/xp_bar.gdshader")
 const PAUSE_MENU_SCENE: PackedScene = preload("res://scenes/ui/pause_menu.tscn")
 const LOW_HP_SHADER: Shader = preload("res://assets/shaders/low_hp_vignette.gdshader")
+const GLOBE_SHADER: Shader = preload("res://assets/shaders/resource_globe.gdshader")
+
+# Diablo-style globes: HP is always bright-red liquid; the right globe is the
+# class resource — blue mana for the casters, distinct flavors elsewhere
+# (barbarian rage = dark crimson with a murkier shader, rogue amber energy,
+# druid green essence, hexen violet ichor).
+const GLOBE_SIZE: float = 148.0
+const HP_LIQUID := {"color": Color(0.85, 0.08, 0.1), "darkness": 0.0}
+const RESOURCE_LIQUID := {
+	"mage": {"color": Color(0.16, 0.42, 1.0), "darkness": 0.0},
+	"stormcaller": {"color": Color(0.2, 0.55, 1.0), "darkness": 0.0},
+	"necromancer": {"color": Color(0.25, 0.4, 0.95), "darkness": 0.1},
+	"hexen": {"color": Color(0.5, 0.18, 0.8), "darkness": 0.15},
+	"druid": {"color": Color(0.15, 0.65, 0.3), "darkness": 0.15},
+	"rogue": {"color": Color(0.8, 0.65, 0.15), "darkness": 0.2},
+	"barbarian": {"color": Color(0.45, 0.03, 0.08), "darkness": 0.5},
+}
 
 var low_hp_overlay: ColorRect = null
 var static_charge_label: Label = null
+# Globe materials/labels (built in _build_globes; replace the legacy bars).
+var _hp_globe_mat: ShaderMaterial = null
+var _res_globe_mat: ShaderMaterial = null
+var _hp_globe_label: Label = null
+var _res_globe_label: Label = null
 
 var skill_slots: Array = []
 # Ultimate (R / spec-path ascension) slot — built alongside the hotbar but driven
@@ -32,9 +54,6 @@ var ult_slot: Dictionary = {}
 var skill_system_ref: Node = null
 var player_ref: Node = null
 var status_row: StatusIcons = null
-# Blue shield overlay drawn over the HP bar (shield_bar.gdshader); its shield_frac is
-# updated each frame from the local player's shield_hp.
-var _shield_mat: ShaderMaterial = null
 var pause_menu_open: bool = false
 
 # Boss bar — built on demand.
@@ -80,7 +99,7 @@ func _ready() -> void:
 	_build_low_hp_overlay()
 	_build_static_charge_counter()
 	_build_status_row()
-	_setup_shield_overlay()
+	_build_globes()
 	call_deferred("_find_skill_system")
 
 
@@ -555,16 +574,7 @@ func _update_ult_slot() -> void:
 func _refresh() -> void:
 	if GameManager == null:
 		return
-	if hp_bar:
-		hp_bar.max_value = GameManager.player_max_hp
-		hp_bar.value = GameManager.player_hp
-	if mp_bar:
-		mp_bar.max_value = GameManager.player_max_mana
-		mp_bar.value = GameManager.player_mana
-	if hp_label:
-		hp_label.text = "%d / %d" % [int(GameManager.player_hp), int(GameManager.player_max_hp)]
-	if mp_label:
-		mp_label.text = "%d / %d" % [int(GameManager.player_mana), int(GameManager.player_max_mana)]
+	_update_globes()
 	if level_label:
 		level_label.text = "Lv %d" % GameManager.player_level
 	_update_xp_bar()
@@ -616,6 +626,7 @@ func _on_xp_gained(_amount: int) -> void:
 
 
 func _on_class_selected(_cid: String) -> void:
+	_apply_resource_style()
 	_refresh()
 	if class_label and GameManager:
 		class_label.text = String(GameManager.get_class_data().get("display", "Hero"))
@@ -749,29 +760,104 @@ func _update_static_charge_counter() -> void:
 			return
 
 
+# Shield sheath: the HP globe shader draws shield_hp/max_hp as a pale glassy
+# layer over the red liquid (the old ProgressBar overlay is gone with the bars).
 func _update_shield_overlay() -> void:
-	if _shield_mat == null:
+	if _hp_globe_mat == null:
 		return
 	var sh: float = 0.0
 	if player_ref and is_instance_valid(player_ref) and player_ref.get("shield_hp") != null:
 		sh = float(player_ref.get("shield_hp"))
-	var mhp: float = float(GameManager.player_max_hp) if GameManager else 100.0
-	_shield_mat.set_shader_parameter("shield_frac", clampf(sh / maxf(1.0, mhp), 0.0, 1.0))
+	var mhp: float = float(GameManager.get_effective_max_hp()) if GameManager else 100.0
+	_hp_globe_mat.set_shader_parameter("shield_frac", clampf(sh / maxf(1.0, mhp), 0.0, 1.0))
 
 
-func _setup_shield_overlay() -> void:
-	if hp_bar == null:
+# Build the two bottom-corner globes and retire the legacy top-left bars.
+func _build_globes() -> void:
+	if hp_bar and hp_bar.get_parent():
+		(hp_bar.get_parent() as Control).visible = false  # HpRow
+	if mp_bar and mp_bar.get_parent():
+		(mp_bar.get_parent() as Control).visible = false  # MpRow
+	var hp_built: Dictionary = _build_globe(false)
+	_hp_globe_mat = hp_built["mat"]
+	_hp_globe_label = hp_built["label"]
+	_hp_globe_mat.set_shader_parameter("liquid_color", HP_LIQUID["color"])
+	_hp_globe_mat.set_shader_parameter("darkness", HP_LIQUID["darkness"])
+	var res_built: Dictionary = _build_globe(true)
+	_res_globe_mat = res_built["mat"]
+	_res_globe_label = res_built["label"]
+	_apply_resource_style()
+	_update_globes()
+
+
+# One globe: rect with the globe shader + a number label floating above it.
+# `right` = bottom-right corner (resource), else bottom-left (health).
+func _build_globe(right: bool) -> Dictionary:
+	var holder := Control.new()
+	holder.name = "ResourceGlobe" if right else "HealthGlobe"
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(holder)
+	holder.anchor_left = 1.0 if right else 0.0
+	holder.anchor_right = 1.0 if right else 0.0
+	holder.anchor_top = 1.0
+	holder.anchor_bottom = 1.0
+	var margin: float = 14.0
+	holder.offset_left = (-margin - GLOBE_SIZE) if right else margin
+	holder.offset_right = -margin if right else (margin + GLOBE_SIZE)
+	holder.offset_top = -margin - GLOBE_SIZE - 26.0
+	holder.offset_bottom = -margin
+
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	label.add_theme_constant_override("outline_size", 4)
+	holder.add_child(label)
+	label.anchor_right = 1.0
+	label.offset_top = 0.0
+	label.offset_bottom = 24.0
+
+	var rect := ColorRect.new()
+	rect.color = Color(1, 1, 1, 1)  # shader overwrites COLOR
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = GLOBE_SHADER
+	mat.set_shader_parameter("fill", 1.0)
+	mat.set_shader_parameter("seed_offset", randf() * 10.0)
+	rect.material = mat
+	holder.add_child(rect)
+	rect.anchor_right = 1.0
+	rect.anchor_bottom = 1.0
+	rect.offset_top = 26.0
+
+	return {"mat": mat, "label": label}
+
+
+func _apply_resource_style() -> void:
+	if _res_globe_mat == null or GameManager == null:
 		return
-	var ov := ColorRect.new()
-	ov.name = "ShieldOverlay"
-	ov.color = Color(1, 1, 1, 1)  # the shader overwrites COLOR; just needs to draw the quad
-	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shield_mat = ShaderMaterial.new()
-	_shield_mat.shader = load("res://assets/shaders/shield_bar.gdshader")
-	_shield_mat.set_shader_parameter("shield_frac", 0.0)
-	ov.material = _shield_mat
-	hp_bar.add_child(ov)
-	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var cls: String = String(GameManager.player_class)
+	var style: Dictionary = RESOURCE_LIQUID.get(cls, RESOURCE_LIQUID["mage"])
+	_res_globe_mat.set_shader_parameter("liquid_color", style["color"])
+	_res_globe_mat.set_shader_parameter("darkness", style["darkness"])
+
+
+func _update_globes() -> void:
+	if GameManager == null or _hp_globe_mat == null:
+		return
+	var max_hp: float = float(GameManager.get_effective_max_hp())
+	var max_mana: float = float(GameManager.get_effective_max_mana())
+	_hp_globe_mat.set_shader_parameter(
+		"fill", clampf(float(GameManager.player_hp) / maxf(1.0, max_hp), 0.0, 1.0)
+	)
+	_res_globe_mat.set_shader_parameter(
+		"fill", clampf(float(GameManager.player_mana) / maxf(1.0, max_mana), 0.0, 1.0)
+	)
+	if _hp_globe_label:
+		_hp_globe_label.text = "%d / %d" % [int(GameManager.player_hp), int(max_hp)]
+	if _res_globe_label:
+		_res_globe_label.text = "%d / %d" % [int(GameManager.player_mana), int(max_mana)]
 
 
 func _process(_delta: float) -> void:
@@ -781,12 +867,7 @@ func _process(_delta: float) -> void:
 	_update_downed_banner()
 	if status_row and player_ref and is_instance_valid(player_ref) and player_ref.has_method("get_active_statuses"):
 		status_row.update_statuses(player_ref.call("get_active_statuses"))
-	if GameManager and mp_bar:
-		mp_bar.value = GameManager.player_mana
-		if mp_label:
-			mp_label.text = (
-				"%d / %d" % [int(GameManager.player_mana), int(GameManager.player_max_mana)]
-			)
+	_update_globes()  # mana drains/regens continuously — keep the liquid live
 	if skill_system_ref:
 		var cur_mana: float = float(GameManager.player_mana) if GameManager else 0.0
 		for i in skill_slots.size():
