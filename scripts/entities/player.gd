@@ -180,6 +180,7 @@ func _ready() -> void:
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1
+	BlobShadow.attach_at_feet(self, sprite, 46.0, 18.0)
 	_setup_components()
 	_apply_class()
 	_restore_run_upgrades()

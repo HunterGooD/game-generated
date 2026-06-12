@@ -12,6 +12,9 @@ const RARITY_COLORS := {
 	"unique": Color(1.0, 0.4, 0.3, 1),
 }
 
+# Диаметр кружка-гнезда на кукле (в сумке — умножается на масштаб ячейки).
+const SOCKET_DOT: float = 30.0
+
 var open: bool = false
 var selected_item: ItemInstance = null
 
@@ -28,9 +31,11 @@ var paper_doll: Control = null
 var set_summary_label: Label = null
 var inventory_grid: GridContainer = null
 
-# ПКМ-меню для предметов в сумке (Надеть / Разобрать / Продать).
+# ПКМ-меню для предметов в сумке (Надеть / Разобрать / Продать) и на кукле
+# (Снять / Просверлить гнездо). _ctx_slot >= 0 — предмет сейчас надет.
 var _ctx_menu: PopupMenu = null
 var _ctx_item: ItemInstance = null
+var _ctx_slot: int = -1
 
 # Кукла в стиле Diablo — (x, y) в пикселях внутри области 340×470.
 const SLOT_SIZE: Vector2 = Vector2(100, 100)
@@ -46,13 +51,12 @@ const PAPER_DOLL_LAYOUT: Dictionary = {
 	ItemDatabase.SLOT_WEAPON_OFF: Vector2(235, 360),
 }
 
-
 # ── Drag & drop ячейки ────────────────────────────────────────────────────────
 # Данные перетаскивания: {"item": ItemInstance, "from_slot": int} (-1 = из сумки).
 
 
 # Ячейка сумки. Перетаскивание начинает payload; сброс НАДЕТОГО предмета сюда
-# снимает его обратно в сумку.
+# снимает его обратно в сумку, сброс камня ИЗ ГНЕЗДА — вынимает его.
 class BagCell:
 	extends PanelContainer
 	var item: ItemInstance = null
@@ -65,11 +69,19 @@ class BagCell:
 		return {"item": item, "from_slot": -1}
 
 	func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
-		return data is Dictionary and int((data as Dictionary).get("from_slot", -1)) >= 0
+		if not (data is Dictionary):
+			return false
+		var d := data as Dictionary
+		return int(d.get("from_slot", -1)) >= 0 or d.get("socket_item") is ItemInstance
 
 	func _drop_data(_pos: Vector2, data: Variant) -> void:
-		if InventorySystem:
-			InventorySystem.unequip_slot(int((data as Dictionary).get("from_slot", -1)))
+		if InventorySystem == null:
+			return
+		var d := data as Dictionary
+		if d.get("socket_item") is ItemInstance:
+			InventorySystem.unsocket_gem(d["socket_item"] as ItemInstance, int(d.get("socket_idx", -1)))
+		else:
+			InventorySystem.unequip_slot(int(d.get("from_slot", -1)))
 
 
 # Слот куклы. Принимает подходящие предметы; перетаскивание наружу тоже
@@ -288,14 +300,14 @@ func _build_layout() -> void:
 	inv_wrap.add_child(inv_margin)
 	inv_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	inventory_grid = GridContainer.new()
-	inventory_grid.columns = 6
+	inventory_grid.columns = 11
 	inventory_grid.add_theme_constant_override("h_separation", 6)
 	inventory_grid.add_theme_constant_override("v_separation", 6)
 	inv_margin.add_child(inventory_grid)
 
 	# ── Подсказка снизу ──
 	var hint := Label.new()
-	hint.text = "Tab / Esc — закрыть   •   ЛКМ — надеть   •   ПКМ — действия   •   предметы можно перетаскивать"
+	hint.text = "Tab / Esc — закрыть  •  ЛКМ — надеть/снять  •  ПКМ — действия  •  самоцветы тащите в гнёзда, ПКМ по гнезду — повернуть"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_color_override("font_color", Color(0.6, 0.55, 0.4, 1))
 	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
@@ -488,6 +500,8 @@ func _rebuild_equipment() -> void:
 			for b in info.get("bonuses", []):
 				if bool(b.get("active", false)):
 					lines.append("  ✓ %s" % String(b.get("label", "")))
+		# Цепи самоцветов: итоги связей, резонансы, контуры, эффекты камней.
+		lines += SocketGems.summary_lines(InventorySystem.get_socket_links())
 		set_summary_label.text = "\n".join(lines)
 
 	# Слоты куклы на своих позициях.
@@ -499,13 +513,92 @@ func _rebuild_equipment() -> void:
 		paper_doll.add_child(tile)
 		tile.position = pos
 
-	# Инвентарь: 30 ячеек.
+	# Линии активных связей между гнёздами — поверх плиток, мышь игнорируют.
+	_add_link_overlay()
+
+	# Инвентарь: 11×9 = 99 ячеек.
 	var items: Array = InventorySystem.inventory if InventorySystem else []
-	var cap: int = InventorySystem.INVENTORY_CAPACITY if InventorySystem else 30
+	var cap: int = InventorySystem.INVENTORY_CAPACITY if InventorySystem else 99
 	for i in cap:
 		var item: ItemInstance = items[i] if i < items.size() and items[i] is ItemInstance else null
 		var cell := _build_inventory_cell(item)
 		inventory_grid.add_child(cell)
+
+
+# Центры гнёзд внутри плитки 100×100 (большие круги поверх предмета).
+# Доспех — квадрат 2×2; остальные — ряд по горизонтали.
+static func socket_centers(slot: int, count: int) -> Array:
+	if slot == ItemDatabase.SLOT_CHEST:
+		var grid: Array = [Vector2(33, 45), Vector2(67, 45), Vector2(33, 79), Vector2(67, 79)]
+		return grid.slice(0, count)
+	if count == 1:
+		return [Vector2(50, 62)]
+	return [Vector2(33, 62), Vector2(67, 62)].slice(0, count)
+
+
+# Центр кружка-гнезда в координатах куклы ((INF,INF), если гнезда нет на кукле).
+func _socket_dot_center(slot: int, idx: int) -> Vector2:
+	if not PAPER_DOLL_LAYOUT.has(slot) or InventorySystem == null:
+		return Vector2.INF
+	var item: ItemInstance = InventorySystem.get_equipped(slot)
+	if item == null:
+		return Vector2.INF
+	var centers: Array = socket_centers(slot, item.sockets.size())
+	if idx < 0 or idx >= centers.size():
+		return Vector2.INF
+	return Vector2(PAPER_DOLL_LAYOUT[slot]) + Vector2(centers[idx])
+
+
+func _add_link_overlay() -> void:
+	if InventorySystem == null or paper_doll == null:
+		return
+	var overlay := SocketLinkOverlay.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var widths: Dictionary = {"full": 4.0, "half": 2.5, "bridge": 1.5}
+	var segs: Array = []
+	for l in InventorySystem.get_socket_links().get("links", []):
+		var link: Dictionary = l
+		var a: Dictionary = link.get("a", {})
+		var b: Dictionary = link.get("b", {})
+		var pa: Vector2 = _socket_dot_center(int(a.get("slot", -1)), int(a.get("idx", -1)))
+		var pb: Vector2 = _socket_dot_center(int(b.get("slot", -1)), int(b.get("idx", -1)))
+		if not pa.is_finite() or not pb.is_finite():
+			continue
+		(
+			segs
+			. append(
+				{
+					"from": pa,
+					"to": pb,
+					"color": SocketGems.color_tint(String(link.get("color", "white"))),
+					"width": float(widths.get(String(link.get("kind", "")), 2.0)),
+				}
+			)
+		)
+	overlay.segments = segs
+	paper_doll.add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+# Кружки-гнёзда поверх плитки предмета (`scale_f` < 1 в ячейках сумки).
+func _add_socket_dots(parent: Control, item: ItemInstance, slot: int, scale_f: float) -> void:
+	if item == null or item.sockets.is_empty():
+		return
+	var d: float = SOCKET_DOT * scale_f
+	var centers: Array = socket_centers(slot, item.sockets.size())
+	for i in item.sockets.size():
+		if i >= centers.size():
+			break
+		var dot := SocketDot.new()
+		dot.owner_item = item
+		dot.idx = i
+		dot.sheet = self
+		var e: Dictionary = item.socket_entry(i)
+		if not e.is_empty():
+			dot.world_faces = SocketGems.entry_world_faces(e)
+		dot.size = Vector2(d, d)
+		dot.position = Vector2(centers[i]) * scale_f - Vector2(d, d) * 0.5
+		parent.add_child(dot)
 
 
 func _build_equip_slot_tile(slot: int) -> Control:
@@ -562,6 +655,7 @@ func _build_equip_slot_tile(slot: int) -> Control:
 		root.mouse_entered.connect(_on_inv_hover.bind(item))
 		root.mouse_exited.connect(_on_inv_exit)
 		root.gui_input.connect(_on_equip_click.bind(slot, item))
+		_add_socket_dots(inner, item, slot, 1.0)
 	else:
 		# Пустой слот — приглушён.
 		root.modulate = Color(0.4, 0.4, 0.4, 0.85)
@@ -581,18 +675,33 @@ func _build_equip_slot_tile(slot: int) -> Control:
 func _build_inventory_cell(item: ItemInstance) -> Control:
 	var root := BagCell.new()
 	root.theme_type_variation = &"InventoryPanel"
-	root.custom_minimum_size = Vector2(78, 78)
+	root.custom_minimum_size = Vector2(72, 72)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.item = item
 	root.sheet = self
 	if item != null:
-		var icon := TextureRect.new()
-		icon.texture = item.get_icon()
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.custom_minimum_size = Vector2(68, 68)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		root.add_child(icon)
+		if item.is_gem():
+			# Самоцветы рисуются процедурно: квадрат с цветными гранями = его данные.
+			var gem_icon := GemFaceIcon.new()
+			gem_icon.faces = item.get_gem_faces()
+			gem_icon.custom_minimum_size = Vector2(54, 54)
+			gem_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			gem_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			gem_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			root.add_child(gem_icon)
+		else:
+			var icon := TextureRect.new()
+			icon.texture = item.get_icon()
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.custom_minimum_size = Vector2(62, 62)
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			root.add_child(icon)
+			if not item.sockets.is_empty():
+				var dots := Control.new()
+				dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				root.add_child(dots)
+				_add_socket_dots(dots, item, item.get_slot(), 0.72)
 		var col: Color = ItemDatabase.rarity_color(item.rarity)
 		root.modulate = Color(col.r * 0.6 + 0.4, col.g * 0.6 + 0.4, col.b * 0.6 + 0.4, 1)
 		if item.is_unique:
@@ -622,8 +731,28 @@ func _build_inventory_cell(item: ItemInstance) -> Control:
 func _on_inv_hover(item: ItemInstance) -> void:
 	if TooltipManager == null or item == null:
 		return
+	if item.is_gem():
+		TooltipManager.show_tooltip(
+			item.get_title(),
+			item.rarity,
+			(
+				SocketGems.describe(item.gem_id, 0, item.gem_faces)
+				+ "\nПеретащите на гнездо экипировки."
+			),
+			"Самоцвет  •  %s" % ItemDatabase.rarity_display(item.rarity),
+		)
+		return
 	var body_parts: Array = item.get_affix_lines()
 	var body: String = "\n".join(body_parts)
+	# Гнёзда: сколько просверлено / максимум, и что вставлено.
+	if item.max_sockets() > 0:
+		body += "\nГнёзда: %d/%d" % [item.sockets.size(), item.max_sockets()]
+		for i in item.sockets.size():
+			var e: Dictionary = item.socket_entry(i)
+			if e.is_empty():
+				body += "\n  ○ пусто"
+			else:
+				body += "\n  ◆ " + SocketGems.display_name(String(e.get("gem", "")))
 	if item.is_weapon():
 		body += (
 			"\nОружие: x%.2f урона  (%s)"
@@ -720,6 +849,13 @@ func item_fits_slot(item: ItemInstance, slot: int) -> bool:
 
 
 func make_drag_preview(item: ItemInstance) -> Control:
+	if item.is_gem():
+		var gem := GemFaceIcon.new()
+		gem.faces = item.get_gem_faces()
+		gem.custom_minimum_size = Vector2(48, 48)
+		gem.size = Vector2(48, 48)
+		gem.modulate = Color(1, 1, 1, 0.85)
+		return gem
 	var icon := TextureRect.new()
 	icon.texture = item.get_icon()
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -730,21 +866,39 @@ func make_drag_preview(item: ItemInstance) -> Control:
 	return icon
 
 
-func _show_ctx_menu(item: ItemInstance) -> void:
+# `equipped_slot` >= 0 — меню для НАДЕТОГО предмета (Снять/Просверлить),
+# иначе обычное меню сумки.
+func _show_ctx_menu(item: ItemInstance, equipped_slot: int = -1) -> void:
 	if item == null:
 		return
 	_ctx_item = item
+	_ctx_slot = equipped_slot
 	if _ctx_menu == null:
 		_ctx_menu = PopupMenu.new()
 		add_child(_ctx_menu)
 		_ctx_menu.id_pressed.connect(_on_ctx_menu_id)
 	_ctx_menu.clear()
-	_ctx_menu.add_item("Надеть", 0)
-	if item.is_weapon() and not item.is_two_handed():
-		_ctx_menu.add_item("Надеть во вторую руку", 1)
-	_ctx_menu.add_separator()
-	_ctx_menu.add_item("Разобрать  (+%s)" % ItemDatabase.format_cost(item.get_salvage_preview()), 2)
-	_ctx_menu.add_item("Продать  (+%dз)" % (item.get_salvage_gold() * 2), 3)
+	if equipped_slot >= 0:
+		_ctx_menu.add_item("Снять", 4)
+	elif not item.is_gem():
+		_ctx_menu.add_item("Надеть", 0)
+		if item.is_weapon() and not item.is_two_handed():
+			_ctx_menu.add_item("Надеть во вторую руку", 1)
+	# Сверление нового гнезда — за материалы разборки, до максимума слота.
+	var dcost: Dictionary = InventorySystem.drill_cost(item) if InventorySystem else {}
+	if not dcost.is_empty():
+		_ctx_menu.add_item("Просверлить гнездо  (%s)" % ItemDatabase.format_cost(dcost), 5)
+		if GameManager and not GameManager.can_afford_cost(dcost):
+			_ctx_menu.set_item_disabled(_ctx_menu.get_item_index(5), true)
+	if equipped_slot < 0:
+		_ctx_menu.add_separator()
+		(
+			_ctx_menu
+			. add_item(
+				"Разобрать  (+%s)" % ItemDatabase.format_cost(item.get_salvage_preview()), 2
+			)
+		)
+		_ctx_menu.add_item("Продать  (+%dз)" % (item.get_salvage_gold() * 2), 3)
 	if TooltipManager:
 		TooltipManager.hide_tooltip()
 	_ctx_menu.position = Vector2i(get_viewport().get_mouse_position()) + Vector2i(4, 4)
@@ -763,7 +917,12 @@ func _on_ctx_menu_id(id: int) -> void:
 			InventorySystem.salvage_item(_ctx_item)
 		3:
 			InventorySystem.sell_item(_ctx_item)
+		4:
+			InventorySystem.unequip_slot(_ctx_slot)
+		5:
+			InventorySystem.drill_socket(_ctx_item)
 	_ctx_item = null
+	_ctx_slot = -1
 
 
 # Разобрать все обычные и редкие предметы в сумке одним кликом.
@@ -774,6 +933,7 @@ func _on_salvage_all() -> void:
 	for it in InventorySystem.inventory:
 		if (
 			it is ItemInstance
+			and not (it as ItemInstance).is_gem()
 			and (it as ItemInstance).rarity
 			in [ItemDatabase.RARITY_COMMON, ItemDatabase.RARITY_RARE]
 		):
@@ -782,17 +942,17 @@ func _on_salvage_all() -> void:
 		InventorySystem.salvage_item(it)
 
 
-func _on_equip_click(event: InputEvent, slot: int, _item: ItemInstance) -> void:
+func _on_equip_click(event: InputEvent, slot: int, item: ItemInstance) -> void:
 	if not (event is InputEventMouseButton):
 		return
 	var mb := event as InputEventMouseButton
-	# Снимаем на ОТПУСКАНИИ, чтобы нажатие могло начать drag (см. _on_inv_click).
-	if (
-		(mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_LEFT)
-		and not mb.pressed
-	):
+	# ЛКМ снимает на ОТПУСКАНИИ, чтобы нажатие могло начать drag (см. _on_inv_click).
+	# ПКМ открывает меню (Снять / Просверлить гнездо).
+	if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 		if InventorySystem:
 			InventorySystem.unequip_slot(slot)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+		_show_ctx_menu(item, slot)
 
 
 func _unhandled_input(event: InputEvent) -> void:

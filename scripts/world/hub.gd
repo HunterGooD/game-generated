@@ -104,12 +104,12 @@ func _spawn_props() -> void:
 	_props.append(
 		_make_prop(
 			"Портал  —  начать забег",
-			Vector2(260, -40),
+			Vector2(260, -30),
 			Color(1.0, 0.55, 0.35),
 			_enter_portal,
 			PORTAL_SHADER,
 			"fire",
-			Vector2(96, 132)
+			Vector2(96, 150)
 		)
 	)
 	_props.append(
@@ -160,10 +160,13 @@ func _make_prop(
 		mat.shader = shader
 		mat.set_shader_parameter("tint", tint)
 		body.material = mat
+	BlobShadow.attach(root, body_size.x * 1.05, body_size.x * 0.34)
 	root.add_child(body)
 	# Optional ambient particles (fire embers / green sparks / sparkles) rising off the prop.
 	if particle_kind != "":
 		root.add_child(_make_particles(particle_kind, tint, body_size))
+	# Atmospheric glow keyed to the particle kind (additive — no scene darkening).
+	_attach_prop_light(root, particle_kind, tint, body_size)
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -175,6 +178,19 @@ func _make_prop(
 	label.add_theme_constant_override("outline_size", 4)
 	root.add_child(label)
 	return {"node": root, "label": label, "pos": pos, "base_text": text, "action": action, "in_range": false}
+
+
+# Warm/cool atmospheric glow for a prop, keyed to its particle kind. Sits at the
+# body's mid-height; additive so it only brightens (no global darkening pass).
+func _attach_prop_light(root: Node2D, kind: String, tint: Color, body_size: Vector2) -> void:
+	var y: float = -body_size.y * 0.5
+	match kind:
+		"fire":
+			SoftLight.attach(root, Color(1.0, 0.6, 0.25), 170.0, 0.9, y)
+		"green":
+			SoftLight.attach(root, Color(0.5, 0.95, 0.6), 150.0, 0.7, y)
+		"spark":
+			SoftLight.attach(root, tint.lerp(Color(1, 1, 1), 0.3), 130.0, 0.6, y)
 
 
 # Ambient particle emitter for a prop. "fire" = rising orange embers (portal), "green" =
@@ -248,6 +264,8 @@ func _make_mirror_prop(text: String, pos: Vector2, action: Callable) -> Dictiona
 	var root := Node2D.new()
 	root.position = pos
 	add_child(root)
+	BlobShadow.attach(root, 92.0, 30.0)
+	SoftLight.attach(root, Color(0.7, 0.85, 1.0), 150.0, 0.6, -70.0)
 	# Gilt frame behind the glass.
 	var frame := ColorRect.new()
 	frame.color = Color(0.18, 0.14, 0.10)

@@ -86,6 +86,7 @@ func _ready() -> void:
 	sprite.name = "Visual"
 	add_child(sprite)
 	_apply_sprite_frames()
+	BlobShadow.attach_at_feet(self, sprite, 38.0, 14.0)
 
 
 func set_puppet() -> void:

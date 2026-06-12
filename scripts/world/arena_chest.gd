@@ -40,6 +40,8 @@ func _ready() -> void:
 
 
 func _build() -> void:
+	# Chest art is centred on the origin, so drop the shadow to its base line.
+	BlobShadow.attach(self, 78.0 * chest_scale, 26.0 * chest_scale, 26.0 * chest_scale)
 	var glow := ColorRect.new()
 	glow.color = Color(1, 1, 1, 1)
 	glow.size = Vector2(96, 80) * chest_scale

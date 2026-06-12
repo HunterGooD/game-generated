@@ -625,7 +625,8 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 				var damage: int = int(msg.get("damage", 0))
 				var node = enemy_registry.get(id, null)
 				if node and is_instance_valid(node) and node.has_method("take_damage"):
-					node.call("take_damage", damage, Vector2.ZERO)
+					# from_net=true: хост не лечит СВОЙ вампиризм контуров чужим уроном.
+					node.call("take_damage", damage, Vector2.ZERO, true)
 		"summon_request":
 			# Client asked us (host) to spawn its summon authoritatively.
 			if NetManager.is_host:

@@ -29,6 +29,8 @@ func _ready() -> void:
 		var path: String = "res://assets/sprites/characters/merchant_idle.png"
 		if ResourceLoader.exists(path):
 			sprite.texture = load(path) as Texture2D
+		# Feet shadow (after the texture is set, so it lands at the base).
+		BlobShadow.attach_at_feet(self, sprite, 44.0, 16.0)
 		# Bobbing.
 		var bob := sprite.create_tween().set_loops()
 		bob.tween_property(sprite, "position:y", -8.0, 1.4).set_trans(Tween.TRANS_SINE)

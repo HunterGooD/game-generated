@@ -213,11 +213,17 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 				votes_changed.emit()
 				GameManager.coop_apply_travel(int(msg.get("node", -1)))
 		"run_return":
-			# Host finished a node — follow the party back to the map.
+			# Host finished a node — follow the party back to the map. The client
+			# never runs clear_run_node, so its combat-node essence lands here
+			# (run_node_active wiped after, against double-award on re-delivery).
 			if is_coop_client():
 				votes.clear()
 				votes_changed.emit()
 				_flow_active = true
+				GameManager.award_node_essence(
+					String(GameManager.run_node_active.get("type", ""))
+				)
+				GameManager.run_node_active = {}
 				_change_scene(SCENE_RUN_MAP)
 
 

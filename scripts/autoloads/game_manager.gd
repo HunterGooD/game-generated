@@ -321,6 +321,19 @@ const CLASSES := {
 	},
 }
 
+# Эссенция за прохождение ноды карты — топливо для сверления гнёзд (см.
+# InventorySystem.drill_cost). Магазин/костёр платят на ВХОДЕ (begin_run_node),
+# боевые ноды (данж/арена/элитка) — по победе (clear_run_node / run_return).
+const NODE_ESSENCE_REWARD: int = 5
+# Контуры самоцветов (SocketGems.LOOPS) — боевые константы крючков
+# (см. on_player_dealt_damage / damage_player / spend_mana).
+const SOCKET_RED_LOOP_LIFESTEAL: float = 0.03
+const SOCKET_OBSIDIAN_LIFESTEAL: float = 0.02
+const SOCKET_DODGE_COOLDOWN_MS: int = 10000
+const SOCKET_FREE_CAST_EVERY: int = 4
+# Шанс уникального самоцвета по победе над босс-нодой (роллится локально у каждого).
+const BOSS_UNIQUE_GEM_CHANCE: float = 0.35
+
 # Feature flag — drive minion host-AI with the LimboAI behaviour tree instead of
 # the legacy state machine. ON now that the BT proves parity (tests/unit/test_minion_ai
 # runs every behaviour with the flag both off and on). Host-only; puppets unaffected
@@ -338,6 +351,12 @@ var use_hsm_bosses: bool = true
 
 # Selected class — persists across deaths within a session.
 var player_class: String = ""
+
+# Контуры самоцветов — состояние боевых крючков. Carry копит дробный остаток
+# вампиризма между ударами (3% от 20 урона не должны теряться).
+var _socket_lifesteal_carry: float = 0.0
+var _socket_dodge_ready_at_ms: int = 0
+var _socket_cast_counter: int = 0
 
 # Player stats — populated when class is chosen.
 var player_level: int = 1
@@ -512,6 +531,14 @@ func reset_run() -> void:
 	gold = 0
 	materials = {"scrap": 0, "cloth": 0, "essence": 0}
 	set_stones = {}
+	# Fortune-arm meta grants: starting gold + materials (starting GEMS land in
+	# InventorySystem._on_class_changed — it wipes the bag AFTER this runs).
+	if player_class != "" and MetaProgress != null:
+		var grants: Dictionary = MetaProgress.run_grants(player_class)
+		gold += int(grants.get("gold", 0))
+		var grant_mats: Dictionary = grants.get("materials", {})
+		for k in grant_mats:
+			materials[k] = int(materials.get(k, 0)) + int(grant_mats[k])
 	bastion_shield_hp = 0
 	_bastion_ready_at_ms = 0
 	total_gold_earned = 0
@@ -670,6 +697,9 @@ func arena_spend(cost: int) -> bool:
 func begin_run_node(node: Dictionary) -> void:
 	run_node_active = node
 	_reset_dungeon_affix_state()  # each node starts with no carried-over dungeon luck
+	var t: String = String(node.get("type", ""))
+	if t == RunMap.TYPE_MERCHANT or t == RunMap.TYPE_CAMPFIRE:
+		add_materials({"essence": NODE_ESSENCE_REWARD})
 
 
 # The active node's gameplay finished — clear it and notify (RunFlow → back to map).
@@ -677,7 +707,60 @@ func clear_run_node() -> void:
 	var node: Dictionary = run_node_active
 	run_node_active = {}
 	_reset_dungeon_affix_state()
+	award_node_essence(String(node.get("type", "")))
 	run_node_cleared.emit(node)
+
+
+# Победная эссенция боевых нод. Отдельная точка входа: в кооперативе клиент не
+# вызывает clear_run_node (его возвращает run_return) — RunFlow зовёт это сам.
+func award_node_essence(node_type: String) -> void:
+	if node_type in [RunMap.TYPE_DUNGEON, RunMap.TYPE_ARENA, RunMap.TYPE_ELITE]:
+		add_materials({"essence": NODE_ESSENCE_REWARD})
+	# Босс-нода: шанс уникального самоцвета (Призма / Замковый камень / …).
+	if node_type == RunMap.TYPE_BOSS and InventorySystem and randf() < BOSS_UNIQUE_GEM_CHANCE:
+		var gem := ItemInstance.new()
+		gem.gem_id = SocketGems.roll_unique()
+		gem.rarity = SocketGems.rarity_of(gem.gem_id)
+		InventorySystem.add_item(gem)
+
+
+# ── Контуры самоцветов и камни-эффекты — боевые крючки (см. SocketGems) ───────
+func socket_lifesteal_pct() -> float:
+	var pct: float = 0.0
+	if InventorySystem:
+		if InventorySystem.has_socket_loop("red"):
+			pct += SOCKET_RED_LOOP_LIFESTEAL
+		if InventorySystem.has_socket_effect("blood_obsidian"):
+			pct += SOCKET_OBSIDIAN_LIFESTEAL
+	return pct
+
+
+# Вызывается из enemy/boss.take_damage ЛОКАЛЬНЫМИ ударами (from_net не считается:
+# в коопе хост не должен лечиться от чужого урона).
+func on_player_dealt_damage(amount: int) -> void:
+	if amount <= 0 or game_over or player_downed:
+		return
+	var pct: float = socket_lifesteal_pct()
+	if pct <= 0.0:
+		return
+	_socket_lifesteal_carry += float(amount) * pct
+	var heal: int = int(floor(_socket_lifesteal_carry))
+	if heal > 0:
+		_socket_lifesteal_carry -= float(heal)
+		heal_player(heal)
+
+
+# Контур ветра: раз в SOCKET_DODGE_COOLDOWN_MS полностью игнорирует удар.
+func _try_socket_dodge() -> bool:
+	if InventorySystem == null or not InventorySystem.has_socket_loop("green"):
+		return false
+	var now: int = int(Time.get_ticks_msec())
+	if now < _socket_dodge_ready_at_ms:
+		return false
+	_socket_dodge_ready_at_ms = now + SOCKET_DODGE_COOLDOWN_MS
+	if VfxManager:
+		VfxManager.screen_flash(Color(0.4, 0.95, 0.5, 0.18), 0.2)
+	return true
 
 
 func _reset_dungeon_affix_state() -> void:
@@ -1068,6 +1151,9 @@ func get_effective_crit_chance() -> float:
 func damage_player(amount: int) -> void:
 	if game_over or player_downed:
 		return
+	# Контур ветра — удар полностью уклонён (перезарядка внутри).
+	if amount > 0 and _try_socket_dodge():
+		return
 	var mitigated: int = mitigate_damage(amount)
 	# Bastion Vow 5pc shield absorbs before HP.
 	if bastion_shield_hp > 0:
@@ -1180,6 +1266,13 @@ func heal_player(amount: int) -> void:
 func spend_mana(amount: float) -> bool:
 	if player_mana < amount:
 		return false
+	# Контур разума: каждый SOCKET_FREE_CAST_EVERY-й каст не тратит ману.
+	if amount > 0.0 and InventorySystem and InventorySystem.has_socket_loop("blue"):
+		_socket_cast_counter += 1
+		if _socket_cast_counter >= SOCKET_FREE_CAST_EVERY:
+			_socket_cast_counter = 0
+			player_stats_changed.emit()
+			return true
 	player_mana -= amount
 	player_stats_changed.emit()
 	return true

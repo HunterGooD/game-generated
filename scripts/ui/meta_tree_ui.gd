@@ -678,6 +678,19 @@ func _node_desc(node_id: String, nd: Dictionary) -> String:
 	var stats: Dictionary = nd.get("stats", {})
 	for k in stats:
 		lines.append("  " + _stat_line(String(k), stats[k]))
+	# Fortune-arm grants — run-start economy perks (see MetaProgress.run_grants).
+	var grants: Dictionary = nd.get("grants", {})
+	if int(grants.get("gold", 0)) > 0:
+		lines.append("  +%d золота в начале забега" % int(grants["gold"]))
+	if int(grants.get("start_gems", 0)) > 0:
+		lines.append("  +%d случайный самоцвет в начале забега" % int(grants["start_gems"]))
+	if float(grants.get("socket_chance", 0.0)) > 0.0:
+		lines.append(
+			"  +%d%% шанс, что добыча падает с гнездом" % int(round(float(grants["socket_chance"]) * 100.0))
+		)
+	var grant_mats: Dictionary = grants.get("materials", {})
+	if not grant_mats.is_empty():
+		lines.append("  Стартовые материалы: %s" % ItemDatabase.format_cost(grant_mats))
 	# Repeatable nodes: current rank + the per-rank percent bump (the endless sink).
 	if bool(nd.get("repeatable", false)):
 		lines.append(

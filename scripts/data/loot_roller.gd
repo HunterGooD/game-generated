@@ -4,6 +4,10 @@ extends RefCounted
 # Generates ItemInstance objects from wave + class context.
 # Stateless — every method is static.
 
+# Base chance a dropped piece of gear arrives with one socket already drilled
+# («очень низкий шанс») — meta tree nodes add on top (MetaProgress.run_grants).
+const SOCKET_DROP_CHANCE: float = 0.05
+
 
 # Roll a single item based on the current wave number and the player class.
 # wave_number: 1+ — drives ilvl and rarity bias.
@@ -47,6 +51,28 @@ static func roll_preview_strip(count: int, wave_number: int, class_id: String) -
 	for i in count:
 		out.append(roll_item(wave_number, class_id))
 	return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gear sockets + socket gems
+# Roll a socket gem as a bag item (loot chests / dev console / meta start grants).
+static func roll_gem_item(luck: float = 0.0) -> ItemInstance:
+	var inst := ItemInstance.new()
+	inst.gem_id = SocketGems.roll(luck)
+	inst.rarity = SocketGems.rarity_of(inst.gem_id)
+	return inst
+
+
+# Low chance for fresh gear to drop with one socket pre-drilled; the meta tree's
+# fortune arm raises it. No-op for items whose slot takes no sockets.
+static func _maybe_add_socket(inst: ItemInstance) -> void:
+	if inst == null or inst.max_sockets() <= 0:
+		return
+	var chance: float = SOCKET_DROP_CHANCE
+	if MetaProgress and GameManager:
+		chance += float(MetaProgress.run_grants(GameManager.player_class).get("socket_chance", 0.0))
+	if randf() < chance:
+		inst.sockets.append(null)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -123,6 +149,7 @@ static func _roll_unique(class_id: String, ilvl: int = 1) -> ItemInstance:
 	var extra: int = max(0, want - inst.affixes.size())
 	if extra > 0:
 		inst.affixes += _roll_affixes_excluding(extra, inst.ilvl, inst.rarity, slot, used)
+	_maybe_add_socket(inst)
 	return inst
 
 
@@ -147,6 +174,7 @@ static func _roll_set(ilvl: int, class_id: String) -> ItemInstance:
 	inst.set_id = String(sets[randi() % sets.size()])
 	inst.ilvl = ilvl
 	inst.affixes = roll_set_affixes(inst.set_id, int(pick.get("slot", slot)), ilvl)
+	_maybe_add_socket(inst)
 	return inst
 
 
@@ -199,6 +227,7 @@ static func _roll_base(rarity: String, ilvl: int, class_id: String) -> ItemInsta
 	# Roll affix_count distinct affixes from the item's SLOT pool.
 	var n: int = int(ItemDatabase.RARITY_AFFIX_COUNT.get(rarity, 1))
 	inst.affixes = _roll_affixes(n, ilvl, rarity, int(pick.get("slot", -1)))
+	_maybe_add_socket(inst)
 	return inst
 
 

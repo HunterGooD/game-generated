@@ -9,7 +9,13 @@ signal inventory_changed
 signal equipment_changed
 signal item_added(item: ItemInstance)
 
-const INVENTORY_CAPACITY: int = 30
+# 11 колонок × 9 рядов (см. сетку в character_sheet).
+const INVENTORY_CAPACITY: int = 99
+
+# Ювелир (хаб): слияние — 3 одинаковых камня из сумки → случайный камень тиром
+# выше (common→rare→legendary→unique); перекраска одной грани — дорогой сток.
+const FUSE_COUNT: int = 3
+const REPAINT_COST: Dictionary = {"gold": 150, "essence": 8}
 
 # Inventory: ordered list, may contain nulls in deleted positions for stable indices.
 var inventory: Array = []
@@ -26,6 +32,13 @@ var _active_transforms: Dictionary = {}
 # Cache of active 5-piece set effect ids (rebuilt with the transform cache).
 var _active_set_effects: Dictionary = {}
 
+# Cached SocketGems.resolve() over the worn gear ({links, stats, chains,
+# resonance, loops, effects}) — rebuilt with the transform cache on every
+# equip/socket mutation.
+var _socket_links: Dictionary = {
+	"links": [], "stats": {}, "chains": [], "resonance": [], "loops": [], "effects": {}
+}
+
 
 func _ready() -> void:
 	if GameManager:
@@ -40,6 +53,17 @@ func _on_player_died() -> void:
 
 func _on_class_changed(_class_id: String) -> void:
 	clear_run_state()
+	_grant_meta_start_gems()
+
+
+# Fortune-arm meta nodes seed the fresh run's bag with 1–3 random socket gems.
+# Runs AFTER clear_run_state so the wipe can't eat the grant.
+func _grant_meta_start_gems() -> void:
+	if MetaProgress == null or GameManager == null or GameManager.player_class == "":
+		return
+	var n: int = int(MetaProgress.run_grants(GameManager.player_class).get("start_gems", 0))
+	for _i in n:
+		add_item(LootRoller.roll_gem_item())
 
 
 func clear_run_state() -> void:
@@ -82,6 +106,7 @@ func salvage_item(item: ItemInstance) -> Dictionary:
 	if item == null:
 		return {}
 	var mats: Dictionary = item.get_salvage_preview()
+	_pop_socketed_gems(item)
 	remove_item(item)
 	if GameManager:
 		GameManager.add_materials(mats)
@@ -95,9 +120,38 @@ func salvage_item(item: ItemInstance) -> Dictionary:
 
 func _auto_salvage_one_common() -> void:
 	for it in inventory:
-		if it != null and String(it.rarity) == ItemDatabase.RARITY_COMMON:
+		# Gems are spared — they're craft fuel the player placed in the bag on purpose.
+		if (
+			it != null
+			and String(it.rarity) == ItemDatabase.RARITY_COMMON
+			and not (it as ItemInstance).is_gem()
+		):
 			salvage_item(it)
 			return
+
+
+# Eject every socketed gem of `item` back into the bag (called before the item
+# is destroyed by salvage/sell so player-placed gems are never silently lost).
+func _pop_socketed_gems(item: ItemInstance) -> void:
+	if item == null:
+		return
+	for i in item.sockets.size():
+		var e: Dictionary = item.socket_entry(i)
+		if e.is_empty():
+			continue
+		item.sockets[i] = null
+		add_item(make_gem_item(String(e.get("gem", "")), e.get("faces", [])))
+
+
+# Build a bag ItemInstance for a gem id (rarity mirrors the gem tier for tinting).
+# `faces` — перекрашенные Ювелиром грани, путешествуют с камнем.
+static func make_gem_item(gid: String, faces: Array = []) -> ItemInstance:
+	var inst := ItemInstance.new()
+	inst.gem_id = gid
+	inst.rarity = SocketGems.rarity_of(gid)
+	if SocketGems.valid_faces(faces):
+		inst.gem_faces = faces.duplicate()
+	return inst
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -296,6 +350,190 @@ func grant_berserker_grip() -> void:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Gear sockets (камни в экипировке — см. SocketGems)
+# Place a bag gem into `item`'s socket `idx`. An occupied socket swaps (the old
+# gem returns to the bag). Works on worn AND bagged items alike.
+func socket_gem(item: ItemInstance, idx: int, gem_item: ItemInstance) -> bool:
+	if item == null or gem_item == null or not gem_item.is_gem():
+		return false
+	if idx < 0 or idx >= item.sockets.size():
+		return false
+	if not inventory.has(gem_item):
+		return false
+	var old: Dictionary = item.socket_entry(idx)
+	remove_item(gem_item)
+	var entry: Dictionary = {"gem": gem_item.gem_id, "rot": 0}
+	if SocketGems.valid_faces(gem_item.gem_faces):
+		entry["faces"] = gem_item.gem_faces.duplicate()
+	item.sockets[idx] = entry
+	if not old.is_empty():
+		add_item(make_gem_item(String(old.get("gem", "")), old.get("faces", [])))
+	_after_socket_change()
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_equip_armor.mp3", -10.0)
+	return true
+
+
+# Pop the gem out of `item`'s socket `idx` back into the bag (fails on full bag).
+func unsocket_gem(item: ItemInstance, idx: int) -> bool:
+	if item == null:
+		return false
+	var e: Dictionary = item.socket_entry(idx)
+	if e.is_empty():
+		return false
+	if not add_item(make_gem_item(String(e.get("gem", "")), e.get("faces", []))):
+		return false
+	item.sockets[idx] = null
+	_after_socket_change()
+	return true
+
+
+# Move a gem between two sockets (possibly across items); occupied target swaps.
+# Rotation travels with the gem.
+func move_socket_gem(
+	src_item: ItemInstance, src_idx: int, dst_item: ItemInstance, dst_idx: int
+) -> bool:
+	if src_item == null or dst_item == null:
+		return false
+	if src_item == dst_item and src_idx == dst_idx:
+		return false
+	var e: Dictionary = src_item.socket_entry(src_idx)
+	if e.is_empty():
+		return false
+	if dst_idx < 0 or dst_idx >= dst_item.sockets.size():
+		return false
+	var old: Dictionary = dst_item.socket_entry(dst_idx)
+	dst_item.sockets[dst_idx] = e
+	src_item.sockets[src_idx] = old if not old.is_empty() else null
+	_after_socket_change()
+	return true
+
+
+# Rotate the gem in socket `idx` a quarter-turn clockwise (links re-resolve).
+func rotate_socket_gem(item: ItemInstance, idx: int) -> bool:
+	if item == null:
+		return false
+	var e: Dictionary = item.socket_entry(idx)
+	if e.is_empty():
+		return false
+	(item.sockets[idx] as Dictionary)["rot"] = (int(e.get("rot", 0)) + 1) % 4
+	_after_socket_change()
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_loot_reveal_common.mp3", -16.0)
+	return true
+
+
+# Drill cost — ESSENCE only (steady +5 income per cleared map node, see
+# GameManager.award_node_essence); escalates with the sockets the item already
+# has; {} when the item can't take another socket. Any gear can be drilled
+# (uniques and sets included — «на любой одежде»), up to its slot maximum.
+static func drill_cost(item: ItemInstance) -> Dictionary:
+	if item == null or item.is_gem():
+		return {}
+	var cap: int = item.max_sockets()
+	var n: int = item.sockets.size()
+	if cap <= 0 or n >= cap:
+		return {}
+	return {"essence": 3 + 3 * n}
+
+
+# Drill one more (empty) socket into the item, paying materials.
+func drill_socket(item: ItemInstance) -> bool:
+	var cost: Dictionary = drill_cost(item)
+	if cost.is_empty():
+		return false
+	if GameManager == null or not GameManager.spend_cost(cost):
+		return false
+	item.sockets.append(null)
+	_after_socket_change()
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_merchant_upgrade.mp3", -8.0)
+	return true
+
+
+# ── Ювелир (хаб): слияние и перекраска самоцветов ─────────────────────────────
+# (Цены — FUSE_COUNT / REPAINT_COST у шапки файла.) Камни без перекраски
+# тратятся при слиянии первыми — защищаем вложения игрока.
+func count_bag_gems(gem_id: String) -> int:
+	var n: int = 0
+	for it in inventory:
+		if it is ItemInstance and (it as ItemInstance).gem_id == gem_id:
+			n += 1
+	return n
+
+
+# Returns the fused gem (already in the bag) or null.
+func fuse_gems(gem_id: String) -> ItemInstance:
+	var next_rarity: String = String(SocketGems.RARITY_NEXT.get(SocketGems.rarity_of(gem_id), ""))
+	if next_rarity == "" or not SocketGems.has_gem(gem_id):
+		return null
+	# Собираем жертвы: сначала неперекрашенные (защищаем вложения игрока).
+	var plain: Array = []
+	var painted: Array = []
+	for it in inventory:
+		if it is ItemInstance and (it as ItemInstance).gem_id == gem_id:
+			if (it as ItemInstance).gem_faces.is_empty():
+				plain.append(it)
+			else:
+				painted.append(it)
+	var victims: Array = plain + painted
+	if victims.size() < FUSE_COUNT:
+		return null
+	for i in FUSE_COUNT:
+		remove_item(victims[i] as ItemInstance)
+	var pool: Array = SocketGems.ids_of_rarity(next_rarity)
+	if pool.is_empty():
+		return null
+	var result := make_gem_item(String(pool[randi() % pool.size()]))
+	add_item(result)
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_merchant_upgrade.mp3", -6.0)
+	return result
+
+
+# Перекрасить грань `face` (0..3 = ▲▶▼◀) сумочного камня в `color`.
+# Уникальные камни не перекрашиваются — их грани и есть их идентичность.
+func repaint_gem_face(gem_item: ItemInstance, face: int, color: String) -> bool:
+	if gem_item == null or not gem_item.is_gem() or gem_item.rarity == ItemDatabase.RARITY_UNIQUE:
+		return false
+	var legal_color: bool = SocketGems.LINK_ATTR.has(color) or color == SocketGems.COLOR_WHITE
+	if face < 0 or face > 3 or not legal_color or not inventory.has(gem_item):
+		return false
+	var faces: Array = gem_item.get_gem_faces().duplicate()
+	if String(faces[face]) == color:
+		return false  # уже этот цвет — не списываем оплату
+	if GameManager == null or not GameManager.spend_cost(REPAINT_COST):
+		return false
+	faces[face] = color
+	gem_item.gem_faces = faces
+	inventory_changed.emit()
+	if AudioManager:
+		AudioManager.play_sfx_path("res://assets/audio/sfx/ui/ui_merchant_upgrade.mp3", -8.0)
+	return true
+
+
+# The cached cross-item link resolution ({links, stats, chains, …}) for UI overlays.
+func get_socket_links() -> Dictionary:
+	return _socket_links
+
+
+# «Контур» цвета активен (замкнутый цикл связей — см. SocketGems.LOOPS).
+func has_socket_loop(color: String) -> bool:
+	return (_socket_links.get("loops", []) as Array).has(color)
+
+
+# Эффект уникального камня активен (камень состоит в связи — см. SocketGems.EFFECTS).
+func has_socket_effect(effect_id: String) -> bool:
+	return (_socket_links.get("effects", {}) as Dictionary).has(effect_id)
+
+
+func _after_socket_change() -> void:
+	_rebuild_transform_cache()
+	inventory_changed.emit()
+	equipment_changed.emit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Stat aggregation
 func compute_stat_totals() -> Dictionary:
 	var totals: Dictionary = {}
@@ -308,7 +546,11 @@ func compute_stat_totals() -> Dictionary:
 
 # Convenience accessors used by GameManager / Player at runtime.
 func get_total(stat_id: String) -> float:
-	return float(compute_stat_totals().get(stat_id, 0.0)) + _set_bonus(stat_id)
+	return (
+		float(compute_stat_totals().get(stat_id, 0.0))
+		+ _set_bonus(stat_id)
+		+ float(_socket_links.get("stats", {}).get(stat_id, 0))
+	)
 
 
 # Adds the 2-piece flat stat bonuses of every worn set to the totals.
@@ -470,6 +712,9 @@ func _rebuild_transform_cache() -> void:
 		)
 		if eff != "":
 			_active_set_effects[eff] = true
+	# Gear-socket links — resolved once per equipment/socket mutation, read by
+	# get_total (stat bonuses) and the character sheet (line overlay).
+	_socket_links = SocketGems.resolve(equipment)
 
 
 # True when the EFFECT identified by `transform_id` is active — either the
@@ -657,6 +902,7 @@ func sell_item(item: ItemInstance) -> bool:
 			return false
 	if not inventory.has(item):
 		return false
+	_pop_socketed_gems(item)
 	var price: int = item.get_salvage_gold() * 2
 	GameManager.gold += price
 	GameManager.gold_changed.emit(GameManager.gold)

@@ -385,6 +385,26 @@ func meta_percent(class_id: String) -> Dictionary:
 	return total
 
 
+# Run-start economy perks from the fortune arm (summed "grants" of allocated nodes):
+# {"gold": int, "materials": {id: n}, "start_gems": int, "socket_chance": float}.
+# Consumed by GameManager.reset_run (gold/materials), InventorySystem (start gems)
+# and LootRoller (socketed-loot chance).
+func run_grants(class_id: String) -> Dictionary:
+	var out: Dictionary = {"gold": 0, "materials": {}, "start_gems": 0, "socket_chance": 0.0}
+	if class_id == "":
+		return out
+	for node_id in allocated_nodes(class_id):
+		var grants: Dictionary = MetaTrees.node_data(class_id, String(node_id)).get("grants", {})
+		out["gold"] = int(out["gold"]) + int(grants.get("gold", 0))
+		out["start_gems"] = int(out["start_gems"]) + int(grants.get("start_gems", 0))
+		out["socket_chance"] = float(out["socket_chance"]) + float(grants.get("socket_chance", 0.0))
+		var mats: Dictionary = grants.get("materials", {})
+		for k in mats:
+			var m: Dictionary = out["materials"]
+			m[k] = int(m.get(k, 0)) + int(mats[k])
+	return out
+
+
 # Gem ids sitting in this class's ALLOCATED sockets (a socket only exists once its node
 # is taken, but stay defensive against stale saves).
 func _socketed_gems(class_id: String) -> Array:

@@ -52,6 +52,14 @@ func _ready() -> void:
 	c.register_command(cmd_meta_shards, "meta_shards", "grant mirror shards (meta currency): meta_shards <n>")
 	c.register_command(cmd_give_gems, "give_gems", "grant meta gems: give_gems <count> <gem_id | empty = random>")
 	c.register_command(cmd_list_gems, "list_gems", "list meta gem ids (rarity, owned count)")
+	c.register_command(
+		cmd_give_socket_gems,
+		"give_socket_gems",
+		"grant gear-socket gems (самоцветы): give_socket_gems <count> <gem_id | empty = random>"
+	)
+	c.register_command(
+		cmd_drill_all, "drill_all", "drill every WORN item's sockets to its slot max (free)"
+	)
 
 
 # ── commands ──────────────────────────────────────────────────────────────────
@@ -530,6 +538,43 @@ func cmd_list_gems() -> void:
 				% [gid, MetaGems.display_name(gid), String(rarity), MetaProgress.gem_count(gid)]
 			)
 	_info("shards: %d" % MetaProgress.get_shards())
+
+
+func cmd_give_socket_gems(count: int = 1, gem_id: String = "") -> void:
+	if InventorySystem == null:
+		return
+	if gem_id != "" and not SocketGems.has_gem(gem_id):
+		_err("unknown socket gem '%s' — ids: %s" % [gem_id, ", ".join(SocketGems.GEMS.keys())])
+		return
+	var granted: Array = []
+	for i in maxi(1, count):
+		var it: ItemInstance
+		if gem_id != "":
+			it = InventorySystem.make_gem_item(gem_id)
+		else:
+			it = LootRoller.roll_gem_item()
+		if InventorySystem.add_item(it):
+			granted.append(it.gem_id)
+	_info("socket gems granted: %s" % ", ".join(granted))
+
+
+func cmd_drill_all() -> void:
+	if InventorySystem == null:
+		return
+	var drilled: int = 0
+	var seen: Dictionary = {}
+	for slot in InventorySystem.equipment:
+		var it = InventorySystem.equipment[slot]
+		if not (it is ItemInstance) or seen.has(it):
+			continue
+		seen[it] = true
+		var item := it as ItemInstance
+		while item.sockets.size() < item.max_sockets():
+			item.sockets.append(null)
+			drilled += 1
+	if drilled > 0:
+		InventorySystem._after_socket_change()
+	_info("drilled %d socket(s) across worn gear" % drilled)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

@@ -454,6 +454,9 @@ func _apply_sprite() -> void:
 		s = clamp(95.0 / src_h, 0.08, 0.6)
 	sprite.scale = Vector2(s, s)
 	sprite.modulate = hue_tint
+	# Feet-line blob shadow, placed once the sprite has its real texture/scale.
+	# Idempotent, so pooled enemies re-position their shadow on each reconfigure.
+	BlobShadow.attach_at_feet(self, sprite, 44.0, 16.0)
 
 
 func _install_hit_flash_material() -> void:
@@ -1079,7 +1082,11 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	return true
 
 
-func take_damage(amount: int, source_position: Vector2 = Vector2.ZERO) -> void:
+# `from_net` — урон пришёл от другого игрока через relay (кооп-хост применяет
+# чужие удары): локальные он-хит эффекты (вампиризм контуров) не срабатывают.
+func take_damage(
+	amount: int, source_position: Vector2 = Vector2.ZERO, from_net: bool = false
+) -> void:
 	var dmg: int = amount
 	# Hunter's Oath 5pc: amplify by existing hunt stacks, then add a stack.
 	if (
@@ -1090,6 +1097,9 @@ func take_damage(amount: int, source_position: Vector2 = Vector2.ZERO) -> void:
 		dmg = int(round(float(dmg) * (1.0 + 0.04 * float(hunt_stacks))))
 		hunt_stacks = mini(hunt_stacks + 1, 5)
 		hunt_t = 4.0
+	# Контур крови / Кровавый обсидиан — вампиризм с ЛОКАЛЬНО нанесённого урона.
+	if not from_net and GameManager:
+		GameManager.on_player_dealt_damage(dmg)
 	var knockback: Vector2 = Vector2.ZERO
 	if source_position != Vector2.ZERO:
 		knockback = (global_position - source_position).normalized() * 110.0

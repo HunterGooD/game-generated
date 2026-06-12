@@ -36,6 +36,9 @@ func _ready() -> void:
 	body_exited.connect(_on_body_exited)
 	if prompt:
 		prompt.visible = false
+	# Feet shadow stays put while the chest bobs above it (reads as a float).
+	if sprite:
+		BlobShadow.attach_at_feet(self, sprite, 40.0, 14.0)
 	# Bob + glow loop.
 	if sprite:
 		var tw := sprite.create_tween().set_loops()
@@ -112,6 +115,12 @@ func open() -> void:
 	var item: ItemInstance = LootRoller.roll_item(wave_number, class_id, diff)
 	# Boss chests have a forced minimum rarity stamped on as metadata.
 	var forced: String = String(get_meta("forced_rarity", ""))
+	# Обычные сундуки иногда отдают самоцвет вместо экипировки (босс-сундуки — нет).
+	if forced == "" and randf() < 0.10:
+		var luck: float = Difficulty.value(diff, "loot_rarity_bonus", 0.0)
+		if GameManager:
+			luck += GameManager.dungeon_loot_luck + GameManager.loop_loot_luck()
+		item = LootRoller.roll_gem_item(luck)
 	if forced != "" and item != null:
 		# Re-roll until we get at least the forced rarity. Limit attempts.
 		var ranks: Dictionary = {"common": 0, "rare": 1, "legendary": 2, "unique": 3}

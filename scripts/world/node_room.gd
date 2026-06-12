@@ -8,6 +8,7 @@ const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn"
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
 const REST_CHOICE := preload("res://scripts/ui/rest_choice.gd")
 const SHRINE_EVENT := preload("res://scripts/ui/shrine_event.gd")
+const JEWELER_PANEL := preload("res://scripts/ui/jeweler_panel.gd")
 const INTERACT_RANGE: float = 96.0
 
 @onready var _player: Node2D = $Player
@@ -18,6 +19,13 @@ var _campfire_label: Label = null
 var _campfire_used: bool = false
 var _campfire_in_range: bool = false
 var _rest_open: bool = false
+
+# Jeweler bench — appears at merchant + campfire nodes. Socket-gem crafting
+# (fuse 3→1, repaint a face) on run-scoped gems. REPEATABLE — never consumed.
+var _jeweler: Node2D = null
+var _jeweler_label: Label = null
+var _jeweler_in_range: bool = false
+var _jeweler_open: bool = false
 
 # Event "shrine" — mirrors the campfire interaction pattern (walk up, press E once).
 var _shrine: Node2D = null
@@ -33,8 +41,10 @@ func _ready() -> void:
 	match content_kind:
 		"merchant":
 			_build_merchant()
+			_build_jeweler(Vector2(60, 0))
 		"campfire":
 			_build_campfire()
+			_build_jeweler(Vector2(60, 0))
 		"event":
 			_build_shrine()
 	_spawn_exit_portal()
@@ -98,6 +108,8 @@ func _build_campfire() -> void:
 	_campfire_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_campfire_label.add_theme_constant_override("outline_size", 4)
 	_campfire.add_child(_campfire_label)
+	BlobShadow.attach(_campfire, 64.0, 22.0)
+	SoftLight.attach(_campfire, Color(1.0, 0.6, 0.25), 210.0, 1.0, -20.0)
 
 
 func _build_shrine() -> void:
@@ -131,6 +143,39 @@ func _build_shrine() -> void:
 	_shrine_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_shrine_label.add_theme_constant_override("outline_size", 4)
 	_shrine.add_child(_shrine_label)
+	BlobShadow.attach(_shrine, 60.0, 20.0)
+	SoftLight.attach(_shrine, Color(0.4, 0.95, 0.8), 160.0, 0.7, -60.0)
+
+
+func _build_jeweler(pos: Vector2) -> void:
+	_jeweler = Node2D.new()
+	_jeweler.position = pos
+	add_child(_jeweler)
+	# A small golden bench with a faceted gem on top (purely cosmetic rects).
+	var bench := ColorRect.new()
+	bench.color = Color(0.45, 0.35, 0.22)
+	bench.size = Vector2(56, 30)
+	bench.position = Vector2(-28, -30)
+	_jeweler.add_child(bench)
+	var gem := ColorRect.new()
+	gem.color = Color(0.95, 0.82, 0.4)
+	gem.size = Vector2(26, 26)
+	gem.position = Vector2(-13, -56)
+	gem.rotation = 0.785398  # 45° — reads as a faceted gem
+	gem.pivot_offset = Vector2(13, 13)
+	_jeweler.add_child(gem)
+	_jeweler_label = Label.new()
+	_jeweler_label.text = "Ювелир — гранёж камней"
+	_jeweler_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_jeweler_label.position = Vector2(-120, -92)
+	_jeweler_label.custom_minimum_size = Vector2(240, 0)
+	_jeweler_label.add_theme_font_size_override("font_size", 15)
+	_jeweler_label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.45))
+	_jeweler_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_jeweler_label.add_theme_constant_override("outline_size", 4)
+	_jeweler.add_child(_jeweler_label)
+	BlobShadow.attach(_jeweler, 60.0, 20.0)
+	SoftLight.attach(_jeweler, Color(0.95, 0.82, 0.4), 130.0, 0.7, -40.0)
 
 
 func _spawn_exit_portal() -> void:
@@ -151,6 +196,7 @@ func _process(_delta: float) -> void:
 		return
 	_process_campfire()
 	_process_shrine()
+	_process_jeweler()
 
 
 func _process_campfire() -> void:
@@ -173,6 +219,30 @@ func _process_shrine() -> void:
 		_shrine_label.text = "Алтарь сделки   [E]" if in_range else "Алтарь сделки"
 	if in_range and Input.is_action_just_pressed("interact"):
 		_open_shrine()
+
+
+func _process_jeweler() -> void:
+	if _jeweler == null or _jeweler_open:
+		return
+	var in_range: bool = _player.global_position.distance_to(_jeweler.global_position) <= INTERACT_RANGE
+	if in_range != _jeweler_in_range:
+		_jeweler_in_range = in_range
+		_jeweler_label.text = "Ювелир — гранёж камней   [E]" if in_range else "Ювелир — гранёж камней"
+	if in_range and Input.is_action_just_pressed("interact"):
+		_open_jeweler()
+
+
+func _open_jeweler() -> void:
+	if _jeweler_open:
+		return
+	_jeweler_open = true
+	var ov := JEWELER_PANEL.new()
+	ov.closed.connect(_on_jeweler_closed)
+	add_child(ov)
+
+
+func _on_jeweler_closed() -> void:
+	_jeweler_open = false
 
 
 func _open_shrine() -> void:

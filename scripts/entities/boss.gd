@@ -100,6 +100,9 @@ func _apply_visual() -> void:
 		s = clamp(target_h / src_h, 0.08, 1.6)
 	sprite.scale = Vector2(s, s)
 	sprite.modulate = boss_data.get("tint", Color(1, 1, 1, 1))
+	# Big feet-line shadow scaled to the boss's normalised height (~260 px tall).
+	var scl: float = float(boss_data.get("sprite_scale", 1.0))
+	BlobShadow.attach_at_feet(self, sprite, 150.0 * scl, 48.0 * scl)
 	# Install hit-flash shader material now that the sprite has its texture.
 	var mat := ShaderMaterial.new()
 	mat.shader = HIT_FLASH_SHADER
@@ -680,9 +683,15 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	return true
 
 
-func take_damage(amount: int, _source_pos: Vector2 = Vector2.ZERO) -> void:
+# `from_net` — кооп-хост применяет чужой удар: локальный вампиризм не считается.
+func take_damage(
+	amount: int, _source_pos: Vector2 = Vector2.ZERO, from_net: bool = false
+) -> void:
 	if dead:
 		return
+	# Контур крови / Кровавый обсидиан — вампиризм с ЛОКАЛЬНО нанесённого урона.
+	if not from_net and GameManager:
+		GameManager.on_player_dealt_damage(amount)
 	receive_damage_payload(DamageInstance.new(float(amount), null, self, [&"player_hit"], []))
 
 

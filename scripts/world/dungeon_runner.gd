@@ -233,6 +233,9 @@ func _render_walls() -> void:
 
 # ── room contents ──────────────────────────────────────────────────────────────
 func _populate_rooms() -> void:
+	# A soft biome-tinted glow at every room centre lifts the CanvasModulate gloom
+	# and gives the dungeon real light sources (additive — readability is kept).
+	var amb: Color = DungeonBiome.floor_tint(_biome).lerp(Color(1, 1, 1), 0.35)
 	for r in _layer.call("rooms"):
 		var id: int = int(r["id"])
 		var kind: String = String(r["kind"])
@@ -241,22 +244,28 @@ func _populate_rooms() -> void:
 			"boss":
 				_boss_room_id = id
 				_marker(BOSS_TEX, center, Color(1.0, 0.5, 0.45), 1.6)  # the finale chamber
+				SoftLight.at(_decor_layer, center, Color(1.0, 0.45, 0.4), 360.0, 1.0)
 			"pylon", "pocket":
 				_marker(PYLON_TEX, center, Color(0.7, 0.8, 1.0), 0.6)
+				SoftLight.at(_decor_layer, center, amb, 240.0, 0.6)
 			"elite_pylon":
 				_marker(ELITE_TEX, center, Color(1.0, 0.5, 0.9), 0.7)
+				SoftLight.at(_decor_layer, center, Color(1.0, 0.5, 0.9), 260.0, 0.8)
 			"event_pillar":
 				_spawn_event_pillar(center)
+				SoftLight.at(_decor_layer, center, Color(0.5, 0.95, 0.85), 230.0, 0.7)
 			"vault":
 				_spawn_chest(center)  # the only world chest now (plus the boss chest) — kept rare
+				SoftLight.at(_decor_layer, center, Color(1.0, 0.82, 0.4), 230.0, 0.8)
 			"dead_end":
-				pass  # quiet dead-end (no chest) — chests were too plentiful
+				SoftLight.at(_decor_layer, center, amb, 200.0, 0.45)
 			"merchant":
 				# The surrounding ambient enemies act as the guard now.
 				_spawn_merchant(center)
 				_marker(PYLON_TEX, center, Color(0.92, 0.78, 0.3), 0.7)
+				SoftLight.at(_decor_layer, center, Color(0.95, 0.8, 0.4), 250.0, 0.8)
 			_:
-				pass
+				SoftLight.at(_decor_layer, center, amb, 220.0, 0.5)
 
 
 func _marker(tex_path: String, pos: Vector2, tint: Color, scale: float) -> void:

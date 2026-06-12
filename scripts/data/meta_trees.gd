@@ -16,6 +16,8 @@ extends RefCounted
 #   type   — "start" (auto-taken, free) / "stat" / "notable" / "socket".
 #   links  — neighbouring node ids (undirected: one taken neighbour unlocks a node).
 #   stats  — flat additive bonuses; keys match GameManager player_* fields.
+#   grants — run-start economy perks (fortune arm), summed by MetaProgress.run_grants:
+#            gold / materials{} / start_gems / socket_chance.
 #   effect — inert tag (reserved); set to the ascension id for future themed handlers.
 
 # primary = the class's main attribute (drives the small stat nodes); warrior/caster/support
@@ -79,6 +81,57 @@ static func _build_tree(spec: Dictionary) -> Dictionary:
 		"s2": {"pos": Vector2(0, -190), "type": "stat", "links": ["s1", "s_socket"], "stats": {"max_hp": 16}},
 		"s_socket": {"pos": Vector2(0, -270), "type": "socket", "links": ["s2", s]},
 		"socket_1": {"pos": Vector2(0, 115), "type": "socket", "links": ["start"]},
+		# Fortune arm (bottom) — run-start economy + the gear-socket system: starting
+		# gold/materials, socketed-loot chance, and starting socket gems (самоцветы).
+		"fortune_gold":
+		{
+			"pos": Vector2(-110, 90),
+			"type": "stat",
+			"links": ["start", "fortune_socket"],
+			"grants": {"gold": 100},
+		},
+		"fortune_socket":
+		{
+			"pos": Vector2(-180, 165),
+			"type": "stat",
+			"links": ["fortune_gold", "fortune_socket_2"],
+			"grants": {"socket_chance": 0.06},
+		},
+		"fortune_socket_2":
+		{
+			"pos": Vector2(-250, 240),
+			"type": "stat",
+			"links": ["fortune_socket"],
+			"grants": {"socket_chance": 0.06},
+		},
+		"fortune_materials":
+		{
+			"pos": Vector2(110, 90),
+			"type": "stat",
+			"links": ["start", "fortune_gems_1"],
+			"grants": {"materials": {"scrap": 4, "cloth": 4, "essence": 2}},
+		},
+		"fortune_gems_1":
+		{
+			"pos": Vector2(180, 165),
+			"type": "stat",
+			"links": ["fortune_materials", "fortune_gems_2"],
+			"grants": {"start_gems": 1},
+		},
+		"fortune_gems_2":
+		{
+			"pos": Vector2(250, 240),
+			"type": "stat",
+			"links": ["fortune_gems_1", "fortune_gems_3"],
+			"grants": {"start_gems": 1},
+		},
+		"fortune_gems_3":
+		{
+			"pos": Vector2(320, 315),
+			"type": "stat",
+			"links": ["fortune_gems_2"],
+			"grants": {"start_gems": 1},
+		},
 	}
 	# Each arm's final notable is REPEATABLE: once taken it can be ranked up forever, each
 	# extra rank a small percent bump (rank_pct, fractions: 0.001 = +0.1%). This is the

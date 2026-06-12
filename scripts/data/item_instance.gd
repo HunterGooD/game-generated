@@ -13,12 +13,56 @@ var set_id: String = ""
 var ilvl: int = 1
 # Each affix is {"id": "armor", "value": 12, "title": "Armor", "suffix": ""}.
 var affixes: Array = []
+# Non-empty for socket GEMS (bag items that go into gear sockets, not slots).
+var gem_id: String = ""
+# Перекраска Ювелира: непустой массив из 4 цветов замещает грани каталога.
+var gem_faces: Array = []
+# Drilled gear sockets: each entry is null (empty) or
+# {"gem": gem_id, "rot": 0..3, "faces": [...]?} (faces — перекрашенные грани).
+var sockets: Array = []
 
 
 func get_template() -> Dictionary:
+	if gem_id != "":
+		return SocketGems.template_for(gem_id)
 	if is_unique:
 		return ItemDatabase.find_unique(unique_id)
 	return ItemDatabase.find_base(base_id)
+
+
+func is_gem() -> bool:
+	return gem_id != ""
+
+
+# Действующие грани самоцвета: перекраска Ювелира или базовые из каталога.
+func get_gem_faces() -> Array:
+	if SocketGems.valid_faces(gem_faces):
+		return gem_faces
+	return SocketGems.base_faces(gem_id)
+
+
+# ── Sockets ───────────────────────────────────────────────────────────────────
+func max_sockets() -> int:
+	return SocketGems.max_sockets_for_item(self)
+
+
+# The gem entry in socket `idx` ({} while empty / out of range).
+func socket_entry(idx: int) -> Dictionary:
+	if idx < 0 or idx >= sockets.size():
+		return {}
+	var e = sockets[idx]
+	if e is Dictionary and String((e as Dictionary).get("gem", "")) != "":
+		return e
+	return {}
+
+
+func socketed_gem_ids() -> Array:
+	var out: Array = []
+	for i in sockets.size():
+		var e: Dictionary = socket_entry(i)
+		if not e.is_empty():
+			out.append(String(e.get("gem", "")))
+	return out
 
 
 func get_title() -> String:
@@ -99,8 +143,11 @@ func get_salvage_gold() -> int:
 
 
 # Materials this item disassembles into (does NOT include the set stone a set
-# item also yields — see InventorySystem.salvage_item).
+# item also yields — see InventorySystem.salvage_item). Gems melt into essence.
 func get_salvage_preview() -> Dictionary:
+	if is_gem():
+		var by_rarity: Dictionary = {"common": 1, "rare": 2, "legendary": 4, "unique": 8}
+		return {"essence": int(by_rarity.get(rarity, 1))}
 	return ItemDatabase.salvage_materials_for(get_slot(), rarity, ilvl)
 
 
@@ -113,6 +160,12 @@ func add_stats_to(totals: Dictionary) -> void:
 			continue
 		var v: float = float(a.get("value", 0))
 		totals[id] = float(totals.get(id, 0.0)) + v
+	# Socketed gems add their small flat lines (link bonuses are computed
+	# cross-item by InventorySystem via SocketGems.resolve, not here).
+	for gid in socketed_gem_ids():
+		var gstats: Dictionary = SocketGems.get_gem(String(gid)).get("stats", {})
+		for k in gstats:
+			totals[k] = float(totals.get(k, 0.0)) + float(gstats[k])
 	# Weapons contribute a base damage multiplier as a separate key.
 	if is_weapon():
 		totals["weapon_dmg_mult"] = (
@@ -123,6 +176,10 @@ func add_stats_to(totals: Dictionary) -> void:
 # ─────────────────────────────────────────────────────────────────────────────
 # Display
 func get_affix_lines() -> Array:
+	# Gems carry no affixes — show their flat stats so generic item UIs
+	# (roulette, trade) still render something meaningful.
+	if is_gem():
+		return SocketGems.stat_lines(gem_id)
 	var out: Array = []
 	for a in affixes:
 		var t: String = String(a.get("title", a.get("id", "?")))
@@ -148,6 +205,9 @@ func to_dict() -> Dictionary:
 		"set_id": set_id,
 		"ilvl": ilvl,
 		"affixes": affixes.duplicate(true),
+		"gem_id": gem_id,
+		"gem_faces": gem_faces.duplicate(),
+		"sockets": sockets.duplicate(true),
 	}
 
 
@@ -166,6 +226,35 @@ static func from_dict(data: Dictionary) -> ItemInstance:
 	for a in affs:
 		if a is Dictionary:
 			inst.affixes.append((a as Dictionary).duplicate(true))
+	# Gems / sockets — absent on items from older clients.
+	inst.gem_id = String(data.get("gem_id", ""))
+	if inst.gem_id != "" and not SocketGems.has_gem(inst.gem_id):
+		return null  # unknown gem id from a foreign build — drop the gift
+	var gf: Variant = data.get("gem_faces", [])
+	if gf is Array and SocketGems.valid_faces(gf as Array):
+		for f in (gf as Array):
+			inst.gem_faces.append(String(f))
+	var socks: Variant = data.get("sockets", [])
+	if socks is Array:
+		for s in (socks as Array):
+			if s is Dictionary and SocketGems.has_gem(String((s as Dictionary).get("gem", ""))):
+				var e := s as Dictionary
+				var entry: Dictionary = {
+					"gem": String(e.get("gem", "")), "rot": int(e.get("rot", 0)) % 4
+				}
+				var ef: Variant = e.get("faces", [])
+				if ef is Array and SocketGems.valid_faces(ef as Array):
+					var faces: Array = []
+					for f in (ef as Array):
+						faces.append(String(f))
+					entry["faces"] = faces
+				inst.sockets.append(entry)
+			else:
+				inst.sockets.append(null)
+	# Never trust more sockets than the item legally supports.
+	var cap: int = inst.max_sockets()
+	if inst.sockets.size() > cap:
+		inst.sockets.resize(cap)
 	return inst
 
 
