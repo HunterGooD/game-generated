@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://b8plyrarchrsheet"]
 
-[ext_resource type="Script" path="res://scripts/ui/character_sheet.gd" id="1_cs"]
+[ext_resource type="Script" path="res://scripts/ui/panels/character_sheet.gd" id="1_cs"]
 [ext_resource type="Theme" path="res://assets/ui/theme.tres" id="2_theme"]
 [ext_resource type="Texture2D" uid="uid://b7xdqd7xa67p7" path="res://assets/textures/backgrounds/inventory_bg_dark.webp" id="3_bg"]
 

@@ -6,10 +6,10 @@ extends Node2D
 const FLOOR_TEX: String = "res://assets/textures/floors/ruins_floor.webp"
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
-const REST_CHOICE := preload("res://scripts/ui/rest_choice.gd")
-const SHRINE_EVENT := preload("res://scripts/ui/shrine_event.gd")
-const JEWELER_PANEL := preload("res://scripts/ui/jeweler_panel.gd")
-const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/skill_tree_panel.gd")
+const REST_CHOICE := preload("res://scripts/ui/run/rest_choice.gd")
+const SHRINE_EVENT := preload("res://scripts/ui/run/shrine_event.gd")
+const JEWELER_PANEL := preload("res://scripts/ui/panels/jeweler_panel.gd")
+const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/panels/skill_tree_panel.gd")
 const INTERACT_RANGE: float = 96.0
 
 @onready var _player: Node2D = $Player

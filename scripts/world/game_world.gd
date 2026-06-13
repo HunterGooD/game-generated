@@ -36,7 +36,7 @@ const ACTIVITY_DEFS := [
 
 const CLASS_SELECTOR_SCENE: PackedScene = preload("res://scenes/ui/class_selector.tscn")
 const LEVEL_UP_SCENE: PackedScene = preload("res://scenes/ui/level_up_choice.tscn")
-const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/skill_tree_panel.gd")
+const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/panels/skill_tree_panel.gd")
 const GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over.tscn")
 const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
 const WORLD_BACKDROP_SCRIPT: Script = preload("res://scripts/world/world_backdrop.gd")

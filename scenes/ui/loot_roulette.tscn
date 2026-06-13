@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://q5reuytj5to5"]
 
-[ext_resource type="Script" uid="uid://1x58vvbcfhqq" path="res://scripts/ui/loot_roulette.gd" id="1_roulette"]
+[ext_resource type="Script" uid="uid://1x58vvbcfhqq" path="res://scripts/ui/run/loot_roulette.gd" id="1_roulette"]
 
 [node name="LootRoulette" type="CanvasLayer" unique_id=2063017988 node_paths=PackedStringArray("dim", "strip_root", "strip_inner", "marker", "detail_panel", "detail_title", "detail_rarity", "detail_affixes", "detail_transform", "detail_ilvl", "take_btn", "salvage_btn", "heading")]
 layer = 50

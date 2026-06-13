@@ -5,7 +5,7 @@ extends Node
 const BOSS_SCENE: PackedScene = preload("res://scenes/entities/boss.tscn")
 const MERCHANT_SCENE: PackedScene = preload("res://scenes/pickups/merchant.tscn")
 const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn")
-const RUN_VICTORY := preload("res://scripts/ui/run_victory.gd")
+const RUN_VICTORY := preload("res://scripts/ui/run/run_victory.gd")
 
 const ENEMY_TYPES := {
 	"skeleton":
