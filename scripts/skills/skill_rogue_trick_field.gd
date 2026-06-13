@@ -32,10 +32,8 @@ func _process(delta: float) -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")):
-			continue
-		if global_position.distance_to((e as Node2D).global_position) <= RADIUS and e.has_method("apply_slow"):
+	for e in SkillTargeting.in_radius(tree, global_position, RADIUS):
+		if e.has_method("apply_slow"):
 			e.call("apply_slow", 0.4, 0.5)
 	for grp in ["player", "remote_player"]:
 		for a in tree.get_nodes_in_group(grp):

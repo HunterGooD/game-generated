@@ -28,11 +28,7 @@ func _ready() -> void:
 	if not visual_only:
 		var tree := get_tree()
 		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e) or bool(e.get("dead")):
-					continue
-				if origin.distance_to((e as Node2D).global_position) > RANGE:
-					continue
+			for e in SkillTargeting.in_radius(tree, origin, RANGE):
 				if e.has_method("take_damage"):
 					e.call("take_damage", damage, origin)
 				var stacks: int = 1
