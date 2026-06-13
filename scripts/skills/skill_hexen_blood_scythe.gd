@@ -34,16 +34,8 @@ func setup_context(ctx: SkillContext) -> void:
 
 func _ready() -> void:
 	z_index = 50
-	var flash := Sprite2D.new()
-	var path := "res://assets/sprites/effects/melee_swing_arc.png"
-	if ResourceLoader.exists(path):
-		flash.texture = load(path) as Texture2D
-	flash.modulate = Color(0.8, 0.1, 0.15, 0.9)
-	flash.position = Vector2(90, 0)
-	add_child(flash)
-	var tw := flash.create_tween().set_parallel(true)
-	tw.tween_property(flash, "scale", Vector2(1.6, 1.6), 0.3)
-	tw.tween_property(flash, "modulate:a", 0.0, 0.3)
+	# Procedural blood slash (replaces the flat PNG arc).
+	SlashFx.spawn(self, "blood", Vector2(90, 0), 1.0, 0.3)
 	if not visual_only:
 		_hit()
 	var t := get_tree().create_timer(0.4)

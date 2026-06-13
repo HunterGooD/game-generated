@@ -725,25 +725,25 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 # ─────────────────────────────────────────────────────────────────────────────
 # Skill replication — visual-only on remote peers.
 func broadcast_skill_cast(
-	skill_id: String, scene_path: String, pos: Vector2, dir: Vector2, dmg: int
+	skill_id: String, scene_path: String, pos: Vector2, dir: Vector2, dmg: int, extra: Dictionary = {}
 ) -> void:
 	if NetManager == null or not NetManager.is_multiplayer:
 		return
-	(
-		NetManager
-		. send(
-			"skill_cast",
-			{
-				"sid": skill_id,
-				"path": scene_path,
-				"x": pos.x,
-				"y": pos.y,
-				"dx": dir.x,
-				"dy": dir.y,
-				"d": dmg,
-			}
-		)
-	)
+	# Extra fields (e.g. "cls" for the slash theme) ride along in the JSON — the
+	# relay's skill_cast schema ignores them but forwards the payload verbatim,
+	# so peers can read them without a protocol change (same as broadcast_fx).
+	var m: Dictionary = {
+		"sid": skill_id,
+		"path": scene_path,
+		"x": pos.x,
+		"y": pos.y,
+		"dx": dir.x,
+		"dy": dir.y,
+		"d": dmg,
+	}
+	for k in extra:
+		m[k] = extra[k]
+	NetManager.send("skill_cast", m)
 
 
 func _replicate_skill_cast(msg: Dictionary) -> void:
@@ -768,6 +768,9 @@ func _replicate_skill_cast(msg: Dictionary) -> void:
 	ctx.definition = SkillCatalog.get_def(String(msg.get("sid", "")))
 	SkillContext.apply(node, ctx)
 	game_world.add_child(node)
+	# Theme the slash to the caster's class (basic melee swing carries "cls").
+	if msg.has("cls") and node.has_method("set_slash_theme"):
+		node.call("set_slash_theme", String(msg.get("cls", "")))
 	# Disable damage-area collision so the visual copy can't double-damage
 	# enemies. For tick-based area skills (caltrops, poison_vial, fire_wall)
 	# we also stop physics_process so they don't keep scanning disabled areas.

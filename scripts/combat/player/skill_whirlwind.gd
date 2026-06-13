@@ -5,6 +5,7 @@ extends Node2D
 const LIFETIME: float = 1.6
 const RADIUS: float = 150.0
 const TICK_INTERVAL: float = 0.18
+const VORTEX_SHADER: Shader = preload("res://assets/shaders/whirlwind_vortex.gdshader")
 
 @export var hurt_area: Area2D
 @export var sprite: Sprite2D
@@ -40,9 +41,16 @@ func _ready() -> void:
 			cs.radius = RADIUS
 			sh.shape = cs
 	if sprite:
-		# Bind the loop tween to the SPRITE (not the tree) so it auto-dies on free.
-		_spin_tween = sprite.create_tween().set_loops()
-		_spin_tween.tween_property(sprite, "rotation", sprite.rotation + TAU, 0.35)
+		# Full-disc hurricane vortex: a procedural shader that spins itself (via TIME)
+		# and is dense enough to cover the hero. Drawn well above the player sprite.
+		sprite.texture = SlashFx.quad_texture()
+		sprite.centered = true
+		sprite.z_index = 100
+		var mat := ShaderMaterial.new()
+		mat.shader = VORTEX_SHADER
+		mat.set_shader_parameter("seed", float(absi(int(get_instance_id())) % 997) * 0.013)
+		sprite.material = mat
+		# No node rotation tween — the shader does the spinning, so it never "sticks".
 	if VfxManager:
 		VfxManager.screen_shake(1.5, 0.15)
 

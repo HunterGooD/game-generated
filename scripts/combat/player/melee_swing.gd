@@ -14,8 +14,13 @@ var direction: Vector2 = Vector2.RIGHT
 var hit_set: Dictionary = {}
 var is_crit: bool = false
 
+# Procedural-slash theme (class id or skill element) + optional core-hue override
+# for basic-attack uniques. Resolved from the caster's class when left blank.
+var slash_theme: String = ""
+var slash_core = null
 
-func setup(dir: Vector2, dmg: int) -> void:
+
+func setup(dir: Vector2, dmg: int, theme: String = "", core_override = null) -> void:
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
 	if GameManager:
 		var res: Array = GameManager.compute_attack_damage(dmg)
@@ -24,8 +29,38 @@ func setup(dir: Vector2, dmg: int) -> void:
 	else:
 		damage = dmg
 	rotation = direction.angle()
+	if theme != "":
+		slash_theme = theme
+	if core_override != null:
+		slash_core = core_override
 	if hurt_area:
 		hurt_area.payload = _build_damage_payload()
+
+
+## Co-op: a replicated visual copy gets its caster's class after spawn so peers
+## see the right slash colour. Re-applies the material if the sprite is up.
+func set_slash_theme(theme: String) -> void:
+	slash_theme = theme
+	if sprite and is_inside_tree():
+		_apply_slash_material()
+
+
+func _resolve_theme() -> String:
+	if slash_theme != "":
+		return slash_theme
+	# Replicated remote copy with no caster class yet → neutral (not the local
+	# viewer's class). The basic-attack path supplies the real class via "cls".
+	if has_meta("visual_only"):
+		return "white"
+	if GameManager:
+		return String(GameManager.player_class)
+	return ""
+
+
+func _apply_slash_material() -> ShaderMaterial:
+	if sprite == null:
+		return null
+	return SlashFx.apply_to(sprite, _resolve_theme(), slash_core)
 
 
 func _ready() -> void:
@@ -34,19 +69,24 @@ func _ready() -> void:
 		hurt_area.collision_mask = 16
 		hurt_area.area_entered.connect(_on_area_entered)
 		hurt_area.hit.connect(_on_hit_hurtbox)
-	# Quick swing tween.
+	# Procedural slash: build the themed material and sweep it via `progress`.
+	# The shader handles the fade-out, so no modulate:a tween is needed.
 	if sprite:
-		sprite.modulate = Color(1, 1, 1, 0.95)
+		var mat := _apply_slash_material()
 		var tw := create_tween().set_parallel(true)
 		(
 			tw
-			. tween_property(sprite, "scale", sprite.scale * 1.25, LIFETIME)
+			. tween_property(sprite, "scale", sprite.scale * 1.15, LIFETIME)
 			. set_trans(Tween.TRANS_QUAD)
 			. set_ease(Tween.EASE_OUT)
 		)
-		tw.tween_property(sprite, "modulate:a", 0.0, LIFETIME).set_trans(Tween.TRANS_QUAD).set_ease(
-			Tween.EASE_IN
-		)
+		if mat:
+			(
+				tw
+				. tween_property(mat, "shader_parameter/progress", 1.0, LIFETIME)
+				. set_trans(Tween.TRANS_QUAD)
+				. set_ease(Tween.EASE_OUT)
+			)
 	# Auto-destroy.
 	var t := get_tree().create_timer(LIFETIME + 0.05)
 	t.timeout.connect(_finish)

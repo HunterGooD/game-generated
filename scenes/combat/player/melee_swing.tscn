@@ -1,7 +1,6 @@
-[gd_scene load_steps=4 format=3 uid="uid://b8plyrarmeleesw"]
+[gd_scene load_steps=3 format=3 uid="uid://b8plyrarmeleesw"]
 
 [ext_resource type="Script" path="res://scripts/combat/player/melee_swing.gd" id="1_ms"]
-[ext_resource type="Texture2D" path="res://assets/sprites/effects/melee_swing_arc.png" id="2_tex"]
 [ext_resource type="Script" path="res://scripts/components/hit_box_component.gd" id="3_hit"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_ms"]
@@ -14,10 +13,8 @@ hurt_area = NodePath("HurtArea")
 sprite = NodePath("Sprite")
 
 [node name="Sprite" type="Sprite2D" parent="."]
-position = Vector2(60, 0)
-texture = ExtResource("2_tex")
-scale = Vector2(0.55, 0.55)
-modulate = Color(1, 0.7, 0.4, 1)
+position = Vector2(20, 0)
+scale = Vector2(0.82, 0.82)
 
 [node name="HurtArea" type="Area2D" parent="." node_paths=PackedStringArray("collision_shape")]
 collision_layer = 0

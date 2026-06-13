@@ -25,22 +25,8 @@ func setup_context(ctx: SkillContext) -> void:
 
 func _ready() -> void:
 	z_index = 60
-	var flash := Sprite2D.new()
-	var path: String = "res://assets/sprites/effects/melee_swing_arc.png"
-	if ResourceLoader.exists(path):
-		flash.texture = load(path) as Texture2D
-	flash.modulate = Color(0.8, 0.95, 1.0, 0.85)
-	flash.scale = Vector2(1.1, 1.1)
-	flash.position = Vector2(90, 0)
-	add_child(flash)
-	var tw := flash.create_tween().set_parallel(true)
-	(
-		tw
-		. tween_property(flash, "scale", Vector2(1.8, 1.8), LIFETIME)
-		. set_trans(Tween.TRANS_QUAD)
-		. set_ease(Tween.EASE_OUT)
-	)
-	tw.tween_property(flash, "modulate:a", 0.0, LIFETIME)
+	# Procedural clean pale-wind slash (replaces the flat PNG arc).
+	SlashFx.spawn(self, "white", Vector2(90, 0), 1.1, LIFETIME, Color(0.8, 0.95, 1.0))
 	if not visual_only:
 		var t := get_tree().create_timer(0.06)
 		t.timeout.connect(_apply_damage)

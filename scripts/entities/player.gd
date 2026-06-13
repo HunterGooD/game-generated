@@ -1558,13 +1558,18 @@ func _perform_basic_attack() -> void:
 	if NetManager and NetManager.is_multiplayer and attack_scene_path != "":
 		var ns := _find_net_sync()
 		if ns and ns.has_method("broadcast_skill_cast"):
+			# Carry our class so peers theme the slash to the caster, not the viewer.
+			var cls_extra: Dictionary = {}
+			if GameManager:
+				cls_extra = {"cls": String(GameManager.player_class)}
 			ns.call(
 				"broadcast_skill_cast",
 				"basic_" + basic_attack_kind,
 				attack_scene_path,
 				attack_spawn_pos,
 				dir,
-				dmg
+				dmg,
+				cls_extra
 			)
 
 
@@ -1665,11 +1670,8 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 			get_tree().current_scene.add_child(sw)
 			sw.global_position = global_position + dir * 30.0
 			if sw.has_method("setup"):
-				sw.call("setup", dir, int(round(float(dmg) * 1.1)))
-			# Phantom blue tint on the swing visual.
-			var visual: Sprite2D = sw.get_node_or_null("Sprite")
-			if visual:
-				visual.modulate = Color(0.6, 0.85, 1.5, 1)
+				# Clean phantom blade, blue core.
+				sw.call("setup", dir, int(round(float(dmg) * 1.1)), "white", Color(0.6, 0.85, 1.5))
 			if AudioManager:
 				AudioManager.play_sfx_path(
 					"res://assets/audio/sfx/player/player_basic_phantom_swing.mp3", -8.0
@@ -1695,10 +1697,8 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 			get_tree().current_scene.add_child(lance)
 			lance.global_position = global_position + dir * 36.0
 			if lance.has_method("setup"):
-				lance.call("setup", dir, int(round(float(dmg) * 1.15)))
-			var vis: Sprite2D = lance.get_node_or_null("Sprite")
-			if vis:
-				vis.modulate = Color(0.85, 0.6, 1.4, 1)
+				# Clean bone lance, violet core.
+				lance.call("setup", dir, int(round(float(dmg) * 1.15)), "white", Color(0.85, 0.6, 1.4))
 			if AudioManager:
 				AudioManager.play_sfx_path(
 					"res://assets/audio/sfx/player/player_basic_bone_lance.mp3", -8.0
@@ -1723,10 +1723,8 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 			get_tree().current_scene.add_child(tonfa)
 			tonfa.global_position = global_position + dir * 34.0
 			if tonfa.has_method("setup"):
-				tonfa.call("setup", dir, int(round(float(dmg) * 1.05)))
-			var t_vis: Sprite2D = tonfa.get_node_or_null("Sprite")
-			if t_vis:
-				t_vis.modulate = Color(0.55, 0.85, 1.6, 1)
+				# Electric tonfa, bright cyan core.
+				tonfa.call("setup", dir, int(round(float(dmg) * 1.05)), "storm", Color(0.55, 0.85, 1.6))
 			if AudioManager:
 				AudioManager.play_sfx_path(
 					"res://assets/audio/sfx/player/player_storm_chain_bolt.mp3", -12.0

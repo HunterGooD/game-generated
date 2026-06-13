@@ -48,22 +48,8 @@ func _ready() -> void:
 
 
 func _spawn_arc_visual(scale_mult: float) -> void:
-	var flash := Sprite2D.new()
-	var path: String = "res://assets/sprites/effects/melee_swing_arc.png"
-	if ResourceLoader.exists(path):
-		flash.texture = load(path) as Texture2D
-	flash.modulate = Color(1.0, 0.55, 0.2, 0.95)
-	flash.position = Vector2(90, 0)
-	flash.scale = Vector2(scale_mult, scale_mult)
-	add_child(flash)
-	var tw := flash.create_tween().set_parallel(true)
-	(
-		tw
-		. tween_property(flash, "scale", flash.scale * 1.7, LIFETIME)
-		. set_trans(Tween.TRANS_QUAD)
-		. set_ease(Tween.EASE_OUT)
-	)
-	tw.tween_property(flash, "modulate:a", 0.0, LIFETIME)
+	# Procedural fire slash (replaces the flat PNG arc).
+	SlashFx.spawn(self, "fire", Vector2(90, 0), scale_mult, LIFETIME)
 
 
 func _apply_damage(scale_mult: float) -> void:
