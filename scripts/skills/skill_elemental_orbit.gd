@@ -85,13 +85,7 @@ func _process(delta: float) -> void:
 		(orb["spr"] as Node2D).global_position = orb["pos"]
 		if visual_only or tree == null:
 			continue
-		for e in tree.get_nodes_in_group("enemy"):
-			if not is_instance_valid(e) or bool(e.get("dead")):
-				continue
-			if orb["hit"].has(e.get_instance_id()):
-				continue
-			if orb["pos"].distance_to((e as Node2D).global_position) > ORB_HIT_RADIUS:
-				continue
+		for e in SkillTargeting.in_radius(tree, orb["pos"], ORB_HIT_RADIUS, orb["hit"]):
 			orb["hit"][e.get_instance_id()] = true
 			_hit_enemy(e, orb["el"])
 

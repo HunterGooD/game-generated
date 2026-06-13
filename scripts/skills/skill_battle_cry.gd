@@ -63,12 +63,8 @@ func _apply_crimson_aegis_burn() -> void:
 	var dmg: int = 30
 	if GameManager:
 		dmg = int(round(float(GameManager.get_effective_damage()) * 0.4))
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		var d: float = global_position.distance_to((e as Node2D).global_position)
-		if d <= radius:
-			if e.has_method("take_damage"):
-				e.take_damage(dmg, global_position)
+	for e in SkillTargeting.in_radius(tree, global_position, radius):
+		if e.has_method("take_damage"):
+			e.take_damage(dmg, global_position)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(global_position, Color(1, 0.5, 0.2, 1), 20)

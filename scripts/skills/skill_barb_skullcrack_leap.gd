@@ -65,11 +65,7 @@ func _on_slam(tel: Sprite2D) -> void:
 	if not visual_only:
 		var tree := get_tree()
 		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e) or bool(e.get("dead")):
-					continue
-				if target_pos.distance_to((e as Node2D).global_position) > BLAST_RADIUS:
-					continue
+			for e in SkillTargeting.in_radius(tree, target_pos, BLAST_RADIUS):
 				if e.has_method("take_damage"):
 					e.call("take_damage", damage, target_pos)
 				# Armor Break — heavier amp on elites/bosses.

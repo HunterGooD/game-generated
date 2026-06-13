@@ -35,11 +35,7 @@ func _ready() -> void:
 			GameManager.regen_mana(MANA_RESTORE)
 		var tree := get_tree()
 		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e) or bool(e.get("dead")):
-					continue
-				if global_position.distance_to((e as Node2D).global_position) > RADIUS:
-					continue
+			for e in SkillTargeting.in_radius(tree, global_position, RADIUS):
 				if randf() < BLEED_CHANCE and e.has_method("apply_bleed"):
 					e.call("apply_bleed", 4.0, float(damage) * 0.4)
 	var t := get_tree().create_timer(0.5)

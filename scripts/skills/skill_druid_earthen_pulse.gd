@@ -30,12 +30,8 @@ func _ready() -> void:
 		caster.set("stone_armor_charges", maxi(cur, 1))
 		var tree := get_tree()
 		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e) or bool(e.get("dead")):
-					continue
+			for e in SkillTargeting.in_radius(tree, pos, RADIUS):
 				var ep: Vector2 = (e as Node2D).global_position
-				if pos.distance_to(ep) > RADIUS:
-					continue
 				if e.has_method("take_damage"):
 					e.call("take_damage", damage, pos)
 				if e.has_method("set"):

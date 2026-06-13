@@ -88,13 +88,9 @@ func _on_land(marker: Sprite2D) -> void:
 	if not visual_only:
 		var tree := get_tree()
 		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e):
-					continue
-				var d: float = target_pos.distance_to((e as Node2D).global_position)
-				if d <= BLAST_RADIUS:
-					if e.has_method("take_damage"):
-						e.take_damage(damage, target_pos)
+			for e in SkillTargeting.in_radius(tree, target_pos, BLAST_RADIUS):
+				if e.has_method("take_damage"):
+					e.take_damage(damage, target_pos)
 	queue_free()
 
 

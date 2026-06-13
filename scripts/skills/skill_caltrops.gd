@@ -54,12 +54,9 @@ func _detonate() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if (e as Node2D).global_position.distance_to(global_position) <= burst:
-			if e.has_method("take_damage"):
-				e.take_damage(burst_dmg, global_position)
+	for e in SkillTargeting.in_radius(tree, global_position, burst):
+		if e.has_method("take_damage"):
+			e.take_damage(burst_dmg, global_position)
 	if VfxManager:
 		VfxManager.spawn_explosion(global_position, 1.2, Color(0.6, 1.0, 0.4, 1))
 		VfxManager.screen_shake(5.0, 0.2)
