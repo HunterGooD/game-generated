@@ -45,11 +45,8 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	# Dim background.
-	dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.72)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim = UIBuilder.dim_overlay(Color(0, 0, 0, 0.72))
 	add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	# Centered panel.
 	panel = PanelContainer.new()

@@ -395,77 +395,80 @@ func _build_hotbar() -> void:
 			if fallback_icons.size() < 5:
 				fallback_icons.append("res://assets/sprites/items/icon_druid_eagle_form.png")
 	for i in slot_count:
-		var slot_root := PanelContainer.new()
-		slot_root.theme_type_variation = &"HudPanel"
-		slot_root.custom_minimum_size = Vector2(88, 88)
-		hotbar.add_child(slot_root)
-
-		var inner := Control.new()
-		inner.custom_minimum_size = Vector2(80, 80)
-		inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_root.add_child(inner)
-
-		var icon := TextureRect.new()
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.custom_minimum_size = Vector2(72, 72)
-		inner.add_child(icon)
-		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		if ResourceLoader.exists(fallback_icons[i]):
-			icon.texture = load(fallback_icons[i]) as Texture2D
-
-		var cd_overlay := ColorRect.new()
-		cd_overlay.color = Color(0, 0, 0, 0.55)
-		cd_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cd_overlay.visible = false
-		inner.add_child(cd_overlay)
-		cd_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-		var cd_label := Label.new()
-		cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cd_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		cd_label.add_theme_color_override("font_color", Color(1, 0.95, 0.7, 1))
-		cd_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		cd_label.add_theme_constant_override("outline_size", 4)
-		cd_label.add_theme_font_size_override("font_size", 28)
-		cd_label.text = ""
-		cd_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		inner.add_child(cd_label)
-		cd_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-		var key_label := Label.new()
-		key_label.text = key_labels[i]
-		key_label.add_theme_color_override("font_color", Color(1, 0.92, 0.55, 1))
-		key_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		key_label.add_theme_constant_override("outline_size", 4)
-		key_label.add_theme_font_size_override("font_size", 16)
-		key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		inner.add_child(key_label)
-		key_label.position = Vector2(4, 4)
-
-		var mana_label := _make_mana_label()
-		inner.add_child(mana_label)
-		mana_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-		mana_label.offset_left = -40
-		mana_label.offset_top = -26
-		mana_label.offset_right = -4
-		mana_label.offset_bottom = -4
-
-		(
-			skill_slots
-			. append(
-				{
-					"root": slot_root,
-					"icon": icon,
-					"cd_overlay": cd_overlay,
-					"cd_label": cd_label,
-					"key_label": key_label,
-					"mana_label": mana_label,
-				}
-			)
-		)
+		var icon_path: String = fallback_icons[i] if i < fallback_icons.size() else ""
+		var slot: Dictionary = _make_hotbar_slot(key_labels[i], icon_path)
+		hotbar.add_child(slot["root"])
+		skill_slots.append(slot)
 
 	_build_ult_slot()
+
+
+# Build one hotbar slot subtree (panel → icon → cooldown overlay/label → key tag
+# → mana tag) and return its node refs as a dict. Caller parents the "root".
+func _make_hotbar_slot(key_text: String, icon_path: String) -> Dictionary:
+	var slot_root := PanelContainer.new()
+	slot_root.theme_type_variation = &"HudPanel"
+	slot_root.custom_minimum_size = Vector2(88, 88)
+
+	var inner := Control.new()
+	inner.custom_minimum_size = Vector2(80, 80)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot_root.add_child(inner)
+
+	var icon := TextureRect.new()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(72, 72)
+	inner.add_child(icon)
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if icon_path != "" and ResourceLoader.exists(icon_path):
+		icon.texture = load(icon_path) as Texture2D
+
+	var cd_overlay := ColorRect.new()
+	cd_overlay.color = Color(0, 0, 0, 0.55)
+	cd_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cd_overlay.visible = false
+	inner.add_child(cd_overlay)
+	cd_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var cd_label := Label.new()
+	cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cd_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cd_label.add_theme_color_override("font_color", Color(1, 0.95, 0.7, 1))
+	cd_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	cd_label.add_theme_constant_override("outline_size", 4)
+	cd_label.add_theme_font_size_override("font_size", 28)
+	cd_label.text = ""
+	cd_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(cd_label)
+	cd_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var key_label := Label.new()
+	key_label.text = key_text
+	key_label.add_theme_color_override("font_color", Color(1, 0.92, 0.55, 1))
+	key_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	key_label.add_theme_constant_override("outline_size", 4)
+	key_label.add_theme_font_size_override("font_size", 16)
+	key_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.add_child(key_label)
+	key_label.position = Vector2(4, 4)
+
+	var mana_label := _make_mana_label()
+	inner.add_child(mana_label)
+	mana_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	mana_label.offset_left = -40
+	mana_label.offset_top = -26
+	mana_label.offset_right = -4
+	mana_label.offset_bottom = -4
+
+	return {
+		"root": slot_root,
+		"icon": icon,
+		"cd_overlay": cd_overlay,
+		"cd_label": cd_label,
+		"key_label": key_label,
+		"mana_label": mana_label,
+	}
 
 
 # A small mana-cost tag pinned to a slot's bottom-right corner. Blue when affordable,

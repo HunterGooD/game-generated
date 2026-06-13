@@ -61,10 +61,7 @@ func _exit_tree() -> void:
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.01, 0.04, 0.82)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.01, 0.04, 0.82))
 	add_child(dim)
 
 	var center := CenterContainer.new()
