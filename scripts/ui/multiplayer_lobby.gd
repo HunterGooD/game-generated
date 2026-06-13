@@ -11,18 +11,11 @@ extends CanvasLayer
 const GAME_WORLD_PATH: String = "res://scenes/world/game_world.tscn"
 const MAIN_SCENE_PATH: String = "res://scenes/main.tscn"
 
-const CLASS_ORDER: Array = [
-	"barbarian", "rogue", "mage", "druid", "necromancer", "hexen", "stormcaller"
-]
-const CLASS_COLORS: Dictionary = {
-	"barbarian": Color(0.85, 0.25, 0.2, 1),
-	"rogue": Color(0.9, 0.55, 0.2, 1),
-	"mage": Color(0.7, 0.25, 0.85, 1),
-	"druid": Color(0.4, 0.78, 0.32, 1),
-	"necromancer": Color(0.55, 0.25, 0.75, 1),
-	"hexen": Color(0.92, 0.18, 0.28, 1),
-	"stormcaller": Color(0.45, 0.75, 1.0, 1),
-}
+# Class order + badge tints now come from GameManager.class_order() /
+# ClassDefinition.theme_color (was local CLASS_ORDER / CLASS_COLORS copies; the
+# old rogue tint was 0.55 green vs the registry's 0.5 — unified to the registry).
+# NOTE: the chosen class still travels the wire as a string id ("lobby_class" /
+# {"class_id": ...}) — this repoint is local UI only, the wire format is untouched.
 
 # How many class buttons fit per row in the lobby picker before wrapping
 # to the next line. Picked so the row stays comfortably inside 1080px.
@@ -306,7 +299,7 @@ func _build_inroom_ui() -> void:
 	vb.add_child(class_box)
 	var current_row: HBoxContainer = null
 	var idx: int = 0
-	for cid in CLASS_ORDER:
+	for cid in GameManager.class_order():
 		if idx % CLASS_BUTTONS_PER_ROW == 0:
 			current_row = HBoxContainer.new()
 			current_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -383,7 +376,7 @@ func _build_slot_card(idx: int) -> PanelContainer:
 func _build_class_btn(class_id: String) -> Button:
 	var data: Dictionary = GameManager.get_class_data(class_id) if GameManager else {}
 	var display: String = String(data.get("display", class_id.capitalize())).to_upper()
-	var col: Color = CLASS_COLORS.get(class_id, Color.WHITE)
+	var col: Color = GameManager.class_def(class_id).theme_color
 	# Blend the class color with yellow for warm, readable labels.
 	var label_col: Color = col.lerp(Color(1.0, 0.9, 0.55, 1), 0.4)
 	var btn := _make_button(display, 260, 88, 26, label_col)
@@ -770,7 +763,7 @@ func _refresh_inroom() -> void:
 				portrait.modulate = Color(1, 1, 1, 1)
 			if class_lbl:
 				class_lbl.text = String(data.get("display", cid))
-				class_lbl.add_theme_color_override("font_color", CLASS_COLORS.get(cid, Color.WHITE))
+				class_lbl.add_theme_color_override("font_color", GameManager.class_def(cid).theme_color)
 		else:
 			if portrait:
 				portrait.texture = null
