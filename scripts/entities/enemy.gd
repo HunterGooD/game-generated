@@ -1795,6 +1795,17 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	_die_trigger_affixes()
+	_die_disable_bodies()
+	_die_play_fx()
+	_die_grant_rewards()
+	_die_emit_event()
+	_die_dissolve_and_free()
+
+
+# On-death affix/curse payoffs (host/solo only): explosive burst, Fracture
+# detonation, Doom corpse-burst, Brood Mother hatchling swarm.
+func _die_trigger_affixes() -> void:
 	# Explosive affix — burst that damages nearby players/pets (host/solo only).
 	if _explosive and not is_puppet:
 		_affix_explode()
@@ -1808,7 +1819,11 @@ func _die() -> void:
 	# Brood Mother bursts into a small swarm on death.
 	if is_brood_mother:
 		_spawn_hatchlings(6)
-	# Disable collision so player/bolts pass through corpse.
+
+
+# Turn the corpse non-interactive: drop collision so player/bolts pass through,
+# stop hurt/hit boxes, hide HP bar + status strip.
+func _die_disable_bodies() -> void:
 	if collision_shape:
 		collision_shape.set_deferred("disabled", true)
 	if hurtbox:
@@ -1822,6 +1837,9 @@ func _die() -> void:
 	if _status_strip:
 		_status_strip.visible = false
 
+
+# Death burst VFX (with hit-stop + shake) and type-specific death SFX.
+func _die_play_fx() -> void:
 	# Big death VFX.
 	if VfxManager:
 		VfxManager.spawn_death_burst(global_position, enemy_type)
@@ -1834,6 +1852,10 @@ func _die() -> void:
 		if ResourceLoader.exists(death_path):
 			AudioManager.play_sfx_path(death_path, -6.0)
 
+
+# Grant XP + gold. Host broadcasts the death (clients spawn matching drops/VFX)
+# and grants flat XP so every peer levels in sync; solo grants XP with gear mult.
+func _die_grant_rewards() -> void:
 	# Multiplayer host: broadcast death so all clients spawn local drops + VFX.
 	# Skip local drop_loot (the death message triggers identical drops on host too).
 	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
@@ -1862,6 +1884,10 @@ func _die() -> void:
 			GameManager.add_xp(xp_value)  # apply_mult=true: solo keeps XP-gain gear bonus
 		_drop_loot()
 
+
+# Fire the ActorDeathEvent on GameEvents (carrying killer/damage) and the legacy
+# enemy_defeated signal so the spawner can track wave progress.
+func _die_emit_event() -> void:
 	# Notify GameManager (so spawner can track waves).
 	if GameEvents:
 		var death_event := ActorDeathEvent.new()
@@ -1877,9 +1903,12 @@ func _die() -> void:
 	if GameManager and GameManager.has_signal("enemy_defeated"):
 		GameManager.enemy_defeated.emit()
 
-	# Dissolve-on-death — swap to the dissolve shader and animate dissolve_amount
-	# 0 → 1. Edge color uses the enemy's hue tint so the burn frontier reads
-	# thematically (skeletons burn white, wraiths blue, succubi pink).
+
+# Dissolve-on-death — swap to the dissolve shader and animate dissolve_amount
+# 0 → 1. Edge color uses the enemy's hue tint so the burn frontier reads
+# thematically (skeletons burn white, wraiths blue, succubi pink). A safety
+# Timer guarantees the node is released even if the tween never fires.
+func _die_dissolve_and_free() -> void:
 	if sprite and is_inside_tree():
 		var dm := ShaderMaterial.new()
 		dm.shader = DISSOLVE_SHADER
