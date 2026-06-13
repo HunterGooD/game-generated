@@ -5,8 +5,6 @@ extends CanvasLayer
 
 signal class_chosen(class_id: String)
 
-const CLASS_ORDER := ["barbarian", "rogue", "mage", "druid", "necromancer", "hexen", "stormcaller"]
-
 @export var card_row: HBoxContainer
 @export var title: Label
 @export var subtitle: Label
@@ -36,7 +34,7 @@ func _build_cards() -> void:
 	card_row.add_child(stack)
 	var current_row: HBoxContainer = null
 	var idx: int = 0
-	for cid in CLASS_ORDER:
+	for cid in GameManager.class_order():
 		if idx % CARDS_PER_ROW == 0:
 			current_row = HBoxContainer.new()
 			current_row.alignment = BoxContainer.ALIGNMENT_CENTER

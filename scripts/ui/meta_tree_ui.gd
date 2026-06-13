@@ -16,16 +16,8 @@ extends CanvasLayer
 ##
 ## Co-op note: this is purely local UI over the local MetaProgress save; nothing networked.
 
-const CLASS_ORDER: Array = ["barbarian", "rogue", "mage", "druid", "necromancer", "hexen", "stormcaller"]
-const CLASS_COLORS: Dictionary = {
-	"barbarian": Color(0.86, 0.42, 0.30),
-	"rogue": Color(0.55, 0.80, 0.45),
-	"mage": Color(0.45, 0.62, 1.0),
-	"druid": Color(0.55, 0.85, 0.55),
-	"necromancer": Color(0.65, 0.55, 0.85),
-	"hexen": Color(0.85, 0.45, 0.78),
-	"stormcaller": Color(0.45, 0.85, 0.95),
-}
+# Class order + label tints now come from GameManager.class_order() /
+# ClassDefinition.ui_color (was local CLASS_ORDER / CLASS_COLORS copies).
 # stat key -> [label, is_percent]
 const STAT_LABELS: Dictionary = {
 	"max_hp": ["Макс. здоровье", false],
@@ -118,7 +110,7 @@ func _ready() -> void:
 	if GameManager:
 		var c: String = String(GameManager.player_class)
 		_view_class = c if c != "" else String(GameManager.last_class)
-	if not CLASS_ORDER.has(_view_class):
+	if not GameManager.class_order().has(_view_class):
 		_view_class = "barbarian"
 	_build()
 
@@ -176,7 +168,7 @@ func _build_chrome(dim: Control) -> void:
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
 	vb.add_child(tabs)
-	for cid in CLASS_ORDER:
+	for cid in GameManager.class_order():
 		var data: Dictionary = GameManager.get_class_data(cid) if GameManager else {}
 		var t := Button.new()
 		t.custom_minimum_size = Vector2(118, 30)
@@ -485,7 +477,7 @@ func _refresh() -> void:
 	]
 	for cid in _tab_btns:
 		var t: Button = _tab_btns[cid]
-		var col: Color = CLASS_COLORS.get(cid, Color(0.7, 0.7, 0.8))
+		var col: Color = GameManager.class_def(cid).ui_color
 		var active: bool = cid == _view_class
 		_style_button(t, col.darkened(0.1) if active else col.darkened(0.45), active)
 
@@ -617,11 +609,11 @@ func _node_color(ntype: String) -> Color:
 		"start":
 			return Color(0.95, 0.82, 0.40)
 		"notable":
-			return CLASS_COLORS.get(_view_class, Color(0.7, 0.7, 0.8)).lightened(0.1)
+			return GameManager.class_def(_view_class).ui_color.lightened(0.1)
 		"socket":
 			return Color(0.55, 0.85, 0.95)
 		_:
-			return CLASS_COLORS.get(_view_class, Color(0.7, 0.7, 0.8))
+			return GameManager.class_def(_view_class).ui_color
 
 
 func _node_glyph(nd: Dictionary) -> String:

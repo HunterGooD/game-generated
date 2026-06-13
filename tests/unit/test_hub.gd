@@ -55,7 +55,7 @@ func test_hero_select_builds_a_card_per_class() -> void:
 	for n in _all(hs):
 		if n is Button:
 			buttons += 1
-	assert_eq(buttons, HeroSelect.CLASS_ORDER.size(), "one card per hero")
+	assert_eq(buttons, GameManager.class_order().size(), "one card per hero")
 
 
 # ── hub scene ─────────────────────────────────────────────────────────────────

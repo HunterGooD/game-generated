@@ -6,18 +6,8 @@ extends CanvasLayer
 ## (GameManager.choose_class emits class_selected → the player re-applies) and remembers it
 ## as the last-played hero (GameManager.set_last_class), then closes.
 
-const CLASS_ORDER: Array = [
-	"barbarian", "rogue", "mage", "druid", "necromancer", "hexen", "stormcaller"
-]
-const CLASS_COLORS: Dictionary = {
-	"barbarian": Color(0.86, 0.42, 0.30),
-	"rogue": Color(0.55, 0.80, 0.45),
-	"mage": Color(0.45, 0.62, 1.0),
-	"druid": Color(0.55, 0.85, 0.55),
-	"necromancer": Color(0.65, 0.55, 0.85),
-	"hexen": Color(0.85, 0.45, 0.78),
-	"stormcaller": Color(0.45, 0.85, 0.95),
-}
+# Class order + label tints now come from GameManager.class_order() /
+# ClassDefinition.ui_color (was local CLASS_ORDER / CLASS_COLORS copies).
 
 signal closed
 
@@ -53,7 +43,7 @@ func _build() -> void:
 	vb.add_child(grid)
 
 	var current: String = GameManager.player_class if GameManager else GameManager.last_class
-	for cid in CLASS_ORDER:
+	for cid in GameManager.class_order():
 		grid.add_child(_make_card(cid, cid == current))
 
 	var hint := Label.new()
@@ -67,7 +57,7 @@ func _build() -> void:
 func _make_card(class_id: String, is_current: bool) -> Button:
 	var data: Dictionary = GameManager.get_class_data(class_id) if GameManager else {}
 	var display: String = String(data.get("display", class_id.capitalize()))
-	var col: Color = CLASS_COLORS.get(class_id, Color(0.7, 0.7, 0.8))
+	var col: Color = GameManager.class_def(class_id).ui_color
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(150, 64)
 	var lvl: int = MetaProgress.get_meta_level(class_id) if MetaProgress else 1
