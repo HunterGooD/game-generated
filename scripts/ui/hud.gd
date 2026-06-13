@@ -29,15 +29,7 @@ const GLOBE_SHADER: Shader = preload("res://assets/shaders/resource_globe.gdshad
 # druid green essence, hexen violet ichor).
 const GLOBE_SIZE: float = 148.0
 const HP_LIQUID := {"color": Color(0.85, 0.08, 0.1), "darkness": 0.0}
-const RESOURCE_LIQUID := {
-	"mage": {"color": Color(0.16, 0.42, 1.0), "darkness": 0.0},
-	"stormcaller": {"color": Color(0.2, 0.55, 1.0), "darkness": 0.0},
-	"necromancer": {"color": Color(0.25, 0.4, 0.95), "darkness": 0.1},
-	"hexen": {"color": Color(0.5, 0.18, 0.8), "darkness": 0.15},
-	"druid": {"color": Color(0.15, 0.65, 0.3), "darkness": 0.15},
-	"rogue": {"color": Color(0.8, 0.65, 0.15), "darkness": 0.2},
-	"barbarian": {"color": Color(0.45, 0.03, 0.08), "darkness": 0.5},
-}
+# Mana-globe liquid per class — folded into ClassDefinition.resource_liquid.
 
 var low_hp_overlay: ColorRect = null
 var static_charge_label: Label = null
@@ -843,7 +835,10 @@ func _apply_resource_style() -> void:
 	if _res_globe_mat == null or GameManager == null:
 		return
 	var cls: String = String(GameManager.player_class)
-	var style: Dictionary = RESOURCE_LIQUID.get(cls, RESOURCE_LIQUID["mage"])
+	# Mana-globe liquid look — folded into ClassDefinition.resource_liquid.
+	var style: Dictionary = GameManager.class_def(cls).resource_liquid
+	if style.is_empty():
+		style = GameManager.class_def("mage").resource_liquid
 	_res_globe_mat.set_shader_parameter("liquid_color", style["color"])
 	_res_globe_mat.set_shader_parameter("darkness", style["darkness"])
 
