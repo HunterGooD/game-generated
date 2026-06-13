@@ -1,0 +1,92 @@
+name: CI
+
+# Fast feedback on every push / PR: Rust tests (server + dungeon) and the Godot
+# headless test suite (smoke + GUT). Builds are in release.yml (on tags).
+#
+# NB on first run, confirm: the Godot version (4.6.3) is resolvable by setup-godot,
+# the dungeon GDExtension builds with --features bridge in CI (no GODOT4_BIN needed
+# — gdext 0.4 bundles the API), and the lint job (fmt/clippy) — it's non-blocking
+# (continue-on-error) until the crates are clean; flip to required once green.
+
+on:
+  push:
+    branches: [main, refactor/architecture]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6.3"
+
+jobs:
+  rust-tests:
+    name: Rust tests (server + dungeon)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            server
+            dungeon
+      - name: server — cargo test
+        run: cargo test --manifest-path server/Cargo.toml
+      - name: dungeon — cargo test (pure-rust core, no godot feature)
+        run: cargo test --manifest-path dungeon/Cargo.toml
+
+  lint:
+    name: Rust lint (fmt + clippy) — advisory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            server
+            dungeon
+      - name: cargo fmt --check
+        continue-on-error: true
+        run: |
+          cargo fmt --manifest-path server/Cargo.toml -- --check
+          cargo fmt --manifest-path dungeon/Cargo.toml -- --check
+      - name: cargo clippy
+        continue-on-error: true
+        run: |
+          cargo clippy --manifest-path server/Cargo.toml -- -D warnings
+          cargo clippy --manifest-path dungeon/Cargo.toml -- -D warnings
+
+  godot-tests:
+    name: Godot headless (smoke + GUT)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dungeon
+      # The project loads dungeon.gdextension; without the Linux .so present, scenes
+      # using DungeonRunner fail to load and the smoke test breaks. Build it first.
+      - name: Build dungeon GDExtension (linux)
+        run: |
+          cargo build --release --features bridge --manifest-path dungeon/Cargo.toml
+          mkdir -p dungeon/bin/linux
+          cp dungeon/target/release/libechoes_dungeon.so dungeon/bin/linux/
+      - name: Setup Godot ${{ env.GODOT_VERSION }}
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: false # tests don't export, so no templates needed
+      - name: Import project (builds .godot, registers the extension)
+        run: godot --headless --import --path . || true
+      - name: Smoke test (all scenes load + catalogs valid)
+        run: godot --headless res://tests/smoke_test.tscn --path .
+      - name: GUT unit tests
+        run: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit --path .
