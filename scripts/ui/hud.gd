@@ -81,8 +81,7 @@ func _ready() -> void:
 		else:
 			hint_label.text = "WASD — движение   |   Клик — атака   |   1 2 3 4 — навыки   |   Пробел — рывок   |   Tab — персонаж"
 	if class_label and GameManager:
-		var data: Dictionary = GameManager.get_class_data()
-		class_label.text = String(data.get("display", "Герой"))
+		class_label.text = GameManager.class_def().display
 	_build_hotbar()
 	_setup_xp_shader()
 	_update_xp_bar()

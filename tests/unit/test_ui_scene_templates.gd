@@ -30,3 +30,17 @@ func test_trade_panel_instantiates_and_wires() -> void:
 	assert_not_null(tp.get("send_btn"), "send_btn @export resolved")
 	assert_not_null(tp.get("cycle_btn"), "cycle_btn @export resolved")
 	assert_not_null(tp.get("close_btn"), "close_btn @export resolved")
+
+
+func test_hud_instantiates_and_wires() -> void:
+	# hud.tscn was already an authored template; this guards its @export wiring
+	# (hp/mp/gold/level/class labels, hotbar, xp, wave, character_sheet) and that
+	# the heavy _ready (globes/hotbar/bands/signal hookup) runs without error.
+	var scene: PackedScene = load("res://scenes/ui/hud.tscn")
+	assert_not_null(scene, "hud.tscn loads as PackedScene")
+	var h: Node = scene.instantiate()
+	add_child_autofree(h)
+	assert_not_null(h.get("hotbar"), "hotbar @export resolved")
+	assert_not_null(h.get("hp_bar"), "hp_bar @export resolved")
+	assert_not_null(h.get("xp_fill"), "xp_fill @export resolved")
+	assert_not_null(h.get("character_sheet"), "character_sheet @export resolved")
