@@ -63,7 +63,14 @@ func _check_skill_catalog() -> void:
 		if def == null:
 			_fail("skill '%s' has no SkillDefinition" % str(key))
 			continue
-		_check_def_path(str(key), "scene", def.scene_path)
+		# A skill resolves its node from a scene OR (script-carrier) a script.
+		if def.scene_path != "":
+			_check_def_path(str(key), "scene", def.scene_path)
+		elif def.script_path != "":
+			_check_def_path(str(key), "script", def.script_path)
+		else:
+			_ok()
+			_fail("skill '%s' has neither scene nor script" % str(key))
 		_check_def_path(str(key), "icon", def.icon_path)
 		_check_def_path(str(key), "sfx", def.sfx_path)
 		# Core numeric fields are typed on SkillDefinition — sanity-check ranges.

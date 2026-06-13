@@ -18,11 +18,12 @@ static func spawn(
 	scaled_damage: int,
 	mods: Dictionary
 ) -> bool:
-	var packed: PackedScene = def.get_scene()
-	if packed == null:
-		push_warning("Missing skill scene: %s" % def.scene_path)
+	# Scene-based skills instantiate their .tscn; script-carrier skills (no .tscn)
+	# build Node2D + set_script. instantiate_node() handles both.
+	var node: Node = def.instantiate_node()
+	if node == null:
+		push_warning("Skill has neither scene nor script: %s" % def.id)
 		return false
-	var node: Node = packed.instantiate()
 
 	# Aim direction (same rule as before: fall back to RIGHT when aiming on self).
 	var dir: Vector2 = mouse_world - caster.global_position

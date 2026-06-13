@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://stormasc06"]
-
-[ext_resource type="Script" path="res://scripts/skills/stormcaller/skill_storm_forked_bolt.gd" id="1_storm_forked_bolt"]
-
-[node name="ForkedBolt" type="Node2D"]
-script = ExtResource("1_storm_forked_bolt")

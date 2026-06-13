@@ -12,6 +12,12 @@ extends Resource
 # Paths (not preloaded PackedScene/Texture) because NetSync replicates a cast by
 # sending scene_path over the wire, and several call sites still pass strings.
 @export var scene_path: String = ""
+# "Script-carrier" skills have NO authored .tscn — their old scene was just an
+# empty Node2D + this script (no children). Such skills set script_path instead
+# of scene_path; instantiate_node() builds Node2D + set_script at runtime. Bespoke
+# skills WITH authored children (meteor, battle_cry) and the shared composed
+# runner keep scene_path.
+@export var script_path: String = ""
 @export var icon_path: String = ""
 @export var sfx_path: String = ""
 @export var cooldown: float = 1.0
@@ -48,6 +54,7 @@ static func make(skill_id: String, data: Dictionary) -> SkillDefinition:
 	d.id = skill_id
 	d.display_name = String(data.get("name", "?"))
 	d.scene_path = String(data.get("scene", ""))
+	d.script_path = String(data.get("script", ""))
 	d.icon_path = String(data.get("icon", ""))
 	d.sfx_path = String(data.get("sfx", ""))
 	d.cooldown = float(data.get("cooldown", 1.0))
@@ -65,6 +72,23 @@ func get_scene() -> PackedScene:
 	if _scene_cache == null and scene_path != "" and ResourceLoader.exists(scene_path):
 		_scene_cache = load(scene_path) as PackedScene
 	return _scene_cache
+
+
+# Produce the skill's root node. Scene-based skills (authored scenes + the shared
+# composed runner) instantiate scene_path; script-carrier skills build a bare
+# Node2D and attach script_path. Returns null if neither resolves.
+func instantiate_node() -> Node:
+	if scene_path != "":
+		var packed := get_scene()
+		return packed.instantiate() if packed != null else null
+	if script_path != "" and ResourceLoader.exists(script_path):
+		var scr = load(script_path)
+		if scr == null:
+			return null
+		var n := Node2D.new()
+		n.set_script(scr)
+		return n
+	return null
 
 
 func get_icon() -> Texture2D:

@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://barbskill02"]
-
-[ext_resource type="Script" path="res://scripts/skills/barbarian/skill_barb_bloodstorm.gd" id="1_barb_bloodstorm"]
-
-[node name="Bloodstorm" type="Node2D"]
-script = ExtResource("1_barb_bloodstorm")

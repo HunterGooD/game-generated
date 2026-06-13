@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://rogueasc06"]
-
-[ext_resource type="Script" path="res://scripts/skills/rogue/skill_rogue_safehouse.gd" id="1_rogue_safehouse"]
-
-[node name="Safehouse" type="Node2D"]
-script = ExtResource("1_rogue_safehouse")

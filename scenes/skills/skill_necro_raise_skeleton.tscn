@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://b_skill_necro_raise_skeleton"]
-
-[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_raise_skeleton.gd" id="1_rs"]
-
-[node name="SkillNecroRaiseSkeleton" type="Node2D"]
-script = ExtResource("1_rs")

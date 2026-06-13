@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://barbskill05"]
-
-[ext_resource type="Script" path="res://scripts/skills/barbarian/skill_barb_banner.gd" id="1_barb_banner"]
-
-[node name="Banner" type="Node2D"]
-script = ExtResource("1_barb_banner")

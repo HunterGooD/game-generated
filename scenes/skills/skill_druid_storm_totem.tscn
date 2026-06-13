@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://druidasc08"]
-
-[ext_resource type="Script" path="res://scripts/skills/druid/skill_druid_storm_totem.gd" id="1_druid_storm_totem"]
-
-[node name="StormTotem" type="Node2D"]
-script = ExtResource("1_druid_storm_totem")

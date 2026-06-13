@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8plyrarleapslam"]
-
-[ext_resource type="Script" path="res://scripts/skills/barbarian/skill_leap_slam.gd" id="1_ls"]
-
-[node name="LeapSlam" type="Node2D"]
-script = ExtResource("1_ls")
