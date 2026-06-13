@@ -360,7 +360,7 @@ func meta_bonus(class_id: String) -> Dictionary:
 		for k in stats:
 			total[k] = total.get(k, 0) + stats[k]
 	for gem_id in _socketed_gems(class_id):
-		var gstats: Dictionary = MetaGems.get_gem(gem_id).get("stats", {})
+		var gstats: Dictionary = MetaGems.get_gem(gem_id).stats
 		for k in gstats:
 			total[k] = total.get(k, 0) + gstats[k]
 	return total
@@ -379,7 +379,7 @@ func meta_percent(class_id: String) -> Dictionary:
 		for k in rp:
 			total[k] = float(total.get(k, 0.0)) + float(rp[k]) * float(n)
 	for gem_id in _socketed_gems(class_id):
-		var gp: Dictionary = MetaGems.get_gem(gem_id).get("pct", {})
+		var gp: Dictionary = MetaGems.get_gem(gem_id).pct
 		for k in gp:
 			total[k] = float(total.get(k, 0.0)) + float(gp[k])
 	return total

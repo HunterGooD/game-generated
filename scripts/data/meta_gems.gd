@@ -78,20 +78,34 @@ const _STAT_LABELS: Dictionary = {
 }
 
 
+# Lazily-built typed view of GEMS (gem_id -> MetaGemDefinition).
+static var _defs_cache: Dictionary = {}
+
+
+static func _defs() -> Dictionary:
+	if _defs_cache.is_empty():
+		for gid in GEMS:
+			_defs_cache[gid] = MetaGemDefinition.from_dict(String(gid), GEMS[gid])
+	return _defs_cache
+
+
 static func has_gem(id: String) -> bool:
 	return GEMS.has(id)
 
 
-static func get_gem(id: String) -> Dictionary:
-	return GEMS.get(id, {})
+# Typed catalog entry. Returns a MetaGemDefinition.unknown() placeholder for an
+# unknown id so callers never get null.
+static func get_gem(id: String) -> MetaGemDefinition:
+	var d = _defs().get(id, null)
+	return d if d != null else MetaGemDefinition.unknown(id)
 
 
 static func display_name(id: String) -> String:
-	return String(get_gem(id).get("name", id))
+	return get_gem(id).name
 
 
 static func rarity_of(id: String) -> String:
-	return String(get_gem(id).get("rarity", "common"))
+	return get_gem(id).rarity
 
 
 static func rarity_color(rarity: String) -> Color:
@@ -135,16 +149,16 @@ static func roll(luck: float = 0.0) -> String:
 
 # Multiline RU tooltip: name, rarity, every bonus line.
 static func describe(id: String) -> String:
-	var g: Dictionary = get_gem(id)
-	if g.is_empty():
+	if not has_gem(id):
 		return id
+	var g := get_gem(id)
 	var lines: Array = []
-	lines.append(String(g.get("name", id)))
-	lines.append("Камень зеркала — " + rarity_display(String(g.get("rarity", "common"))))
-	var stats: Dictionary = g.get("stats", {})
+	lines.append(g.name)
+	lines.append("Камень зеркала — " + rarity_display(g.rarity))
+	var stats: Dictionary = g.stats
 	for k in stats:
 		lines.append("  " + _stat_line(String(k), stats[k]))
-	var pct: Dictionary = g.get("pct", {})
+	var pct: Dictionary = g.pct
 	for k in pct:
 		var meta: Array = _STAT_LABELS.get(k, [String(k).capitalize(), false])
 		lines.append("  +%.0f%% %s" % [float(pct[k]) * 100.0, String(meta[0])])
