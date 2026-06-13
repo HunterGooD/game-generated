@@ -9,10 +9,10 @@ extends Node2D
 ## with an "[E]" prompt. Built in code to avoid .tscn node_path fragility.
 
 const FLOOR_TEX: String = "res://assets/textures/floors/ruins_floor.webp"
-const HERO_SELECT := preload("res://scripts/ui/hero_select.gd")
-const COOP_PANEL := preload("res://scripts/ui/hub_coop_panel.gd")
-const META_TREE := preload("res://scripts/ui/meta_tree_ui.gd")
-const GAMBLE_SHOP := preload("res://scripts/ui/gamble_shop.gd")
+const HERO_SELECT := preload("res://scripts/ui/menus/hero_select.gd")
+const COOP_PANEL := preload("res://scripts/ui/panels/hub_coop_panel.gd")
+const META_TREE := preload("res://scripts/ui/panels/meta_tree_ui.gd")
+const GAMBLE_SHOP := preload("res://scripts/ui/panels/gamble_shop.gd")
 const MIRROR_SHADER := preload("res://assets/shaders/hub_mirror.gdshader")
 const PORTAL_SHADER := preload("res://assets/shaders/hub_portal.gdshader")
 const WARDROBE_SHADER := preload("res://assets/shaders/hub_wardrobe.gdshader")

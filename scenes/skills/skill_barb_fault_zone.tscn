@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://barbskill11"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_barb_fault_zone.gd" id="1_barb_fault_zone"]
-
-[node name="FaultZone" type="Node2D"]
-script = ExtResource("1_barb_fault_zone")

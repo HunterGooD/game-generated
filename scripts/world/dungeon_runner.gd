@@ -23,8 +23,8 @@ const BOSS_TEX := "res://assets/sprites/items/statue_guardian.png"
 const EVENT_PILLAR := preload("res://scripts/world/dungeon_event_pillar.gd")
 const FLOOR_HAZARD := preload("res://scripts/world/dungeon_floor_hazard.gd")
 const FOG := preload("res://scripts/world/dungeon_fog.gd")
-const DUNGEON_MAP := preload("res://scripts/ui/dungeon_map_ui.gd")
-const BOSS_REELS := preload("res://scripts/ui/boss_loot_reels.gd")
+const DUNGEON_MAP := preload("res://scripts/ui/run/dungeon_map_ui.gd")
+const BOSS_REELS := preload("res://scripts/ui/run/boss_loot_reels.gd")
 
 const CELL_PX := 700.0      # world distance between adjacent graph cells
 const TILE := 96

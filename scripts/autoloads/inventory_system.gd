@@ -561,8 +561,8 @@ func _set_bonus(stat_id: String) -> float:
 	for set_id in counts.keys():
 		if int(counts[set_id]) < 2:
 			continue
-		var def: Dictionary = ItemDatabase.find_set(String(set_id))
-		total += float(def.get("bonus2", {}).get("stats", {}).get(stat_id, 0))
+		var def := ItemDatabase.find_set(String(set_id))
+		total += float(def.bonus2.stats.get(stat_id, 0))
 	return total
 
 
@@ -589,20 +589,18 @@ func get_active_set_bonuses() -> Array:
 	var out: Array = []
 	var counts: Dictionary = get_set_piece_counts()
 	for set_id in counts.keys():
-		var def: Dictionary = ItemDatabase.find_set(String(set_id))
-		if def.is_empty():
+		if not ItemDatabase.has_set(String(set_id)):
 			continue
+		var def := ItemDatabase.find_set(String(set_id))
 		var n: int = int(counts[set_id])
 		var bonuses: Array = []
-		for pair in [[2, "bonus2"], [4, "bonus4"], [5, "bonus5"]]:
-			var threshold: int = int(pair[0])
-			var b: Dictionary = def.get(String(pair[1]), {})
+		for threshold in [2, 4, 5]:
 			(
 				bonuses
 				. append(
 					{
 						"threshold": threshold,
-						"label": String(b.get("label", "")),
+						"label": def.bonus_for(threshold).label,
 						"active": n >= threshold,
 					}
 				)
@@ -612,8 +610,8 @@ func get_active_set_bonuses() -> Array:
 			. append(
 				{
 					"set_id": set_id,
-					"name": String(def.get("name", set_id)),
-					"flavor": String(def.get("flavor", "")),
+					"name": def.name,
+					"flavor": def.flavor,
 					"pieces": n,
 					"bonuses": bonuses,
 				}
@@ -707,9 +705,7 @@ func _rebuild_transform_cache() -> void:
 	for set_id in counts.keys():
 		if int(counts[set_id]) < 5:
 			continue
-		var eff: String = String(
-			ItemDatabase.find_set(String(set_id)).get("bonus5", {}).get("effect", "")
-		)
+		var eff: String = ItemDatabase.find_set(String(set_id)).bonus5.effect
 		if eff != "":
 			_active_set_effects[eff] = true
 	# Gear-socket links — resolved once per equipment/socket mutation, read by
@@ -836,14 +832,13 @@ func add_affix_to(item: ItemInstance) -> bool:
 		used[String(a.get("id", ""))] = true
 	var pool: Array = []
 	for ameta in ItemDatabase.affixes_for_slot(item.get_slot()):
-		var aid: String = String(ameta.get("id", ""))
-		if not used.has(aid):
+		if not used.has(ameta.id):
 			pool.append(ameta)
 	if pool.is_empty():
 		return false
 	if not GameManager.spend_cost(cost):
 		return false
-	var pick: Dictionary = pool[randi() % pool.size()]
+	var pick: AffixDefinition = pool[randi() % pool.size()]
 	item.affixes.append(LootRoller.roll_affix_entry(pick, item.ilvl, item.rarity))
 	# Bump rarity tier as affix count grows (mirrors RARITY_AFFIX_COUNT: rare
 	# carries 2 affixes, legendary 4).
@@ -952,12 +947,12 @@ func _rescale_affixes(item: ItemInstance) -> void:
 	var rar_bonus: float = 1.3 if item.rarity == ItemDatabase.RARITY_LEGENDARY else 1.0
 	for i in item.affixes.size():
 		var aid: String = String(item.affixes[i].get("id", ""))
-		var meta: Dictionary = ItemDatabase.find_affix(aid)
-		if meta.is_empty():
+		if not ItemDatabase.has_affix(aid):
 			continue
-		var min_v: float = float(meta.get("min", 1))
-		var max_v: float = float(meta.get("max", 1))
-		var per_ilvl: float = float(meta.get("per_ilvl", 0.5))
+		var meta := ItemDatabase.find_affix(aid)
+		var min_v: float = meta.roll_min
+		var max_v: float = meta.roll_max
+		var per_ilvl: float = meta.per_ilvl
 		var base: float = randf_range(min_v, max_v)
 		var v: float = (base + per_ilvl * float(item.ilvl - 1)) * rar_bonus
 		var suffix: String = String(item.affixes[i].get("suffix", ""))

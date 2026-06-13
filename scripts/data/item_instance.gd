@@ -22,12 +22,14 @@ var gem_faces: Array = []
 var sockets: Array = []
 
 
-func get_template() -> Dictionary:
+# Typed unified template for this instance. Resolves the source dict per kind
+# (gem / unique / base) and wraps it in ItemTemplate.
+func get_template() -> ItemTemplate:
 	if gem_id != "":
-		return SocketGems.template_for(gem_id)
+		return ItemTemplate.from_dict(SocketGems.template_for(gem_id))
 	if is_unique:
-		return ItemDatabase.find_unique(unique_id)
-	return ItemDatabase.find_base(base_id)
+		return ItemDatabase.find_unique(unique_id).to_template()
+	return ItemTemplate.from_dict(ItemDatabase.find_base(base_id))
 
 
 func is_gem() -> bool:
@@ -66,11 +68,11 @@ func socketed_gem_ids() -> Array:
 
 
 func get_title() -> String:
-	return String(get_template().get("title", "Unknown"))
+	return get_template().title
 
 
 func get_icon_path() -> String:
-	return String(get_template().get("icon", ""))
+	return get_template().icon
 
 
 func get_icon() -> Texture2D:
@@ -81,11 +83,11 @@ func get_icon() -> Texture2D:
 
 
 func get_slot() -> int:
-	return int(get_template().get("slot", -1))
+	return get_template().slot
 
 
 func get_kind() -> String:
-	return String(get_template().get("kind", "armor"))
+	return get_template().kind
 
 
 func is_weapon() -> bool:
@@ -95,25 +97,25 @@ func is_weapon() -> bool:
 func is_two_handed() -> bool:
 	if not is_weapon():
 		return false
-	return int(get_template().get("weapon_hands", 1)) == 2
+	return get_template().weapon_hands == 2
 
 
 func get_weapon_damage_mult() -> float:
 	if not is_weapon():
 		return 0.0
-	return float(get_template().get("weapon_damage_mult", 1.0))
+	return get_template().weapon_damage_mult
 
 
 func get_transform_id() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("transform", ""))
+	return get_template().transform
 
 
 func get_transform_desc() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("transform_desc", ""))
+	return get_template().transform_desc
 
 
 # Some uniques only do something while a specific talent transform is taken
@@ -121,11 +123,11 @@ func get_transform_desc() -> String:
 func get_requires_label() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("requires_label", ""))
+	return get_template().requires_label
 
 
 func get_class_lock() -> String:
-	return String(get_template().get("class_lock", ""))
+	return get_template().class_lock
 
 
 func get_set_id() -> String:
@@ -135,7 +137,7 @@ func get_set_id() -> String:
 func get_set_name() -> String:
 	if set_id == "":
 		return ""
-	return String(ItemDatabase.find_set(set_id).get("name", set_id))
+	return ItemDatabase.find_set(set_id).name
 
 
 func get_salvage_gold() -> int:
@@ -163,7 +165,7 @@ func add_stats_to(totals: Dictionary) -> void:
 	# Socketed gems add their small flat lines (link bonuses are computed
 	# cross-item by InventorySystem via SocketGems.resolve, not here).
 	for gid in socketed_gem_ids():
-		var gstats: Dictionary = SocketGems.get_gem(String(gid)).get("stats", {})
+		var gstats: Dictionary = SocketGems.get_gem(String(gid)).stats
 		for k in gstats:
 			totals[k] = float(totals.get(k, 0.0)) + float(gstats[k])
 	# Weapons contribute a base damage multiplier as a separate key.

@@ -1,0 +1,127 @@
+name: Release
+
+# On a version tag (vX.Y.Z): build the game for every desktop OS (native dungeon
+# GDExtension per runner — simpler than the dev mac's cross-compile), export with
+# Godot, upload artifacts and attach them to the GitHub Release. Web + server image
+# are built too; their DEPLOY steps are commented out until a host/registry/secrets
+# are decided (see docs/ci.md).
+#
+# First-run checklist: confirm setup-godot resolves 4.6.3 + export templates, the
+# export preset names match export_presets.cfg ("macOS"/"Windows Desktop"/"Linux"/
+# "Web"), and the native dungeon build succeeds on windows-msvc + macos runners.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.6.3"
+
+jobs:
+  desktop:
+    name: Build ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            preset: "Linux"
+            out: "target/linux/game.x86_64"
+            lib: "libechoes_dungeon.so"
+            dst: "dungeon/bin/linux"
+          - os: windows-latest
+            preset: "Windows Desktop"
+            out: "target/windows/Echoes of the Forgotten.exe"
+            lib: "echoes_dungeon.dll"
+            dst: "dungeon/bin/windows"
+          - os: macos-latest
+            preset: "macOS"
+            out: "target/macos/game.zip"
+            lib: "libechoes_dungeon.dylib"
+            dst: "dungeon/bin/macos"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dungeon
+      - name: Build dungeon GDExtension (native)
+        shell: bash
+        run: |
+          cargo build --release --features bridge --manifest-path dungeon/Cargo.toml
+          mkdir -p "${{ matrix.dst }}"
+          cp "dungeon/target/release/${{ matrix.lib }}" "${{ matrix.dst }}/"
+      - name: Setup Godot ${{ env.GODOT_VERSION }}
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+      - name: Import project
+        run: godot --headless --import --path . || true
+      - name: Export ${{ matrix.preset }}
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "${{ matrix.out }}")"
+          godot --headless --export-release "${{ matrix.preset }}" "${{ matrix.out }}" --path .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: echoes-${{ matrix.os }}
+          path: ${{ matrix.out }}
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.out }}
+
+  web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # NOTE: GDExtensions do NOT run on Web (Web preset extensions_support=false) —
+      # the Rust dungeon won't load, so dungeon nodes are non-functional in the web
+      # build. Web is the menu / arena slice only. See docs/ci.md.
+      - name: Setup Godot ${{ env.GODOT_VERSION }}
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+      - name: Import project
+        run: godot --headless --import --path . || true
+      - name: Export Web
+        run: |
+          mkdir -p target/web
+          godot --headless --export-release "Web" target/web/game.html --path .
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: echoes-web
+          path: target/web
+      # FUTURE — deploy the web build to the game server's static host.
+      # Needs: host, credentials (secrets). See docs/ci.md.
+      # - name: Deploy web
+      #   run: ./deploy/web_deploy.sh
+
+  server-image:
+    name: Build server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build co-op server Docker image
+        run: docker build -t echoes-server:${{ github.ref_name }} server/
+      # FUTURE — push to a registry (GHCR) and deploy to the game host.
+      # Needs: registry login + deploy target (secrets). See docs/ci.md.
+      # - name: Log in to GHCR
+      #   uses: docker/login-action@v3
+      #   with: { registry: ghcr.io, username: ${{ github.actor }}, password: ${{ secrets.GITHUB_TOKEN }} }
+      # - name: Push image
+      #   run: |
+      #     docker tag echoes-server:${{ github.ref_name }} ghcr.io/huntergood/echoes-server:${{ github.ref_name }}
+      #     docker push ghcr.io/huntergood/echoes-server:${{ github.ref_name }}
+      # - name: Deploy
+      #   run: ./deploy/server_deploy.sh

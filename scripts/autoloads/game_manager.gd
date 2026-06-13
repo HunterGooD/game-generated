@@ -76,6 +76,11 @@ const CLASSES := {
 			"intelligence": 0,
 		},
 		"color": Color(0.85, 0.25, 0.2, 1),
+		"ui_color": Color(0.86, 0.42, 0.30),
+		"resource_liquid": {"color": Color(0.45, 0.03, 0.08), "darkness": 0.5},
+		"slash_style": {"core": Color(1.0, 1.0, 1.0), "glow": Color(0.70, 0.80, 1.00), "style": 0, "span": 3.0},
+		"on_hit_element": "bleed",
+		"basic_unique": "basic_barb_shockwave",
 	},
 	"rogue":
 	{
@@ -115,6 +120,11 @@ const CLASSES := {
 			"intelligence": 0,
 		},
 		"color": Color(0.9, 0.5, 0.2, 1),
+		"ui_color": Color(0.55, 0.80, 0.45),
+		"resource_liquid": {"color": Color(0.8, 0.65, 0.15), "darkness": 0.2},
+		"slash_style": {"core": Color(1.0, 0.70, 0.25), "glow": Color(1.00, 0.45, 0.12), "style": 0},
+		"on_hit_element": "poison",
+		"basic_unique": "basic_rogue_triple_throw",
 	},
 	"mage":
 	{
@@ -154,6 +164,11 @@ const CLASSES := {
 			"intelligence": 3,
 		},
 		"color": Color(0.7, 0.25, 0.85, 1),
+		"ui_color": Color(0.45, 0.62, 1.0),
+		"resource_liquid": {"color": Color(0.16, 0.42, 1.0), "darkness": 0.0},
+		"slash_style": {"core": Color(1.0, 0.35, 0.12), "glow": Color(1.00, 0.70, 0.20), "style": 1},
+		"on_hit_element": "fire",
+		"basic_unique": "basic_mage_phantom_edge",
 	},
 	"stormcaller":
 	{
@@ -195,6 +210,11 @@ const CLASSES := {
 			"intelligence": 2,
 		},
 		"color": Color(0.45, 0.75, 1.0, 1),
+		"ui_color": Color(0.45, 0.85, 0.95),
+		"resource_liquid": {"color": Color(0.2, 0.55, 1.0), "darkness": 0.0},
+		"slash_style": {"core": Color(0.50, 0.85, 1.00), "glow": Color(0.85, 0.95, 1.00), "style": 3},
+		"on_hit_element": "frost",
+		"basic_unique": "basic_storm_voltaic_tonfa",
 	},
 	"hexen":
 	{
@@ -236,6 +256,11 @@ const CLASSES := {
 			"intelligence": 2,
 		},
 		"color": Color(0.92, 0.18, 0.28, 1),
+		"ui_color": Color(0.85, 0.45, 0.78),
+		"resource_liquid": {"color": Color(0.5, 0.18, 0.8), "darkness": 0.15},
+		"slash_style": {"core": Color(0.96, 0.13, 0.23), "glow": Color(0.50, 0.00, 0.08), "style": 1},
+		"on_hit_element": "curse",
+		"basic_unique": "basic_hexen_whipcrack",
 	},
 	"necromancer":
 	{
@@ -277,6 +302,11 @@ const CLASSES := {
 			"intelligence": 3,
 		},
 		"color": Color(0.55, 0.25, 0.75, 1),
+		"ui_color": Color(0.65, 0.55, 0.85),
+		"resource_liquid": {"color": Color(0.25, 0.4, 0.95), "darkness": 0.1},
+		"slash_style": {"core": Color(0.62, 0.32, 0.88), "glow": Color(0.35, 0.85, 0.45), "style": 1},
+		"on_hit_element": "poison",
+		"basic_unique": "basic_necro_bone_lance",
 	},
 	"druid":
 	{
@@ -318,8 +348,19 @@ const CLASSES := {
 			"intelligence": 2,
 		},
 		"color": Color(0.4, 0.78, 0.32, 1),
+		"ui_color": Color(0.55, 0.85, 0.55),
+		"resource_liquid": {"color": Color(0.15, 0.65, 0.3), "darkness": 0.15},
+		"slash_style": {"core": Color(0.78, 0.52, 0.26), "glow": Color(0.95, 0.80, 0.45), "style": 2},
+		"on_hit_element": "bleed",
+		"basic_unique": "basic_druid_thunder_sphere",
 	},
 }
+
+# Canonical class order — the player-facing order shown in every class picker.
+# class_order() returns this; consumers iterate it instead of their own copies.
+const CLASS_ORDER: Array = [
+	"barbarian", "rogue", "mage", "druid", "necromancer", "hexen", "stormcaller"
+]
 
 # Эссенция за прохождение ноды карты — топливо для сверления гнёзд (см.
 # InventorySystem.drill_cost). Магазин/костёр платят на ВХОДЕ (begin_run_node),
@@ -492,6 +533,35 @@ func get_class_data(class_id: String = "") -> Dictionary:
 	if CLASSES.has(key):
 		return CLASSES[key]
 	return CLASSES["mage"]
+
+
+# ── Class registry (typed view over CLASSES) ────────────────────────────────
+# CLASSES stays the authoring source; class_def() returns a cached typed
+# ClassDefinition (scripts/resources/class_definition.gd). class_order() is the
+# canonical player-facing id list. Consumers read these instead of keeping their
+# own CLASS_ORDER / colour / on-hit / basic-unique copies.
+var _class_defs_cache: Dictionary = {}
+
+
+func class_order() -> Array:
+	return CLASS_ORDER.duplicate()
+
+
+func class_ids() -> Array:
+	return CLASS_ORDER.duplicate()
+
+
+func has_class(class_id: String) -> bool:
+	return CLASSES.has(class_id)
+
+
+func class_def(class_id: String = "") -> ClassDefinition:
+	var key: String = class_id if class_id != "" else player_class
+	if not _class_defs_cache.has(key):
+		if not CLASSES.has(key):
+			return ClassDefinition.unknown(key)
+		_class_defs_cache[key] = ClassDefinition.from_dict(key, CLASSES[key])
+	return _class_defs_cache[key]
 
 
 func reset_run() -> void:

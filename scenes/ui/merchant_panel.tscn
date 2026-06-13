@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bmerchantpanelscn"]
 
-[ext_resource type="Script" path="res://scripts/ui/merchant_panel.gd" id="1_mp"]
+[ext_resource type="Script" path="res://scripts/ui/panels/merchant_panel.gd" id="1_mp"]
 
 [node name="MerchantPanel" type="CanvasLayer"]
 script = ExtResource("1_mp")

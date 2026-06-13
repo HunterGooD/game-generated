@@ -1,5 +1,7 @@
 # Echoes of the Forgotten
 
+[![CI](https://github.com/HunterGooD/game-generated/actions/workflows/ci.yml/badge.svg)](https://github.com/HunterGooD/game-generated/actions/workflows/ci.yml)
+
 **Кооперативный top-down action-roguelite на Godot 4.6.** Выбери класс, собери
 синергичный билд и проверь, как глубоко он тебя пустит сквозь нарастающие волны,
 подземелья и боссов — один или с друзьями.
@@ -283,3 +285,17 @@ entities, world, skills, ui, components, data), `scenes/`, `assets/`, `server/` 
 | give_levels <n> · give_gold <amt> · give_item <count> <wave>  | выдать уровни / золото / предметы (роллит через LootRoller)                  |
 | list_affixes · list_enemies                                   | список id (чтобы знать, что спавнить)                                        |
 | heal · kill_all                                               | полный хил / убить всех                                                      |
+
+---
+
+## Лицензия
+
+**PolyForm Noncommercial License 1.0.0** — © 2026 HunterGooD. Полный текст: [`LICENSE`](LICENSE).
+
+Коротко: **некоммерческое** использование (просмотр, форк, модификация, личная игра,
+обучение, исследования) — разрешено; **любое коммерческое использование — только с
+письменного разрешения автора.** Все коммерческие права сохраняются за автором.
+
+Сторонние компоненты — `addons/gut`, `addons/limboai`, `addons/limbo_console`,
+Rust-зависимости (`server/`, `dungeon/`) и движок Godot — сохраняют **свои** лицензии;
+см. [`NOTICE`](NOTICE).

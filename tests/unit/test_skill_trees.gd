@@ -66,8 +66,8 @@ func test_graph_is_well_formed() -> void:
 						var tmid := String(t["modifier"])
 						if tmid.ends_with("_cdr") or tmid.ends_with("_damage"):
 							continue
-						assert_false(
-							RewardData.find_modifier(tmid).is_empty(),
+						assert_true(
+							RewardData.has_modifier(tmid),
 							"%s passive '%s' modifier '%s' unknown" % [cls, nid, t["modifier"]]
 						)
 				"variant":

@@ -9,7 +9,7 @@ var _requirable_ids: Dictionary = {}
 
 
 func before_all() -> void:
-	for cls in SkillTrees.CLASS_IDS:
+	for cls in GameManager.class_ids():
 		for n in SkillTrees.nodes_for(String(cls)):
 			match String(n.get("kind", "")):
 				"skill":

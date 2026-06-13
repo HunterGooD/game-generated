@@ -263,20 +263,35 @@ const _ROW_INTERNAL: Array = [[0, FACE_RIGHT, 1, FACE_LEFT]]
 
 
 # ── Catalog lookups ───────────────────────────────────────────────────────────
+# Lazily-built typed view of GEMS (gem_id -> GemDefinition). GEMS stays the
+# authoring source; this caches one definition per entry.
+static var _defs_cache: Dictionary = {}
+
+
+static func _defs() -> Dictionary:
+	if _defs_cache.is_empty():
+		for gid in GEMS:
+			_defs_cache[gid] = GemDefinition.from_dict(String(gid), GEMS[gid])
+	return _defs_cache
+
+
 static func has_gem(id: String) -> bool:
 	return GEMS.has(id)
 
 
-static func get_gem(id: String) -> Dictionary:
-	return GEMS.get(id, {})
+# Typed catalog entry. Returns a GemDefinition.unknown() placeholder (name == id,
+# default fields) for an unknown id, so callers never get null.
+static func get_gem(id: String) -> GemDefinition:
+	var d = _defs().get(id, null)
+	return d if d != null else GemDefinition.unknown(id)
 
 
 static func display_name(id: String) -> String:
-	return String(get_gem(id).get("name", id))
+	return get_gem(id).name
 
 
 static func rarity_of(id: String) -> String:
-	return String(get_gem(id).get("rarity", "common"))
+	return get_gem(id).rarity
 
 
 static func color_tint(color: String) -> Color:
@@ -297,7 +312,7 @@ static func template_for(gem_id: String) -> Dictionary:
 
 # Базовые грани из каталога (копия; 4 белых для неизвестного id).
 static func base_faces(gem_id: String) -> Array:
-	var base: Array = get_gem(gem_id).get("faces", [])
+	var base: Array = get_gem(gem_id).faces
 	if base.size() != 4:
 		return ["white", "white", "white", "white"]
 	return base.duplicate()
@@ -461,9 +476,9 @@ static func resolve(equipment: Dictionary) -> Dictionary:
 		for endpoint in ["a", "b"]:
 			var p: Dictionary = (l as Dictionary)[endpoint]
 			var key: String = "%d:%d" % [int(p["slot"]), int(p["idx"])]
-			var eff: String = String(
-				get_gem(String((occupied[key] as Dictionary).get("gem", ""))).get("effect", "")
-			)
+			var eff: String = get_gem(
+				String((occupied[key] as Dictionary).get("gem", ""))
+			).effect
 			if eff != "":
 				effects[eff] = true
 	var keystone: bool = effects.has("keystone")
@@ -494,7 +509,7 @@ static func resolve(equipment: Dictionary) -> Dictionary:
 					var p: Dictionary = l[endpoint]
 					var key: String = "%d:%d" % [int(p["slot"]), int(p["idx"])]
 					var gid: String = String((occupied[key] as Dictionary).get("gem", ""))
-					if String(get_gem(gid).get("effect", "")) == "chain_echo":
+					if get_gem(gid).effect == "chain_echo":
 						echo = true
 			if real == 0:
 				continue  # whites bridging nothing of this color
@@ -699,12 +714,12 @@ static func _components(links: Array, idxs: Array) -> Array:
 # Multiline RU tooltip for a gem (rot rotates the shown faces; faces_override —
 # перекрашенные Ювелиром грани вместо каталожных).
 static func describe(gem_id: String, rot: int = 0, faces_override: Array = []) -> String:
-	var g: Dictionary = get_gem(gem_id)
-	if g.is_empty():
+	if not has_gem(gem_id):
 		return gem_id
+	var g := get_gem(gem_id)
 	var lines: Array = []
-	lines.append(String(g.get("name", gem_id)))
-	lines.append("Самоцвет — %s" % ItemDatabase.rarity_display(String(g.get("rarity", "common"))))
+	lines.append(g.name)
+	lines.append("Самоцвет — %s" % ItemDatabase.rarity_display(g.rarity))
 	var repainted: bool = valid_faces(faces_override) and faces_override != base_faces(gem_id)
 	var faces: Array
 	if valid_faces(faces_override):
@@ -721,7 +736,7 @@ static func describe(gem_id: String, rot: int = 0, faces_override: Array = []) -
 	lines.append("Грани: " + "  ".join(face_parts))
 	for line in stat_lines(gem_id):
 		lines.append("  " + String(line))
-	var eff: String = String(g.get("effect", ""))
+	var eff: String = g.effect
 	if eff != "" and EFFECTS.has(eff):
 		lines.append("✦ " + String((EFFECTS[eff] as Dictionary).get("desc", "")))
 	lines.append("Вставляется в гнездо экипировки; совпавшие грани соседей дают связь.")
@@ -781,7 +796,7 @@ static func stat_lines(gem_id: String) -> Array:
 		"max_mana": "Макс. мана",
 	}
 	var out: Array = []
-	var stats: Dictionary = get_gem(gem_id).get("stats", {})
+	var stats: Dictionary = get_gem(gem_id).stats
 	for k in stats:
 		out.append("+%d %s" % [int(stats[k]), String(labels.get(k, String(k).capitalize()))])
 	return out

@@ -750,12 +750,19 @@ func _replicate_skill_cast(msg: Dictionary) -> void:
 	if game_world == null:
 		return
 	var scene_path: String = String(msg.get("path", ""))
-	if scene_path == "" or not ResourceLoader.exists(scene_path):
+	var node: Node = null
+	if scene_path != "" and ResourceLoader.exists(scene_path):
+		var packed: PackedScene = load(scene_path) as PackedScene
+		if packed != null:
+			node = packed.instantiate()
+	if node == null:
+		# Script-carrier skill (no .tscn): path is empty, so rebuild the node from
+		# the catalog definition by skill id (peers share the same catalog).
+		var d2: SkillDefinition = SkillCatalog.get_def(String(msg.get("sid", "")))
+		if d2 != null:
+			node = d2.instantiate_node()
+	if node == null:
 		return
-	var packed: PackedScene = load(scene_path) as PackedScene
-	if packed == null:
-		return
-	var node: Node = packed.instantiate()
 	(node as Node2D).position = Vector2(float(msg.get("x", 0.0)), float(msg.get("y", 0.0)))
 	node.set_meta("visual_only", true)
 	var dmg: int = int(msg.get("d", 0))

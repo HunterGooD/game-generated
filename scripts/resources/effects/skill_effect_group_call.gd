@@ -11,9 +11,13 @@ extends SkillEffect
 @export var method: String = ""
 @export var args: Array = []
 @export var skip_if_visual: bool = false
+# 0 = whole group (no distance filter, original behaviour). > 0 restricts to
+# group members within `radius` of the host (cast point) — covers radius-gated
+# party buffs like the druid's Barkskin Aura. Filtered members must be Node2D.
+@export var radius: float = 0.0
 
 
-func execute(ctx: SkillContext, _host: Node2D) -> void:
+func execute(ctx: SkillContext, host: Node2D) -> void:
 	if group == "" or method == "":
 		return
 	if skip_if_visual and ctx.is_visual_only:
@@ -21,9 +25,14 @@ func execute(ctx: SkillContext, _host: Node2D) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return
+	var center: Vector2 = host.global_position if host != null else Vector2.ZERO
 	for n in tree.get_nodes_in_group(group):
-		if is_instance_valid(n) and n.has_method(method):
-			n.callv(method, args)
+		if not is_instance_valid(n) or not n.has_method(method):
+			continue
+		if radius > 0.0:
+			if not (n is Node2D) or center.distance_to((n as Node2D).global_position) > radius:
+				continue
+		n.callv(method, args)
 
 
 static func from_data(d: Dictionary) -> SkillEffectGroupCall:
@@ -32,4 +41,5 @@ static func from_data(d: Dictionary) -> SkillEffectGroupCall:
 	e.method = String(d.get("method", ""))
 	e.args = d.get("args", [])
 	e.skip_if_visual = bool(d.get("skip_if_visual", false))
+	e.radius = float(d.get("radius", 0.0))
 	return e

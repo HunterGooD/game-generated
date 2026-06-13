@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://rogueasc03"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_rogue_execution_fan.gd" id="1_rogue_execution_fan"]
-
-[node name="ExecutionFan" type="Node2D"]
-script = ExtResource("1_rogue_execution_fan")

@@ -1,4 +1,4 @@
-extends CharacterBody2D
+extends CombatEntity
 
 # Boss entity — phase-driven, telegraph-based ARPG boss.
 # Configured via boss_database.gd. Spawned by enemy_spawner on milestone waves.
@@ -15,11 +15,8 @@ const HIT_FLASH_SHADER: Shader = preload("res://assets/shaders/hit_flash.gdshade
 const DISSOLVE_SHADER: Shader = preload("res://assets/shaders/dissolve.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://assets/shaders/outline.gdshader")
 
-@export var sprite: Sprite2D
-@export var hurtbox: HurtBoxComponent
-@export var stats_component: StatsComponent
-@export var health_component: HealthComponent
-@export var status_effect_receiver: StatusEffectReceiverComponent
+# sprite, hurtbox, stats_component, health_component, status_effect_receiver
+# are inherited @export refs from CombatEntity.
 
 var boss_id: String = ""
 var boss_data: Dictionary = {}
@@ -46,7 +43,7 @@ var transition_lockout: float = 0.0
 var is_puppet: bool = false
 var network_id: int = -1
 var _puppet_target_pos: Vector2 = Vector2.ZERO
-var _runtime_base_stats: ActorStatsResource = ActorStatsResource.new()
+# _runtime_base_stats is inherited from CombatEntity.
 
 
 func configure(id: String, wave: int) -> void:
@@ -150,48 +147,14 @@ func _ready() -> void:
 		_apply_visual()
 
 
-func _setup_components() -> void:
-	if stats_component:
-		stats_component.base_stats = _runtime_base_stats
-	if health_component:
-		health_component.main_stats = stats_component
-		if not health_component.hp_change.is_connected(_on_health_component_changed):
-			health_component.hp_change.connect(_on_health_component_changed)
-		if not health_component.dead.is_connected(_on_health_component_dead):
-			health_component.dead.connect(_on_health_component_dead)
-	if status_effect_receiver:
-		status_effect_receiver.main_stats = stats_component
-		status_effect_receiver.health_component = health_component
-	if hurtbox:
-		hurtbox.health_component = health_component
-		hurtbox.status_effect_receiver = status_effect_receiver
-		hurtbox.damage_receiver = self
+# _setup_components() is inherited from CombatEntity.
 
 
 func _sync_component_stats(full_heal: bool = false) -> void:
 	if stats_component == null:
 		return
-
-	_runtime_base_stats.max_health = float(max_hp)
-	_runtime_base_stats.move_speed = move_speed
-	_runtime_base_stats.armor = 0.0
-	_runtime_base_stats.damage = float(damage_unit)
-	_runtime_base_stats.max_mana = 0.0
-	_runtime_base_stats.mana_regen = 0.0
-	_runtime_base_stats.attack_speed = 1.0
-	_runtime_base_stats.crit_chance = 0.0
-	_runtime_base_stats.crit_damage = 1.5
-	_runtime_base_stats.dash_charges = 0
-	stats_component.stats_changed.emit()
-
-	if health_component:
-		health_component.max_hp = max(1.0, stats_component.get_max_health())
-		if full_heal:
-			health_component.current_hp = health_component.max_hp
-		else:
-			health_component.current_hp = clampf(float(hp), 0.0, health_component.max_hp)
-		health_component.is_dead = dead or health_component.current_hp <= 0.0
-		health_component.hp_change.emit(health_component.current_hp, health_component.max_hp)
+	_write_runtime_stats(float(max_hp), move_speed, float(damage_unit))
+	_push_health(full_heal, hp, dead)
 
 
 func _physics_process(delta: float) -> void:
@@ -614,8 +577,7 @@ func _on_health_component_changed(current_hp: float, current_max_hp: float) -> v
 	boss_hp_changed.emit(hp, max_hp)
 
 
-func _on_health_component_dead(_damage_payload: DamageInstance) -> void:
-	_die()
+# _on_health_component_dead() is inherited from CombatEntity (calls _die()).
 
 
 func receive_damage_payload(payload: DamageInstance) -> bool:
@@ -747,6 +709,14 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	_die_disable_bodies()
+	_die_play_fx()
+	_die_announce()
+	_die_dissolve_and_free()
+
+
+# Stop the hurtbox and drop the body collision so the corpse doesn't block the player.
+func _die_disable_bodies() -> void:
 	if hurtbox:
 		hurtbox.set_deferred("monitoring", false)
 		hurtbox.set_deferred("monitorable", false)
@@ -754,6 +724,10 @@ func _die() -> void:
 	var body_shape: CollisionShape2D = get_node_or_null("CollisionShape2D")
 	if body_shape:
 		body_shape.set_deferred("disabled", true)
+
+
+# Heavy death burst (shake/flash/hit-stop) and the boss death SFX.
+func _die_play_fx() -> void:
 	if VfxManager:
 		VfxManager.spawn_death_burst(global_position, "boss")
 		VfxManager.screen_shake(15.0, 0.6)
@@ -761,6 +735,11 @@ func _die() -> void:
 		VfxManager.hit_stop(0.2)
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/enemy/enemy_boss_death.mp3", -3.0)
+
+
+# Bump the kill counter, broadcast the death to puppets, and emit boss_defeated
+# so the spawner/world can hand out the reward.
+func _die_announce() -> void:
 	if GameManager:
 		GameManager.enemies_killed += 1
 	# Multiplayer host: broadcast death so puppets also fade away.
@@ -770,8 +749,12 @@ func _die() -> void:
 			ns.call("broadcast_enemy_death", network_id, global_position, 0, 0, 0)
 	# Emit defeat so spawner / world can hand out reward.
 	boss_defeated.emit(boss_id, String(boss_data.get("reward", "legendary")))
-	# Dissolve-on-death — and ACTUALLY queue_free at the end. Boss corpses
-	# were sticking around because this branch never freed them.
+
+
+# Dissolve-on-death — and ACTUALLY queue_free at the end. Boss corpses
+# were sticking around because this branch never freed them. A safety Timer
+# guarantees the free even if the tween is interrupted.
+func _die_dissolve_and_free() -> void:
 	if sprite and is_inside_tree():
 		var dm := ShaderMaterial.new()
 		dm.shader = DISSOLVE_SHADER
@@ -808,14 +791,7 @@ func _die() -> void:
 		add_child(safety)
 
 
-func _find_net_sync() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var scene := tree.current_scene
-	if scene == null:
-		return null
-	return scene.get_node_or_null("NetSync")
+# _find_net_sync() is inherited from CombatEntity.
 
 
 func apply_remote_state(state: Dictionary) -> void:

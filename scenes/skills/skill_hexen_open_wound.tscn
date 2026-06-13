@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://hexenasc03"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_hexen_open_wound.gd" id="1_hexen_open_wound"]
-
-[node name="OpenWound" type="Node2D"]
-script = ExtResource("1_hexen_open_wound")

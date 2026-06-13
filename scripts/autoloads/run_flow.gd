@@ -14,6 +14,7 @@ const SCENE_COMBAT := "res://scenes/world/game_world.tscn"
 const SCENE_DUNGEON := "res://scenes/world/dungeon.tscn"
 const SCENE_HUB := "res://scenes/world/hub.tscn"
 const SCENE_NODE_ROOM := "res://scenes/world/node_room.tscn"
+const RUN_MAP_SCENE := preload("res://scenes/ui/run_map.tscn")
 
 # Emitted whenever the co-op vote tally changes, so the run-map UI repaints node badges.
 signal votes_changed
@@ -68,7 +69,7 @@ func start_run(difficulty: int, seed_value: int = -1) -> void:
 	_flow_active = true
 	GameManager.run_loop = 0
 	GameManager.start_run(difficulty, seed_value)
-	_change_scene(SCENE_RUN_MAP)
+	open_map_overlay()
 
 
 # Post-uber-boss "Continue": next loop, fresh map, build intact. Solo rolls the
@@ -84,12 +85,33 @@ func continue_run(difficulty: int) -> void:
 	else:
 		_flow_active = true
 		GameManager.start_run(difficulty)
-		_change_scene(SCENE_RUN_MAP)
+		open_map_overlay()
 
 
 func open_map() -> void:
+	open_map_overlay()
+
+
+# Open the run map as an OVERLAY over the current scene — no change_scene, so no
+# teleport on close. Idempotent (won't stack a duplicate). Deferred because
+# callers include signal/net handlers mid-tree-iteration. Picking a node triggers
+# a real scene change which frees this overlay with the old scene; Esc / the
+# close path just queue_free()s it (see run_map_ui). Solo pauses the world while
+# the map is open (run_map_ui handles it); co-op leaves the shared tree running.
+func open_map_overlay() -> void:
 	_flow_active = true
-	_change_scene(SCENE_RUN_MAP)
+	call_deferred("_spawn_map_overlay")
+
+
+func _spawn_map_overlay() -> void:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return
+	if tree.current_scene.has_node("RunMapOverlay"):
+		return
+	var ov := RUN_MAP_SCENE.instantiate()
+	ov.name = "RunMapOverlay"
+	tree.current_scene.add_child(ov)
 
 
 # ── co-op run map: start / vote / travel ────────────────────────────────────────
@@ -200,7 +222,7 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 				votes.clear()
 				GameManager.run_loop = int(msg.get("loop", 0))
 				GameManager.start_run(int(msg.get("difficulty", 0)), int(msg.get("seed", 0)))
-				_change_scene(SCENE_RUN_MAP)
+				open_map_overlay()
 		"run_vote":
 			votes[from_player] = int(msg.get("node", -1))
 			votes_changed.emit()
@@ -224,7 +246,9 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 					String(GameManager.run_node_active.get("type", ""))
 				)
 				GameManager.run_node_active = {}
-				_change_scene(SCENE_RUN_MAP)
+				# Taking the host's run_return means a node was completed — open the
+				# map overlay so the client picks the next node (matches the host).
+				open_map_overlay()
 
 
 # Leave the run and return to the hub (the staging area). Abandons the current run.
@@ -260,12 +284,15 @@ func _on_node_entered(node: Dictionary) -> void:
 func _on_node_cleared(_node: Dictionary) -> void:
 	if not _flow_active:
 		return
-	# Co-op host: pull the whole party back to the map together.
+	# run_node_cleared only fires when the player TAKES a node's exit portal (dungeon
+	# boss exit / arena reward portal / node-room exit) — a deliberate "I'm done"
+	# action — so opening the run map as an overlay here is the manual flow, not an
+	# auto-yank the instant combat ends. (The HUD "Карта" button reopens it anytime.)
 	if is_coop_host():
 		NetManager.send("run_return", {})
 	votes.clear()
 	votes_changed.emit()
-	_change_scene(SCENE_RUN_MAP)
+	open_map_overlay()
 
 
 func _change_scene(path: String) -> void:

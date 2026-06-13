@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://stormasc04"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_storm_charged_slash.gd" id="1_storm_charged_slash"]
-
-[node name="ChargedSlash" type="Node2D"]
-script = ExtResource("1_storm_charged_slash")

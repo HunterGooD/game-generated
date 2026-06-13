@@ -1,0 +1,9 @@
+# gdlint (gdtoolkit) config — relaxed thresholds for an existing, large codebase.
+# The CI gdscript-lint job runs advisory (continue-on-error) for now; these limits
+# keep the report signal-over-noise. Tighten over time, then make it a required check.
+max-line-length: 120
+max-file-lines: 3000
+max-public-methods: 40
+function-arguments-number: 12
+max-returns: 12
+max-local-variables: 24

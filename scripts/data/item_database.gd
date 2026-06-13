@@ -1123,30 +1123,63 @@ static func find_base(id: String) -> Dictionary:
 	return {}
 
 
-static func find_unique(id: String) -> Dictionary:
-	for u in UNIQUE_ITEMS:
-		if String(u.get("id", "")) == id:
-			return u
-	return {}
+# Lazily-built typed view of UNIQUE_ITEMS (unique id -> UniqueDefinition).
+# UNIQUE_ITEMS stays the authoring source.
+static var _unique_defs_cache: Dictionary = {}
 
 
-static func find_affix(id: String) -> Dictionary:
-	for a in AFFIX_POOL:
-		if String(a.get("id", "")) == id:
-			return a
-	return {}
+static func _unique_defs() -> Dictionary:
+	if _unique_defs_cache.is_empty():
+		for u in UNIQUE_ITEMS:
+			var def := UniqueDefinition.from_dict(u)
+			_unique_defs_cache[def.id] = def
+	return _unique_defs_cache
 
 
-# All affixes legal on `slot` (empty `slots` list = universal). Ring 2 shares
+static func has_unique(id: String) -> bool:
+	return _unique_defs().has(id)
+
+
+# Typed unique definition. Returns a UniqueDefinition.unknown() placeholder for an
+# unknown id (guard with has_unique() to detect a genuine miss).
+static func find_unique(id: String) -> UniqueDefinition:
+	var d = _unique_defs().get(id, null)
+	return d if d != null else UniqueDefinition.unknown(id)
+
+
+# Lazily-built typed view of AFFIX_POOL (affix id -> AffixDefinition). AFFIX_POOL
+# stays the authoring source.
+static var _affix_defs_cache: Dictionary = {}
+
+
+static func _affix_defs() -> Dictionary:
+	if _affix_defs_cache.is_empty():
+		for a in AFFIX_POOL:
+			var def := AffixDefinition.from_dict(a)
+			_affix_defs_cache[def.id] = def
+	return _affix_defs_cache
+
+
+static func has_affix(id: String) -> bool:
+	return _affix_defs().has(id)
+
+
+# Typed affix template. Returns an AffixDefinition.unknown() placeholder for an
+# unknown id (guard with has_affix() to detect a genuine miss).
+static func find_affix(id: String) -> AffixDefinition:
+	var d = _affix_defs().get(id, null)
+	return d if d != null else AffixDefinition.unknown(id)
+
+
+# All affix templates legal on `slot` (empty `slots` = universal). Ring 2 shares
 # Ring 1's pool; unknown slots fall back to the full pool.
 static func affixes_for_slot(slot: int) -> Array:
 	var s: int = slot
 	if s == SLOT_RING_2:
 		s = SLOT_RING_1
 	var out: Array = []
-	for a in AFFIX_POOL:
-		var allowed: Array = a.get("slots", [])
-		if allowed.is_empty() or allowed.has(s) or s < 0:
+	for a in _affix_defs().values():
+		if a.slots.is_empty() or a.slots.has(s) or s < 0:
 			out.append(a)
 	return out
 
@@ -1155,8 +1188,27 @@ static func slot_name(slot: int) -> String:
 	return String(SLOT_NAMES.get(slot, "Неизвестно"))
 
 
-static func find_set(set_id: String) -> Dictionary:
-	return SETS.get(set_id, {})
+# Lazily-built typed view of SETS (set id -> SetDefinition). SETS stays the
+# authoring source.
+static var _set_defs_cache: Dictionary = {}
+
+
+static func _set_defs() -> Dictionary:
+	if _set_defs_cache.is_empty():
+		for sid in SETS:
+			_set_defs_cache[sid] = SetDefinition.from_dict(String(sid), SETS[sid])
+	return _set_defs_cache
+
+
+static func has_set(set_id: String) -> bool:
+	return SETS.has(set_id)
+
+
+# Typed set definition. Returns a SetDefinition.unknown() placeholder for an
+# unknown id (guard with has_set() to detect a genuine miss).
+static func find_set(set_id: String) -> SetDefinition:
+	var d = _set_defs().get(set_id, null)
+	return d if d != null else SetDefinition.unknown(set_id)
 
 
 # Sets a class can drop/wear: both generics + the class's own set.
@@ -1208,17 +1260,17 @@ static func get_base_items_for_slot(slot: int, class_id: String) -> Array:
 
 static func get_uniques_for_class(class_id: String) -> Array:
 	var out: Array = []
-	for u in UNIQUE_ITEMS:
-		if String(u.get("class_lock", "")) == class_id:
+	for u in _unique_defs().values():
+		if u.class_lock == class_id:
 			out.append(u)
 	return out
 
 
-static func find_unique_by_transform(transform_id: String) -> Dictionary:
-	for u in UNIQUE_ITEMS:
-		if String(u.get("transform", "")) == transform_id:
+static func find_unique_by_transform(transform_id: String) -> UniqueDefinition:
+	for u in _unique_defs().values():
+		if u.transform == transform_id:
 			return u
-	return {}
+	return UniqueDefinition.unknown("")
 
 
 static func rarity_color(rarity: String) -> Color:

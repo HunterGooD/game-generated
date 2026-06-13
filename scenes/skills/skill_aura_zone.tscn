@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dru6dtncoxans"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_aura_zone.gd" id="1_skill_aura_zone"]
+[ext_resource type="Script" path="res://scripts/skills/shared/skill_aura_zone.gd" id="1_skill_aura_zone"]
 
 [node name="AuraZone" type="Node2D"]
 script = ExtResource("1_skill_aura_zone")

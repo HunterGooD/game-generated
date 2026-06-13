@@ -63,7 +63,14 @@ func _check_skill_catalog() -> void:
 		if def == null:
 			_fail("skill '%s' has no SkillDefinition" % str(key))
 			continue
-		_check_def_path(str(key), "scene", def.scene_path)
+		# A skill resolves its node from a scene OR (script-carrier) a script.
+		if def.scene_path != "":
+			_check_def_path(str(key), "scene", def.scene_path)
+		elif def.script_path != "":
+			_check_def_path(str(key), "script", def.script_path)
+		else:
+			_ok()
+			_fail("skill '%s' has neither scene nor script" % str(key))
 		_check_def_path(str(key), "icon", def.icon_path)
 		_check_def_path(str(key), "sfx", def.sfx_path)
 		# Core numeric fields are typed on SkillDefinition — sanity-check ranges.
@@ -189,7 +196,7 @@ func _check_unique_item_transforms() -> void:
 	var base_skills: Dictionary = SkillCatalog.transform_base()
 	# Every root skill_id (constellation roots), across all classes.
 	var root_ids := {}
-	for cls in SkillTrees.CLASS_IDS:
+	for cls in GameManager.class_ids():
 		for n in SkillTrees.nodes_for(String(cls)):
 			if String(n.get("kind", "")) == "skill":
 				root_ids[String(n["skill_id"])] = true
@@ -221,7 +228,7 @@ func _check_skill_trees() -> void:
 	var overrides: Dictionary = SkillCatalog.transform_overrides()
 	var base_skills: Dictionary = SkillCatalog.transform_base()
 	var status_elements := ["fire", "bleed", "frost", "poison", "curse"]
-	for cls in SkillTrees.CLASS_IDS:
+	for cls in GameManager.class_ids():
 		var nodes: Array = SkillTrees.nodes_for(String(cls))
 		var ids := {}
 		var max_row: int = 0
@@ -266,7 +273,7 @@ func _check_skill_trees() -> void:
 						if (
 							not mid.ends_with("_cdr")
 							and not mid.ends_with("_damage")
-							and RewardData.find_modifier(mid).is_empty()
+							and not RewardData.has_modifier(mid)
 						):
 							_fail(
 								(
@@ -286,7 +293,7 @@ func _check_skill_trees() -> void:
 					_ok()  # inline name/desc, nothing to resolve
 	# Set 4pc grants must target a real tree node or a stat-column node.
 	for set_id in ItemDatabase.SETS:
-		for cls in SkillTrees.CLASS_IDS:
+		for cls in GameManager.class_ids():
 			var grant: Dictionary = ItemDatabase.set_node_grant(String(set_id), String(cls))
 			if grant.is_empty():
 				continue

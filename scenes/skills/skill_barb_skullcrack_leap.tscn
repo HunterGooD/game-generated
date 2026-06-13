@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://barbskill03"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_barb_skullcrack_leap.gd" id="1_barb_skullcrack_leap"]
-
-[node name="SkullcrackLeap" type="Node2D"]
-script = ExtResource("1_barb_skullcrack_leap")

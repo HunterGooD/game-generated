@@ -6,7 +6,7 @@ extends Area2D
 signal opened
 
 const ROULETTE_SCENE: PackedScene = preload("res://scenes/ui/loot_roulette.tscn")
-const MINI_REVEAL_SCRIPT: Script = preload("res://scripts/ui/loot_reveal_mini.gd")
+const MINI_REVEAL_SCRIPT: Script = preload("res://scripts/ui/run/loot_reveal_mini.gd")
 const OPEN_RANGE: float = 60.0
 const AUTO_OPEN_DELAY: float = 4.0
 # A live enemy within this range = "in combat" → use the compact, non-blocking

@@ -17,9 +17,8 @@ const DASH_COOLDOWN: float = 1.5
 @export var health_component: HealthComponent
 @export var status_effect_receiver: StatusEffectReceiverComponent
 
-const BOLT_SCENE: PackedScene = preload("res://scenes/combat/player/magic_bolt.tscn")
-const DAGGER_SCENE: PackedScene = preload("res://scenes/combat/player/thrown_dagger.tscn")
-const MELEE_SCENE: PackedScene = preload("res://scenes/combat/player/melee_swing.tscn")
+# Basic-attack scenes are resolved per weapon kind via WeaponCatalog (data-driven);
+# see _spawn_default_basic_attack. (Were preloaded MELEE/DAGGER/BOLT_SCENE consts.)
 const DASH_TRAIL_TEX: String = "res://assets/sprites/effects/cast_flash.png"
 
 var move_speed: float = 220.0
@@ -82,6 +81,16 @@ var stone_armor_grinder: bool = false
 
 var is_attacking: bool = false
 var attack_anim_t: float = 0.0
+# Per-attack animation name (from the weapon kind / active combo step; falls back
+# to "attack" if the AnimatedSprite2D lacks it).
+var _attack_anim: String = "attack"
+# Basic-attack combo state. Advanced only when the current weapon kind defines
+# WeaponDefinition.combo steps; dormant (zero behaviour change) while every
+# weapon's combo[] is empty. A step tweaks the player anim + damage of each
+# consecutive hit chained within its window.
+var _combo_step: int = 0
+var _combo_window_t: float = 0.0
+var _combo_step_data: Dictionary = {}
 var facing_right: bool = true
 var invuln_t: float = 0.0
 
@@ -396,19 +405,12 @@ func _refresh_basic_attack() -> void:
 
 
 func _configure_basic_attack(kind: String) -> void:
+	# Cadence + mana now come from the weapon catalog (WeaponCatalog.WEAPONS);
+	# unknown kinds fall back to "bolt" there (the old `_:` branch).
 	basic_attack_kind = kind
-	match kind:
-		"melee", "claw":
-			# Melee / druid human claw / Battlemage fire blade — short range.
-			basic_attack_interval = 0.45 if kind == "melee" else 0.40
-			basic_attack_mana_cost = 0.0
-		"dagger":
-			basic_attack_interval = 0.40
-			basic_attack_mana_cost = 0.0
-		_:
-			# Ranged bolt-kind basics (mage, necromancer, hexen, stormcaller).
-			basic_attack_interval = 0.55
-			basic_attack_mana_cost = 4.0
+	var w := WeaponCatalog.get_def(kind)
+	basic_attack_interval = w.interval
+	basic_attack_mana_cost = w.mana_cost
 
 
 func _sync_component_stats_from_game_manager() -> void:
@@ -670,13 +672,19 @@ func _physics_process(delta: float) -> void:
 		if attack_anim_t <= 0.0:
 			is_attacking = false
 
+	# Combo chain window — when it lapses, the next basic attack restarts at step 0.
+	if _combo_window_t > 0.0:
+		_combo_window_t = max(_combo_window_t - delta, 0.0)
+
 
 func _update_animation() -> void:
 	if sprite == null or sprite.sprite_frames == null:
 		return
 	var target: String
-	if is_attacking and sprite.sprite_frames.has_animation("attack"):
-		target = "attack"
+	if is_attacking and sprite.sprite_frames.has_animation(_attack_anim):
+		target = _attack_anim
+	elif is_attacking and sprite.sprite_frames.has_animation("attack"):
+		target = "attack"  # combo step's anim is missing on this class — fall back
 	elif velocity.length() > 30.0 and sprite.sprite_frames.has_animation("walk"):
 		target = "walk"
 	else:
@@ -1469,36 +1477,14 @@ func _remove_stealth() -> void:
 func _perform_basic_attack() -> void:
 	is_attacking = true
 	attack_anim_t = 0.22
+	_advance_combo(WeaponCatalog.get_def(basic_attack_kind))
 	var origin: Vector2 = cast_origin.global_position if cast_origin else global_position
 	var dir: Vector2 = get_global_mouse_position() - origin
 	if dir.length_squared() < 0.001:
 		dir = Vector2.RIGHT
 	dir = dir.normalized()
-	var base_dmg: int = GameManager.get_effective_damage() if GameManager else 14
-	# get_buff_damage_mult folds in active buff × ally aura × Pain Engine.
-	# Strength scales every basic attack (universal stat effect).
-	var stat_mult: float = GameManager.get_stat_basic_damage_mult() if GameManager else 1.0
-	var dmg: int = int(round(float(base_dmg) * get_buff_damage_mult() * stat_mult))
-	# Battlemage stacks empower melee basics; Flameblade ignites foes in front.
-	if basic_attack_kind == "melee" or basic_attack_kind == "claw":
-		dmg = int(round(float(dmg) * get_battlemage_melee_mult()))
-		_flameblade_melee_proc(dir)
-	# Blood Frenzy: each basic attack leeches 2% of missing HP.
-	if frenzy_t > 0.0 and GameManager:
-		var missing: int = GameManager.player_max_hp - GameManager.player_hp
-		if missing > 0:
-			heal_amount(maxi(1, int(round(float(missing) * 0.02))))
+	var dmg: int = _resolve_basic_attack_damage(dir)
 
-	# Stealth burst: next attack auto-crits.
-	if stealth_crit_charge:
-		dmg = int(round(float(dmg) * 3.0))
-		stealth_crit_charge = false
-		_remove_stealth()
-		# Whisper-Edge unique: stealth attack also blows up in a wide arc.
-		_maybe_whisper_edge_burst(dmg, dir)
-
-	var attack_scene_path: String = ""
-	var attack_spawn_pos: Vector2 = origin
 	# Check for basic-attack uniques — each class has one that swaps the default
 	# basic-attack scene out for an alternate. Returns the dispatched path or
 	# empty string if no unique was used.
@@ -1512,46 +1498,9 @@ func _perform_basic_attack() -> void:
 					"broadcast_skill_cast", "basic_unique", unique_path, global_position, dir, dmg
 				)
 		return
-	match basic_attack_kind:
-		"melee", "claw":
-			var sw := MELEE_SCENE.instantiate()
-			get_tree().current_scene.add_child(sw)
-			attack_spawn_pos = global_position + dir * 30.0
-			sw.global_position = attack_spawn_pos
-			if sw.has_method("setup"):
-				sw.call("setup", dir, dmg)
-			if AudioManager:
-				if basic_attack_kind == "claw" and druid_form != "human":
-					AudioManager.play_sfx_path(
-						"res://assets/audio/sfx/player/player_druid_bite_hit.mp3", -10.0
-					)
-				else:
-					AudioManager.play_sfx_path(
-						"res://assets/audio/sfx/player/player_melee_swing.mp3", -8.0
-					)
-			attack_scene_path = "res://scenes/combat/player/melee_swing.tscn"
-		"dagger":
-			var d := DAGGER_SCENE.instantiate()
-			get_tree().current_scene.add_child(d)
-			d.global_position = origin
-			if d.has_method("setup"):
-				d.call("setup", dir, dmg)
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_dagger_throw.mp3", -8.0
-				)
-			attack_scene_path = "res://scenes/combat/player/thrown_dagger.tscn"
-		_:
-			var bolt := BOLT_SCENE.instantiate()
-			get_tree().current_scene.add_child(bolt)
-			bolt.global_position = origin
-			if bolt.has_method("setup"):
-				bolt.call("setup", dir, dmg, "player")
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_magic_cast.mp3", -10.0
-				)
-			attack_scene_path = "res://scenes/combat/player/magic_bolt.tscn"
+	var spawned: Dictionary = _spawn_default_basic_attack(dir, origin, dmg)
+	var attack_scene_path: String = String(spawned.get("path", ""))
+	var attack_spawn_pos: Vector2 = spawned.get("pos", origin)
 
 	# Multiplayer: broadcast a visual-only copy of the basic attack so peers
 	# see our melee swing / dagger throw / magic bolt land.
@@ -1571,6 +1520,85 @@ func _perform_basic_attack() -> void:
 				dmg,
 				cls_extra
 			)
+
+
+# Pick the combo step for this attack (or clear combo state when the weapon has
+# no combo). Sets _attack_anim + _combo_step_data, which _update_animation and
+# _resolve_basic_attack_damage read. No-combo weapons keep the base anim/damage.
+func _advance_combo(w: WeaponDefinition) -> void:
+	if w.combo.is_empty():
+		_combo_step = 0
+		_combo_window_t = 0.0
+		_combo_step_data = {}
+		_attack_anim = w.anim
+		return
+	_combo_step = WeaponDefinition.next_combo_step(w.combo.size(), _combo_step, _combo_window_t > 0.0)
+	_combo_step_data = w.combo[_combo_step]
+	_combo_window_t = float(_combo_step_data.get("window", 0.0))
+	_attack_anim = String(_combo_step_data.get("anim", w.anim))
+
+
+# Roll the basic attack's final damage and fire the on-attack side effects
+# (Battlemage melee mult + Flameblade proc, Blood Frenzy leech, stealth auto-crit
+# + Whisper-Edge burst). Returns the damage the spawned attack should carry.
+func _resolve_basic_attack_damage(dir: Vector2) -> int:
+	var base_dmg: int = GameManager.get_effective_damage() if GameManager else 14
+	# get_buff_damage_mult folds in active buff × ally aura × Pain Engine.
+	# Strength scales every basic attack (universal stat effect).
+	var stat_mult: float = GameManager.get_stat_basic_damage_mult() if GameManager else 1.0
+	var dmg: int = int(round(float(base_dmg) * get_buff_damage_mult() * stat_mult))
+	# Battlemage stacks empower melee basics; Flameblade ignites foes in front.
+	if basic_attack_kind == "melee" or basic_attack_kind == "claw":
+		dmg = int(round(float(dmg) * get_battlemage_melee_mult()))
+		_flameblade_melee_proc(dir)
+	# Blood Frenzy: each basic attack leeches 2% of missing HP.
+	if frenzy_t > 0.0 and GameManager:
+		var missing: int = GameManager.player_max_hp - GameManager.player_hp
+		if missing > 0:
+			heal_amount(maxi(1, int(round(float(missing) * 0.02))))
+	# Stealth burst: next attack auto-crits.
+	if stealth_crit_charge:
+		dmg = int(round(float(dmg) * 3.0))
+		stealth_crit_charge = false
+		_remove_stealth()
+		# Whisper-Edge unique: stealth attack also blows up in a wide arc.
+		_maybe_whisper_edge_burst(dmg, dir)
+	# Combo step damage multiplier (1.0 / no-op when not mid-combo).
+	if not _combo_step_data.is_empty():
+		dmg = int(round(float(dmg) * float(_combo_step_data.get("dmg_mult", 1.0))))
+	return dmg
+
+
+# Spawn the default class basic attack (melee/claw swing, thrown dagger, or magic
+# bolt) and return {"path": scene_path, "pos": spawn_pos} for the net broadcast.
+func _spawn_default_basic_attack(dir: Vector2, origin: Vector2, dmg: int) -> Dictionary:
+	# Generic spawn driven by the weapon catalog (WeaponCatalog). The kind picks
+	# the scene / spawn placement / setup signature / sfx; behaviour matches the
+	# old per-kind match. Druid claw in beast form keeps its bite-sfx override.
+	var w := WeaponCatalog.get_def(basic_attack_kind)
+	var packed: PackedScene = w.get_scene()
+	if packed == null:
+		return {"path": "", "pos": origin}
+	var node := packed.instantiate()
+	get_tree().current_scene.add_child(node)
+	var attack_spawn_pos: Vector2 = (
+		global_position + dir * w.offset if w.spawn == "ahead" else origin
+	)
+	(node as Node2D).global_position = attack_spawn_pos
+	if node.has_method("setup"):
+		if w.team != "":
+			node.call("setup", dir, dmg, w.team)
+		else:
+			node.call("setup", dir, dmg)
+	if AudioManager:
+		var sfx_path: String = w.sfx_path
+		var sfx_db: float = w.sfx_db
+		if basic_attack_kind == "claw" and druid_form != "human":
+			sfx_path = "res://assets/audio/sfx/player/player_druid_bite_hit.mp3"
+			sfx_db = -10.0
+		if sfx_path != "":
+			AudioManager.play_sfx_path(sfx_path, sfx_db)
+	return {"path": w.scene_path, "pos": attack_spawn_pos}
 
 
 func _find_net_sync() -> Node:
@@ -1601,136 +1629,73 @@ func camera_punch(amount: float = 0.08, duration: float = 0.25) -> void:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Basic-attack uniques — one per class. Player owns the unique transform id
-# (e.g. "basic_barb_shockwave"). When equipped, this dispatches the alt scene
-# and returns the spawned scene path. Empty string means no unique matched.
+# If the player's class has its basic-attack unique equipped, spawn that variant
+# and return its scene path; else "" (caller falls back to the default swing).
 func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 	if InventorySystem == null or not InventorySystem.has_method("has_unique"):
 		return ""
 	if GameManager == null:
 		return ""
-	var cls: String = String(GameManager.player_class)
-	# Resolve which unique id (if any) is in play for this class.
-	var unique_id: String = ""
-	match cls:
-		"barbarian":
-			unique_id = "basic_barb_shockwave"
-		"rogue":
-			unique_id = "basic_rogue_triple_throw"
-		"mage":
-			unique_id = "basic_mage_phantom_edge"
-		"druid":
-			unique_id = "basic_druid_thunder_sphere"
-		"necromancer":
-			unique_id = "basic_necro_bone_lance"
-		"hexen":
-			unique_id = "basic_hexen_whipcrack"
-		"stormcaller":
-			unique_id = "basic_storm_voltaic_tonfa"
+	# Basic-attack uniques — one per class, folded into ClassDefinition.basic_unique
+	# (was the local BASIC_UNIQUE_BY_CLASS dict). "" = no override for this class.
+	var unique_id: String = GameManager.class_def(String(GameManager.player_class)).basic_unique
 	if unique_id == "" or not InventorySystem.call("has_unique", unique_id):
 		return ""
 	var origin: Vector2 = cast_origin.global_position if cast_origin else global_position
-	match unique_id:
-		"basic_barb_shockwave":
-			var path := "res://scenes/combat/player/basic_shockwave.tscn"
-			var sc: PackedScene = load(path) as PackedScene
-			if sc == null:
-				return ""
-			var n: Node2D = sc.instantiate()
-			get_tree().current_scene.add_child(n)
-			n.global_position = origin + dir * 30.0
-			if n.has_method("setup"):
-				n.call("setup", dir, dmg)
-			return path
-		"basic_rogue_triple_throw":
-			var d_path := "res://scenes/combat/player/thrown_dagger.tscn"
-			var d_sc: PackedScene = load(d_path) as PackedScene
-			if d_sc == null:
-				return ""
-			# 3 daggers with spread.
-			var spreads: Array = [-0.25, 0.0, 0.25]
-			for spread in spreads:
-				var d: Node2D = d_sc.instantiate()
-				get_tree().current_scene.add_child(d)
-				d.global_position = origin
-				var d_dir: Vector2 = dir.rotated(float(spread))
-				if d.has_method("setup"):
-					d.call("setup", d_dir, max(1, int(round(float(dmg) * 0.7))))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_dagger_throw.mp3", -8.0
-				)
-			return d_path
-		"basic_mage_phantom_edge":
-			var p_path := "res://scenes/combat/player/melee_swing.tscn"
-			var p_sc: PackedScene = load(p_path) as PackedScene
-			if p_sc == null:
-				return ""
-			var sw: Node2D = p_sc.instantiate()
-			get_tree().current_scene.add_child(sw)
-			sw.global_position = global_position + dir * 30.0
-			if sw.has_method("setup"):
-				# Clean phantom blade, blue core.
-				sw.call("setup", dir, int(round(float(dmg) * 1.1)), "white", Color(0.6, 0.85, 1.5))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_basic_phantom_swing.mp3", -8.0
-				)
-			return p_path
-		"basic_druid_thunder_sphere":
-			var t_path := "res://scenes/combat/player/basic_thunder_sphere.tscn"
-			var t_sc: PackedScene = load(t_path) as PackedScene
-			if t_sc == null:
-				return ""
-			var b: Node2D = t_sc.instantiate()
-			get_tree().current_scene.add_child(b)
-			b.global_position = origin
-			if b.has_method("setup"):
-				b.call("setup", dir, dmg)
-			return t_path
-		"basic_necro_bone_lance":
-			var l_path := "res://scenes/combat/player/melee_swing.tscn"
-			var l_sc: PackedScene = load(l_path) as PackedScene
-			if l_sc == null:
-				return ""
-			var lance: Node2D = l_sc.instantiate()
-			get_tree().current_scene.add_child(lance)
-			lance.global_position = global_position + dir * 36.0
-			if lance.has_method("setup"):
-				# Clean bone lance, violet core.
-				lance.call("setup", dir, int(round(float(dmg) * 1.15)), "white", Color(0.85, 0.6, 1.4))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_basic_bone_lance.mp3", -8.0
-				)
-			return l_path
-		"basic_hexen_whipcrack":
-			var w_path := "res://scenes/skills/skill_hexen_blood_whip.tscn"
-			var w_sc: PackedScene = load(w_path) as PackedScene
-			if w_sc == null:
-				return ""
-			var whip: Node2D = w_sc.instantiate()
-			get_tree().current_scene.add_child(whip)
-			whip.global_position = origin
-			SkillContext.apply(whip, SkillContext.from_mods(dir, int(round(float(dmg) * 0.6)), {"caster": self}))
-			return w_path
-		"basic_storm_voltaic_tonfa":
-			var v_path := "res://scenes/combat/player/melee_swing.tscn"
-			var v_sc: PackedScene = load(v_path) as PackedScene
-			if v_sc == null:
-				return ""
-			var tonfa: Node2D = v_sc.instantiate()
-			get_tree().current_scene.add_child(tonfa)
-			tonfa.global_position = global_position + dir * 34.0
-			if tonfa.has_method("setup"):
-				# Electric tonfa, bright cyan core.
-				tonfa.call("setup", dir, int(round(float(dmg) * 1.05)), "storm", Color(0.55, 0.85, 1.6))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_storm_chain_bolt.mp3", -12.0
-				)
-			return v_path
-	return ""
+	return _spawn_basic_unique(unique_id, dir, dmg, origin)
+
+
+# Resolve a basic-unique's attack node: from the skill catalog by id (script-
+# carrier-safe — e.g. blood whip has no .tscn) when skill_id is set, else from
+# the unique's own scene.
+func _make_unique_node(w: WeaponDefinition) -> Node2D:
+	if w.skill_id != "":
+		var sd := SkillCatalog.get_def(w.skill_id)
+		return sd.instantiate_node() as Node2D if sd != null else null
+	var sc := w.get_scene()
+	return sc.instantiate() as Node2D if sc != null else null
+
+
+# Spawn the per-unique basic attack from WeaponCatalog.BASIC_UNIQUES (1:1 with the
+# old per-unique match). Returns a non-empty id/path so the caller treats the
+# unique as handled (and broadcasts it); "" on a genuine miss.
+func _spawn_basic_unique(unique_id: String, dir: Vector2, dmg: int, origin: Vector2) -> String:
+	var w := WeaponCatalog.get_unique(unique_id)
+	if w == null:
+		return ""
+	var base_pos: Vector2 = global_position if w.anchor == "global" else origin
+	var spawn_pos: Vector2 = base_pos + dir * w.offset
+	var eff_dmg: int = maxi(1, int(round(float(dmg) * w.dmg_mult)))
+
+	if not w.spread.is_empty():
+		# Multi-shot (e.g. triple throw): one node per angle offset.
+		for a in w.spread:
+			var s := _make_unique_node(w)
+			if s == null:
+				continue
+			get_tree().current_scene.add_child(s)
+			s.global_position = spawn_pos
+			if s.has_method("setup"):
+				s.call("setup", dir.rotated(float(a)), eff_dmg)
+	else:
+		var node := _make_unique_node(w)
+		if node == null:
+			return ""
+		get_tree().current_scene.add_child(node)
+		node.global_position = spawn_pos
+		if w.via == "context":
+			SkillContext.apply(node, SkillContext.from_mods(dir, eff_dmg, {"caster": self}))
+		elif node.has_method("setup"):
+			if w.melee_theme != "":
+				node.call("setup", dir, eff_dmg, w.melee_theme, w.melee_core)
+			elif w.team != "":
+				node.call("setup", dir, eff_dmg, w.team)
+			else:
+				node.call("setup", dir, eff_dmg)
+
+	if AudioManager and w.sfx_path != "":
+		AudioManager.play_sfx_path(w.sfx_path, w.sfx_db)
+	return w.scene_path if w.scene_path != "" else w.skill_id
 
 
 func _on_footstep() -> void:
@@ -1952,21 +1917,24 @@ func _frostwalker_tick(area: Area2D) -> void:
 			enemy.apply_slow(0.6, 0.55)
 
 
-func receive_damage_payload(payload: DamageInstance) -> bool:
+# Pre-mitigation avoidance gates: active invuln window, downed/game-over,
+# stealth, Trickster evasion roll, Druid Stone Armor charge. Returns true when
+# the hit is fully negated so the caller bails before applying any damage.
+func _incoming_hit_avoided() -> bool:
 	if invuln_t > 0.0:
-		return false
+		return true
 	# Downed players are already at 0 HP — no further damage until revived/dead.
 	if GameManager and (GameManager.player_downed or GameManager.game_over):
-		return false
+		return true
 	# Stealth ignores damage.
 	if stealth_t > 0.0:
-		return false
+		return true
 	# Evasion (Trickster auras): chance to dodge the hit outright.
 	if evasion_chance > 0.0 and randf() < evasion_chance:
 		invuln_t = 0.1
 		if VfxManager:
 			VfxManager.spawn_damage_number(global_position + Vector2(0, -22), 0, Color(0.7, 0.9, 1, 1))
-		return false
+		return true
 	# Stone Armor: absorb one incoming hit per charge, then break a stone.
 	if stone_armor_charges > 0:
 		stone_armor_charges -= 1
@@ -1982,6 +1950,12 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var sa: Node = get_node_or_null("StoneArmor")
 		if sa and sa.has_method("on_charge_consumed"):
 			sa.call("on_charge_consumed")
+		return true
+	return false
+
+
+func receive_damage_payload(payload: DamageInstance) -> bool:
+	if _incoming_hit_avoided():
 		return false
 	invuln_t = 0.4
 	var amount: int = int(round(payload.amount))
@@ -2030,6 +2004,16 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	var applied_amount: int = max(0, int(round(previous_hp - health_component.current_hp)) if health_component else amount)
 	if applied_amount <= 0:
 		return false
+	_play_hit_feedback(applied_amount)
+	# Pain Dividend (Blood Witch): the HP just lost banks into the next skill's burst.
+	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
+		_bank_pain(applied_amount)
+	return true
+
+
+# Damage-number, sparks, screen shake/flash and the red sprite flash for a hit
+# that actually landed (applied_amount HP lost).
+func _play_hit_feedback(applied_amount: int) -> void:
 	if VfxManager:
 		VfxManager.spawn_damage_number(
 			global_position + Vector2(0, -22), applied_amount, Color(1.0, 0.4, 0.4, 1)
@@ -2041,10 +2025,6 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var tw := create_tween()
 		tw.tween_property(sprite, "modulate", Color(1.6, 0.3, 0.3), 0.05)
 		tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.15)
-	# Pain Dividend (Blood Witch): the HP just lost banks into the next skill's burst.
-	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
-		_bank_pain(applied_amount)
-	return true
 
 
 # ── Blood Witch: Scarlet Possession (R) ──────────────────────────────────────

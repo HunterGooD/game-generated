@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://b_skill_storm_chain_bolt"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_storm_chain_bolt.gd" id="1_cb"]
-
-[node name="SkillStormChainBolt" type="Node2D"]
-script = ExtResource("1_cb")

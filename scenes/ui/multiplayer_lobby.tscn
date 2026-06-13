@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bmplobbyscn"]
 
-[ext_resource type="Script" uid="uid://dfqgxvovcyh38" path="res://scripts/ui/multiplayer_lobby.gd" id="1_lobby"]
+[ext_resource type="Script" uid="uid://dfqgxvovcyh38" path="res://scripts/ui/menus/multiplayer_lobby.gd" id="1_lobby"]
 
 [node name="MultiplayerLobby" type="CanvasLayer" unique_id=1601997919]
 layer = 80

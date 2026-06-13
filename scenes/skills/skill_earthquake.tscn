@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8plyrarearthquak"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_earthquake.gd" id="1_eq"]
-
-[node name="Earthquake" type="Node2D"]
-script = ExtResource("1_eq")

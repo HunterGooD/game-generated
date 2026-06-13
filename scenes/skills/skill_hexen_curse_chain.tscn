@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://hexenasc07"]
-
-[ext_resource type="Script" path="res://scripts/skills/skill_hexen_curse_chain.gd" id="1_hexen_curse_chain"]
-
-[node name="CurseChain" type="Node2D"]
-script = ExtResource("1_hexen_curse_chain")

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bpmmgosbw2ru7"]
 
-[ext_resource type="Script" uid="uid://d0fv1chpxluc5" path="res://scripts/ui/run_map_ui.gd" id="1"]
+[ext_resource type="Script" uid="uid://d0fv1chpxluc5" path="res://scripts/ui/run/run_map_ui.gd" id="1"]
 
 [node name="RunMap" type="CanvasLayer"]
 script = ExtResource("1")

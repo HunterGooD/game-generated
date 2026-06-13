@@ -33,15 +33,9 @@ const NEUTRAL: Dictionary = {"core": Color(1, 1, 1), "glow": Color(0.7, 0.8, 1.0
 # theme its slash by what it IS (fire/blood/…) rather than by the caster's class.
 # style: 0 clean blade · 1 fire (ragged + flicker) · 2 claw (3 rakes) · 3 electric.
 const PALETTE: Dictionary = {
-	# ── per class (the basic melee swing) ──
-	# Barbarian swings a wider arc (bigger "span") than everyone else.
-	"barbarian": {"core": Color(1.0, 1.0, 1.0), "glow": Color(0.70, 0.80, 1.00), "style": 0, "span": 3.0},
-	"rogue": {"core": Color(1.0, 0.70, 0.25), "glow": Color(1.00, 0.45, 0.12), "style": 0},
-	"mage": {"core": Color(1.0, 0.35, 0.12), "glow": Color(1.00, 0.70, 0.20), "style": 1},
-	"druid": {"core": Color(0.78, 0.52, 0.26), "glow": Color(0.95, 0.80, 0.45), "style": 2},
-	"necromancer": {"core": Color(0.62, 0.32, 0.88), "glow": Color(0.35, 0.85, 0.45), "style": 1},
-	"hexen": {"core": Color(0.96, 0.13, 0.23), "glow": Color(0.50, 0.00, 0.08), "style": 1},
-	"stormcaller": {"core": Color(0.50, 0.85, 1.00), "glow": Color(0.85, 0.95, 1.00), "style": 3},
+	# Per-class basic-swing palettes folded into ClassDefinition.slash_style;
+	# palette_for() routes a class theme through the registry. Only element
+	# themes (caster-agnostic skill slashes) live here now.
 	# ── per element (skill slashes, caster-agnostic) ──
 	"fire": {"core": Color(1.0, 0.45, 0.12), "glow": Color(1.00, 0.75, 0.25), "style": 1},
 	"blood": {"core": Color(0.95, 0.13, 0.20), "glow": Color(0.45, 0.00, 0.06), "style": 1},
@@ -65,6 +59,12 @@ static func quad_texture() -> Texture2D:
 
 ## Palette entry for a theme (class id or element). Unknown → neutral white blade.
 static func palette_for(theme: String) -> Dictionary:
+	# Class themes (the basic melee swing) come from ClassDefinition.slash_style;
+	# element themes (fire/blood/…) stay in PALETTE. Unknown → neutral white blade.
+	if GameManager != null and GameManager.has_class(theme):
+		var style: Dictionary = GameManager.class_def(theme).slash_style
+		if not style.is_empty():
+			return style
 	return PALETTE.get(theme, NEUTRAL)
 
 

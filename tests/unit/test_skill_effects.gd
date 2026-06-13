@@ -77,10 +77,11 @@ func _host(pos: Vector2 = Vector2.ZERO) -> Node2D:
 	return h
 
 
-# ── from_data resolves all 12 types ───────────────────────────────────────────
+# ── from_data resolves all 13 types ───────────────────────────────────────────
 func test_from_data_resolves_all_types() -> void:
 	var types := {
 		"caster_call": SkillEffectCasterCall,
+		"caster_set": SkillEffectCasterSet,
 		"group_call": SkillEffectGroupCall,
 		"area_damage": SkillEffectAreaDamage,
 		"summon": SkillEffectSummon,
@@ -242,3 +243,27 @@ func test_telegraph_delayed_burst() -> void:
 	await wait_seconds(0.35)
 	assert_eq(e.hits, [40], "burst after delay")
 	assert_eq(e.elem, ["frost"])
+
+
+# ── script-carrier skills (no .tscn) build Node2D + set_script via the catalog ──
+func test_script_carrier_instantiates_from_catalog() -> void:
+	var def: SkillDefinition = SkillCatalog.get_def("chain_lightning")
+	assert_not_null(def, "chain_lightning resolves in the catalog")
+	assert_eq(def.scene_path, "", "script-carrier skill has no scene_path")
+	assert_ne(def.script_path, "", "script-carrier skill carries a script_path")
+	var node = def.instantiate_node()
+	assert_not_null(node, "instantiate_node() builds a node from the script")
+	assert_true(node is Node2D, "script-carrier root is a Node2D")
+	assert_not_null(node.get_script(), "script is attached")
+	node.free()
+
+
+func test_scene_based_skill_keeps_its_scene() -> void:
+	# Authored scenes (children placed in editor) + the composed runner keep scene_path.
+	var def: SkillDefinition = SkillCatalog.get_def("meteor")
+	assert_not_null(def, "meteor resolves in the catalog")
+	assert_ne(def.scene_path, "", "authored skill keeps its scene_path")
+	var node := def.instantiate_node()
+	assert_not_null(node, "instantiate_node() builds from the scene")
+	if node:
+		node.free()  # don't leak the instanced scene (GUT orphan)

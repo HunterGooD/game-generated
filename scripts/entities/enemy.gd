@@ -1,5 +1,5 @@
 class_name Enemy
-extends CharacterBody2D
+extends CombatEntity
 
 # Base enemy — chase player, deal damage, drop loot. Subclasses tune behavior
 # via the EnemyConfig dictionary they pass through `configure()`.
@@ -53,14 +53,11 @@ var _aura: Sprite2D = null
 const SHIELD_COOLDOWN: float = 4.0
 const ELITE_EXPLODE_RADIUS: float = 130.0
 
-@export var sprite: Sprite2D
+# sprite, hurtbox, stats_component, health_component, status_effect_receiver
+# are inherited @export refs from CombatEntity.
 @export var hp_bar: ProgressBar
 @export var collision_shape: CollisionShape2D
 @export var hitbox: HitBoxComponent
-@export var hurtbox: HurtBoxComponent
-@export var stats_component: StatsComponent
-@export var health_component: HealthComponent
-@export var status_effect_receiver: StatusEffectReceiverComponent
 @export var ai_component: EnemyAIComponent
 @export var reward_drop: RewardDropComponent
 
@@ -154,7 +151,7 @@ var _puppet_target_pos: Vector2 = Vector2.ZERO
 # State flags.
 var _idle_jitter: Vector2 = Vector2.ZERO
 var _idle_jitter_t: float = 0.0
-var _runtime_base_stats: ActorStatsResource = ActorStatsResource.new()
+# _runtime_base_stats is inherited from CombatEntity.
 var _melee_hitbox_active: bool = false
 
 
@@ -188,48 +185,14 @@ func _ready() -> void:
 	_find_player()
 
 
-func _setup_components() -> void:
-	if stats_component:
-		stats_component.base_stats = _runtime_base_stats
-	if health_component:
-		health_component.main_stats = stats_component
-		if not health_component.hp_change.is_connected(_on_health_component_changed):
-			health_component.hp_change.connect(_on_health_component_changed)
-		if not health_component.dead.is_connected(_on_health_component_dead):
-			health_component.dead.connect(_on_health_component_dead)
-	if status_effect_receiver:
-		status_effect_receiver.main_stats = stats_component
-		status_effect_receiver.health_component = health_component
-	if hurtbox:
-		hurtbox.health_component = health_component
-		hurtbox.status_effect_receiver = status_effect_receiver
-		hurtbox.damage_receiver = self
+# _setup_components() is inherited from CombatEntity.
 
 
 func _sync_component_stats(full_heal: bool = false) -> void:
 	if stats_component == null:
 		return
-
-	_runtime_base_stats.max_health = float(max_hp)
-	_runtime_base_stats.move_speed = move_speed
-	_runtime_base_stats.armor = 0.0
-	_runtime_base_stats.damage = float(attack_damage)
-	_runtime_base_stats.max_mana = 0.0
-	_runtime_base_stats.mana_regen = 0.0
-	_runtime_base_stats.attack_speed = 1.0
-	_runtime_base_stats.crit_chance = 0.0
-	_runtime_base_stats.crit_damage = 1.5
-	_runtime_base_stats.dash_charges = 0
-	stats_component.stats_changed.emit()
-
-	if health_component:
-		health_component.max_hp = max(1.0, stats_component.get_max_health())
-		if full_heal:
-			health_component.current_hp = health_component.max_hp
-		else:
-			health_component.current_hp = clampf(float(hp), 0.0, health_component.max_hp)
-		health_component.is_dead = dead or health_component.current_hp <= 0.0
-		health_component.hp_change.emit(health_component.current_hp, health_component.max_hp)
+	_write_runtime_stats(float(max_hp), move_speed, float(attack_damage))
+	_push_health(full_heal, hp, dead)
 
 
 func configure(cfg: Dictionary) -> void:
@@ -284,7 +247,26 @@ func reset_for_reuse() -> void:
 	if _bt_player != null and is_instance_valid(_bt_player):
 		_bt_player.queue_free()
 	_bt_player = null
-	# Elite affixes — clear flags and tear down the aura silhouette.
+	_reset_affix_state()
+	_reset_status_state()
+	# Combat / AI timers.
+	attack_cd = 0.0
+	attack_lockout = 0.0
+	retarget_t = 0.0
+	_spider_retreat_t = 0.0
+	_idle_jitter = Vector2.ZERO
+	_idle_jitter_t = 0.0
+	_status_ui_t = 0.0
+	# Physics / networking.
+	velocity = Vector2.ZERO
+	is_puppet = false
+	network_id = -1
+	_puppet_target_pos = global_position
+	_reset_bodies_and_visuals()
+
+
+# Elite affixes — clear flags and tear down the aura silhouette.
+func _reset_affix_state() -> void:
 	affixes = []
 	_regen_frac = 0.0
 	_explosive = false
@@ -294,7 +276,10 @@ func reset_for_reuse() -> void:
 	if _aura != null and is_instance_valid(_aura):
 		_aura.queue_free()
 	_aura = null
-	# Status effects / DoTs.
+
+
+# All status-effect / DoT / curse / slow / taunt timers back to baseline.
+func _reset_status_state() -> void:
 	burn_t = 0.0
 	burn_dps = 0.0
 	chill_stacks = 0
@@ -321,19 +306,11 @@ func reset_for_reuse() -> void:
 	slow_mult = 1.0
 	taunt_target = null
 	taunt_t = 0.0
-	# Combat / AI timers.
-	attack_cd = 0.0
-	attack_lockout = 0.0
-	retarget_t = 0.0
-	_spider_retreat_t = 0.0
-	_idle_jitter = Vector2.ZERO
-	_idle_jitter_t = 0.0
-	_status_ui_t = 0.0
-	# Physics / networking.
-	velocity = Vector2.ZERO
-	is_puppet = false
-	network_id = -1
-	_puppet_target_pos = global_position
+
+
+# Re-enable collision/hurt/hit boxes, reset the status strip + HP bar, and undo
+# the death dissolve material so the recycled corpse looks alive again.
+func _reset_bodies_and_visuals() -> void:
 	# Collision back on (corpse disables it).
 	if collision_shape:
 		collision_shape.set_deferred("disabled", false)
@@ -974,29 +951,16 @@ func _on_health_component_changed(current_hp: float, current_max_hp: float) -> v
 			hp_bar_shown = true
 
 
-func _on_health_component_dead(_damage_payload: DamageInstance) -> void:
-	_die()
+# _on_health_component_dead() is inherited from CombatEntity (calls _die()).
 
 
 func receive_damage_payload(payload: DamageInstance) -> bool:
 	if payload == null or dead:
 		return false
 
-	var amount: int = int(round(payload.amount))
+	var amount: int = _amplify_incoming_damage(int(round(payload.amount)))
 	if dead:
 		return false
-	# Curse Field amplification — if we're standing in a necromancer's curse
-	# zone, scale up the incoming damage.
-	if has_meta("curse_amp"):
-		var amp: float = float(get_meta("curse_amp", 0.0))
-		if amp > 0.0:
-			amount = int(round(float(amount) * (1.0 + amp)))
-	# Vulnerable / Armor Break amplifies all incoming damage.
-	if vuln_t > 0.0 and vuln_amp > 0.0:
-		amount = int(round(float(amount) * (1.0 + vuln_amp)))
-	# Frailty curse — cursed flesh takes more from everything.
-	if curses.has("frailty"):
-		amount = int(round(float(amount) * (1.0 + FRAILTY_AMP)))
 	# Soul Tether mirror — broadcast a fraction of this hit to other linked
 	# enemies. has_meta() guard avoids the get_meta-missing-key spam when no
 	# Hexen tether is active.
@@ -1056,7 +1020,32 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	var applied_amount: int = max(0, previous_hp - hp)
 	if applied_amount <= 0:
 		return false
-	# Damage number + hit sparks.
+	_play_hit_feedback(applied_amount, knockback)
+	if health_component == null and hp <= 0:
+		_die()
+	return true
+
+
+# Pre-mitigation damage amplifiers stacked on this hit: necromancer Curse Field
+# zone, Vulnerable/Armor Break, and the Frailty curse.
+func _amplify_incoming_damage(amount: int) -> int:
+	# Curse Field amplification — standing in a necromancer's curse zone.
+	if has_meta("curse_amp"):
+		var amp: float = float(get_meta("curse_amp", 0.0))
+		if amp > 0.0:
+			amount = int(round(float(amount) * (1.0 + amp)))
+	# Vulnerable / Armor Break amplifies all incoming damage.
+	if vuln_t > 0.0 and vuln_amp > 0.0:
+		amount = int(round(float(amount) * (1.0 + vuln_amp)))
+	# Frailty curse — cursed flesh takes more from everything.
+	if curses.has("frailty"):
+		amount = int(round(float(amount) * (1.0 + FRAILTY_AMP)))
+	return amount
+
+
+# Visual/audio feedback for a hit that landed: damage number + sparks + hit-stop,
+# hit-flash shader, HP-bar reveal/update, knockback impulse and the hurt SFX.
+func _play_hit_feedback(applied_amount: int, knockback: Vector2) -> void:
 	if VfxManager:
 		VfxManager.spawn_damage_number(
 			global_position + Vector2(0, -20), applied_amount, Color(1, 0.85, 0.4, 1)
@@ -1077,9 +1066,6 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		velocity = knockback
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/enemy/enemy_enemy_hurt.mp3", -10.0)
-	if health_component == null and hp <= 0:
-		_die()
-	return true
 
 
 # `from_net` — урон пришёл от другого игрока через relay (кооп-хост применяет
@@ -1505,6 +1491,13 @@ func get_active_statuses() -> Array:
 
 
 func _tick_status(delta: float) -> void:
+	_tick_elemental_status(delta)
+	_tick_curses_and_control(delta)
+
+
+# Elemental / physical effects: freeze + chill, fracture, recently-seen element
+# decay, and the burn/bleed/poison damage-over-time ticks.
+func _tick_elemental_status(delta: float) -> void:
 	if frozen_t > 0.0:
 		frozen_t -= delta
 		slow_mult = min(slow_mult, 0.05)
@@ -1532,14 +1525,6 @@ func _tick_status(delta: float) -> void:
 		if _bleed_tick_t <= 0.0:
 			_bleed_tick_t = 0.5
 			_apply_bleed_tick()
-	if vuln_t > 0.0:
-		vuln_t -= delta
-		if vuln_t <= 0.0:
-			vuln_amp = 0.0
-	if taunt_t > 0.0:
-		taunt_t -= delta
-		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
-			taunt_target = null
 	if poison_t > 0.0:
 		poison_t -= delta
 		_poison_tick_t -= delta
@@ -1548,6 +1533,19 @@ func _tick_status(delta: float) -> void:
 			_apply_poison_tick()
 		if poison_t <= 0.0:
 			poison_stacks = 0
+
+
+# Control + hex effects: Vulnerable, Taunt, the named curse timers (with the
+# Agony DoT and Doom payoff teardown) and the ally-passive internal cooldowns.
+func _tick_curses_and_control(delta: float) -> void:
+	if vuln_t > 0.0:
+		vuln_t -= delta
+		if vuln_t <= 0.0:
+			vuln_amp = 0.0
+	if taunt_t > 0.0:
+		taunt_t -= delta
+		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
+			taunt_target = null
 	if curse_t > 0.0:
 		curse_t -= delta
 		if curse_t <= 0.0:
@@ -1795,6 +1793,17 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	_die_trigger_affixes()
+	_die_disable_bodies()
+	_die_play_fx()
+	_die_grant_rewards()
+	_die_emit_event()
+	_die_dissolve_and_free()
+
+
+# On-death affix/curse payoffs (host/solo only): explosive burst, Fracture
+# detonation, Doom corpse-burst, Brood Mother hatchling swarm.
+func _die_trigger_affixes() -> void:
 	# Explosive affix — burst that damages nearby players/pets (host/solo only).
 	if _explosive and not is_puppet:
 		_affix_explode()
@@ -1808,7 +1817,11 @@ func _die() -> void:
 	# Brood Mother bursts into a small swarm on death.
 	if is_brood_mother:
 		_spawn_hatchlings(6)
-	# Disable collision so player/bolts pass through corpse.
+
+
+# Turn the corpse non-interactive: drop collision so player/bolts pass through,
+# stop hurt/hit boxes, hide HP bar + status strip.
+func _die_disable_bodies() -> void:
 	if collision_shape:
 		collision_shape.set_deferred("disabled", true)
 	if hurtbox:
@@ -1822,6 +1835,9 @@ func _die() -> void:
 	if _status_strip:
 		_status_strip.visible = false
 
+
+# Death burst VFX (with hit-stop + shake) and type-specific death SFX.
+func _die_play_fx() -> void:
 	# Big death VFX.
 	if VfxManager:
 		VfxManager.spawn_death_burst(global_position, enemy_type)
@@ -1834,6 +1850,10 @@ func _die() -> void:
 		if ResourceLoader.exists(death_path):
 			AudioManager.play_sfx_path(death_path, -6.0)
 
+
+# Grant XP + gold. Host broadcasts the death (clients spawn matching drops/VFX)
+# and grants flat XP so every peer levels in sync; solo grants XP with gear mult.
+func _die_grant_rewards() -> void:
 	# Multiplayer host: broadcast death so all clients spawn local drops + VFX.
 	# Skip local drop_loot (the death message triggers identical drops on host too).
 	if NetManager and NetManager.is_multiplayer and NetManager.is_host:
@@ -1862,6 +1882,10 @@ func _die() -> void:
 			GameManager.add_xp(xp_value)  # apply_mult=true: solo keeps XP-gain gear bonus
 		_drop_loot()
 
+
+# Fire the ActorDeathEvent on GameEvents (carrying killer/damage) and the legacy
+# enemy_defeated signal so the spawner can track wave progress.
+func _die_emit_event() -> void:
 	# Notify GameManager (so spawner can track waves).
 	if GameEvents:
 		var death_event := ActorDeathEvent.new()
@@ -1877,9 +1901,12 @@ func _die() -> void:
 	if GameManager and GameManager.has_signal("enemy_defeated"):
 		GameManager.enemy_defeated.emit()
 
-	# Dissolve-on-death — swap to the dissolve shader and animate dissolve_amount
-	# 0 → 1. Edge color uses the enemy's hue tint so the burn frontier reads
-	# thematically (skeletons burn white, wraiths blue, succubi pink).
+
+# Dissolve-on-death — swap to the dissolve shader and animate dissolve_amount
+# 0 → 1. Edge color uses the enemy's hue tint so the burn frontier reads
+# thematically (skeletons burn white, wraiths blue, succubi pink). A safety
+# Timer guarantees the node is released even if the tween never fires.
+func _die_dissolve_and_free() -> void:
 	if sprite and is_inside_tree():
 		var dm := ShaderMaterial.new()
 		dm.shader = DISSOLVE_SHADER
@@ -1920,14 +1947,7 @@ func _die() -> void:
 		add_child(safety)
 
 
-func _find_net_sync() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var scene := tree.current_scene
-	if scene == null:
-		return null
-	return scene.get_node_or_null("NetSync")
+# _find_net_sync() is inherited from CombatEntity.
 
 
 func _drop_loot() -> void:

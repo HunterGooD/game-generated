@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://b8plyrarlevelup"]
 
-[ext_resource type="Script" path="res://scripts/ui/level_up_choice.gd" id="1_lu"]
+[ext_resource type="Script" path="res://scripts/ui/run/level_up_choice.gd" id="1_lu"]
 [ext_resource type="Theme" path="res://assets/ui/theme.tres" id="2_theme"]
 
 [node name="LevelUpChoice" type="CanvasLayer" node_paths=PackedStringArray("card_row")]

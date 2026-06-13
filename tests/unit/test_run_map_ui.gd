@@ -14,6 +14,8 @@ func before_each() -> void:
 
 func after_each() -> void:
 	GameManager.run_state = _state0
+	# RunMapUI pauses the tree (solo) in _ready as an overlay; undo so GUT keeps ticking.
+	get_tree().paused = false
 
 
 func _descendants(n: Node) -> Array:
