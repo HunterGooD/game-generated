@@ -28,6 +28,17 @@ var team: String = ""
 var anim: String = "attack"  # AnimatedSprite2D animation to play while attacking
 var combo: Array = []  # reserved — chained-attack steps (unused today)
 
+# ── Basic-attack-UNIQUE extras (BASIC_UNIQUES entries; ignored by the 4 base kinds) ──
+# When set, the node is resolved from the skill catalog by id (script-carrier-safe)
+# instead of scene_path — used for uniques that reuse a skill scene/script.
+var skill_id: String = ""
+var dmg_mult: float = 1.0  # damage scale for this attack
+var anchor: String = ""  # spawn anchor for uniques: "global" (player) | "origin" (cast origin)
+var melee_theme: String = ""  # when set, melee_swing.setup gets (dir, dmg, theme, core)
+var melee_core: Color = Color(1, 1, 1, 1)  # core colour passed alongside melee_theme
+var via: String = "setup"  # "setup" -> call setup(); "context" -> SkillContext.apply with caster
+var spread: Array = []  # non-empty -> one shot per angle offset (e.g. triple throw)
+
 var _scene_cache: PackedScene = null
 
 
@@ -51,6 +62,13 @@ static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDefinition:
 	w.team = String(d.get("team", ""))
 	w.anim = String(d.get("anim", "attack"))
 	w.combo = (d.get("combo", []) as Array).duplicate()
+	w.skill_id = String(d.get("skill_id", ""))
+	w.dmg_mult = float(d.get("dmg_mult", 1.0))
+	w.anchor = String(d.get("anchor", ""))
+	w.melee_theme = String(d.get("melee_theme", ""))
+	w.melee_core = d.get("melee_core", Color(1, 1, 1, 1))
+	w.via = String(d.get("via", "setup"))
+	w.spread = (d.get("spread", []) as Array).duplicate()
 	return w
 
 

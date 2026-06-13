@@ -1645,109 +1645,57 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 	return _spawn_basic_unique(unique_id, dir, dmg, origin)
 
 
-# Instantiate the per-unique basic-attack scene and return its path ("" on miss).
+# Resolve a basic-unique's attack node: from the skill catalog by id (script-
+# carrier-safe — e.g. blood whip has no .tscn) when skill_id is set, else from
+# the unique's own scene.
+func _make_unique_node(w: WeaponDefinition) -> Node2D:
+	if w.skill_id != "":
+		var sd := SkillCatalog.get_def(w.skill_id)
+		return sd.instantiate_node() as Node2D if sd != null else null
+	var sc := w.get_scene()
+	return sc.instantiate() as Node2D if sc != null else null
+
+
+# Spawn the per-unique basic attack from WeaponCatalog.BASIC_UNIQUES (1:1 with the
+# old per-unique match). Returns a non-empty id/path so the caller treats the
+# unique as handled (and broadcasts it); "" on a genuine miss.
 func _spawn_basic_unique(unique_id: String, dir: Vector2, dmg: int, origin: Vector2) -> String:
-	match unique_id:
-		"basic_barb_shockwave":
-			var path := "res://scenes/combat/player/basic_shockwave.tscn"
-			var sc: PackedScene = load(path) as PackedScene
-			if sc == null:
-				return ""
-			var n: Node2D = sc.instantiate()
-			get_tree().current_scene.add_child(n)
-			n.global_position = origin + dir * 30.0
-			if n.has_method("setup"):
-				n.call("setup", dir, dmg)
-			return path
-		"basic_rogue_triple_throw":
-			var d_path := "res://scenes/combat/player/thrown_dagger.tscn"
-			var d_sc: PackedScene = load(d_path) as PackedScene
-			if d_sc == null:
-				return ""
-			# 3 daggers with spread.
-			var spreads: Array = [-0.25, 0.0, 0.25]
-			for spread in spreads:
-				var d: Node2D = d_sc.instantiate()
-				get_tree().current_scene.add_child(d)
-				d.global_position = origin
-				var d_dir: Vector2 = dir.rotated(float(spread))
-				if d.has_method("setup"):
-					d.call("setup", d_dir, max(1, int(round(float(dmg) * 0.7))))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_dagger_throw.mp3", -8.0
-				)
-			return d_path
-		"basic_mage_phantom_edge":
-			var p_path := "res://scenes/combat/player/melee_swing.tscn"
-			var p_sc: PackedScene = load(p_path) as PackedScene
-			if p_sc == null:
-				return ""
-			var sw: Node2D = p_sc.instantiate()
-			get_tree().current_scene.add_child(sw)
-			sw.global_position = global_position + dir * 30.0
-			if sw.has_method("setup"):
-				# Clean phantom blade, blue core.
-				sw.call("setup", dir, int(round(float(dmg) * 1.1)), "white", Color(0.6, 0.85, 1.5))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_basic_phantom_swing.mp3", -8.0
-				)
-			return p_path
-		"basic_druid_thunder_sphere":
-			var t_path := "res://scenes/combat/player/basic_thunder_sphere.tscn"
-			var t_sc: PackedScene = load(t_path) as PackedScene
-			if t_sc == null:
-				return ""
-			var b: Node2D = t_sc.instantiate()
-			get_tree().current_scene.add_child(b)
-			b.global_position = origin
-			if b.has_method("setup"):
-				b.call("setup", dir, dmg)
-			return t_path
-		"basic_necro_bone_lance":
-			var l_path := "res://scenes/combat/player/melee_swing.tscn"
-			var l_sc: PackedScene = load(l_path) as PackedScene
-			if l_sc == null:
-				return ""
-			var lance: Node2D = l_sc.instantiate()
-			get_tree().current_scene.add_child(lance)
-			lance.global_position = global_position + dir * 36.0
-			if lance.has_method("setup"):
-				# Clean bone lance, violet core.
-				lance.call("setup", dir, int(round(float(dmg) * 1.15)), "white", Color(0.85, 0.6, 1.4))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_basic_bone_lance.mp3", -8.0
-				)
-			return l_path
-		"basic_hexen_whipcrack":
-			var w_path := "res://scenes/skills/skill_hexen_blood_whip.tscn"
-			var w_sc: PackedScene = load(w_path) as PackedScene
-			if w_sc == null:
-				return ""
-			var whip: Node2D = w_sc.instantiate()
-			get_tree().current_scene.add_child(whip)
-			whip.global_position = origin
-			SkillContext.apply(whip, SkillContext.from_mods(dir, int(round(float(dmg) * 0.6)), {"caster": self}))
-			return w_path
-		"basic_storm_voltaic_tonfa":
-			var v_path := "res://scenes/combat/player/melee_swing.tscn"
-			var v_sc: PackedScene = load(v_path) as PackedScene
-			if v_sc == null:
-				return ""
-			var tonfa: Node2D = v_sc.instantiate()
-			get_tree().current_scene.add_child(tonfa)
-			tonfa.global_position = global_position + dir * 34.0
-			if tonfa.has_method("setup"):
-				# Electric tonfa, bright cyan core.
-				tonfa.call("setup", dir, int(round(float(dmg) * 1.05)), "storm", Color(0.55, 0.85, 1.6))
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_storm_chain_bolt.mp3", -12.0
-				)
-			return v_path
-	return ""
+	var w := WeaponCatalog.get_unique(unique_id)
+	if w == null:
+		return ""
+	var base_pos: Vector2 = global_position if w.anchor == "global" else origin
+	var spawn_pos: Vector2 = base_pos + dir * w.offset
+	var eff_dmg: int = maxi(1, int(round(float(dmg) * w.dmg_mult)))
+
+	if not w.spread.is_empty():
+		# Multi-shot (e.g. triple throw): one node per angle offset.
+		for a in w.spread:
+			var s := _make_unique_node(w)
+			if s == null:
+				continue
+			get_tree().current_scene.add_child(s)
+			s.global_position = spawn_pos
+			if s.has_method("setup"):
+				s.call("setup", dir.rotated(float(a)), eff_dmg)
+	else:
+		var node := _make_unique_node(w)
+		if node == null:
+			return ""
+		get_tree().current_scene.add_child(node)
+		node.global_position = spawn_pos
+		if w.via == "context":
+			SkillContext.apply(node, SkillContext.from_mods(dir, eff_dmg, {"caster": self}))
+		elif node.has_method("setup"):
+			if w.melee_theme != "":
+				node.call("setup", dir, eff_dmg, w.melee_theme, w.melee_core)
+			elif w.team != "":
+				node.call("setup", dir, eff_dmg, w.team)
+			else:
+				node.call("setup", dir, eff_dmg)
+
+	if AudioManager and w.sfx_path != "":
+		AudioManager.play_sfx_path(w.sfx_path, w.sfx_db)
+	return w.scene_path if w.scene_path != "" else w.skill_id
 
 
 func _on_footstep() -> void:

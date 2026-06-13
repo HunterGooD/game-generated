@@ -75,3 +75,28 @@ func test_combo_steps_parse_from_dict() -> void:
 	)
 	assert_eq(w.combo.size(), 2, "combo steps parsed")
 	assert_eq(float(w.combo[1].get("dmg_mult", 1.0)), 1.4, "step fields preserved")
+
+
+func test_basic_uniques_resolve_with_expected_shape() -> void:
+	# All 7 class basic-uniques resolve; unknown -> null.
+	for uid in WeaponCatalog.BASIC_UNIQUES.keys():
+		assert_not_null(WeaponCatalog.get_unique(uid), "%s resolves" % uid)
+	assert_null(WeaponCatalog.get_unique("nope"), "unknown unique -> null")
+
+	# Triple throw: spread of 3 at reduced damage.
+	var triple := WeaponCatalog.get_unique("basic_rogue_triple_throw")
+	assert_eq(triple.spread.size(), 3, "triple throw fires 3")
+	assert_eq(triple.dmg_mult, 0.7, "each dagger reduced")
+
+	# Whipcrack: resolves via the skill catalog (its .tscn was removed — script-
+	# carrier), spawned through SkillContext.
+	var whip := WeaponCatalog.get_unique("basic_hexen_whipcrack")
+	assert_eq(whip.skill_id, "hexen_blood_whip", "whipcrack reuses the blood whip skill")
+	assert_eq(whip.via, "context", "whipcrack spawns via SkillContext")
+	assert_eq(whip.scene_path, "", "whipcrack has no direct scene (uses skill_id)")
+	assert_not_null(SkillCatalog.get_def("hexen_blood_whip"), "blood whip still in skill catalog")
+
+	# Melee-skin unique carries theme + core colour for the swing.
+	var tonfa := WeaponCatalog.get_unique("basic_storm_voltaic_tonfa")
+	assert_eq(tonfa.melee_theme, "storm")
+	assert_eq(tonfa.anchor, "global")
