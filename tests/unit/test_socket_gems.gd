@@ -349,6 +349,9 @@ func test_jeweler_fuse_and_repaint() -> void:
 	assert_not_null(fused)
 	assert_eq(fused.rarity, "rare")
 	assert_eq(InventorySystem.count_bag_gems("ruby_shard"), 0)
+	# Fuse returns a RANDOM tier-up gem that can itself be a "ruby"; drop it so it
+	# can't inflate the "only 2 ruby" count below (was an RNG-flaky CI failure).
+	InventorySystem.inventory.erase(fused)
 	# Двух не хватает; уникальные выше не сливаются.
 	InventorySystem.add_item(InventorySystem.make_gem_item("ruby"))
 	InventorySystem.add_item(InventorySystem.make_gem_item("ruby"))
