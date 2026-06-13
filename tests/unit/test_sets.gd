@@ -3,9 +3,7 @@ extends GutTest
 # Set items: catalog integrity, instance counting (jewelry cap), rolling,
 # stones + crafting, serialization.
 
-const ALL_CLASSES := [
-	"barbarian", "rogue", "mage", "stormcaller", "hexen", "necromancer", "druid"
-]
+const ALL_CLASSES := ["barbarian", "rogue", "mage", "stormcaller", "hexen", "necromancer", "druid"]
 
 
 func before_each() -> void:
@@ -26,12 +24,9 @@ func _reset() -> void:
 
 
 func _node_exists(class_id: String, node_id: String) -> bool:
-	for branch in TalentTrees.branches_for(class_id):
-		for tier in branch.get("tiers", []):
-			for node in tier:
-				if String(node.get("id", "")) == node_id:
-					return true
-	return false
+	# Tree is now a flat node graph; find_node also covers the stat + ult columns
+	# (set grants target stat_* nodes that live outside nodes_for).
+	return not SkillTrees.find_node(class_id, node_id).is_empty()
 
 
 func _mk_set_piece(set_id: String, base_id: String) -> ItemInstance:
@@ -103,9 +98,7 @@ func test_every_jewelry_piece_counts() -> void:
 	InventorySystem.equipment[ItemDatabase.SLOT_HELMET] = _mk_set_piece(
 		"bastion_vow", "iron_helmet"
 	)
-	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece(
-		"bastion_vow", "plate_chest"
-	)
+	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece("bastion_vow", "plate_chest")
 	InventorySystem.equipment[ItemDatabase.SLOT_RING_1] = _mk_set_piece(
 		"cinderweave", "signet_ring"
 	)
@@ -143,9 +136,7 @@ func test_two_piece_stat_bonus() -> void:
 		"bastion_vow", "iron_helmet"
 	)
 	assert_eq(InventorySystem.get_total("max_hp"), 0.0, "1 piece = no bonus")
-	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece(
-		"bastion_vow", "plate_chest"
-	)
+	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece("bastion_vow", "plate_chest")
 	assert_eq(InventorySystem.get_total("max_hp"), 40.0, "2pc grants +40 HP")
 	assert_eq(InventorySystem.get_total("armor"), 10.0, "2pc grants +10 armor")
 
@@ -245,9 +236,7 @@ func test_four_piece_grants_node_ranks() -> void:
 	InventorySystem.equipment[ItemDatabase.SLOT_HELMET] = _mk_set_piece(
 		"cinderweave", "iron_helmet"
 	)
-	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece(
-		"cinderweave", "plate_chest"
-	)
+	InventorySystem.equipment[ItemDatabase.SLOT_CHEST] = _mk_set_piece("cinderweave", "plate_chest")
 	InventorySystem.equipment[ItemDatabase.SLOT_GLOVES] = _mk_set_piece(
 		"cinderweave", "iron_gauntlets"
 	)

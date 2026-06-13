@@ -13,10 +13,7 @@ extends RefCounted
 # the tree stays green at every step. NetSync replication and sub-projectile
 # spawns route through the same dispatcher.
 
-enum NetMode {
-	LOCAL,        # cast by THIS client — authoritative, applies damage
-	VISUAL_REMOTE # replicated copy on a peer — visual only, no damage
-}
+enum NetMode { LOCAL, VISUAL_REMOTE }  # cast by THIS client — authoritative, applies damage  # replicated copy on a peer — visual only, no damage
 
 var caster: Node = null
 var direction: Vector2 = Vector2.RIGHT
@@ -29,6 +26,9 @@ var is_visual_only: bool = false
 var net_mode: int = NetMode.LOCAL
 # Slot-swap transform id ("" when none) — e.g. "ice_wall", "bone_spear".
 var transform: String = ""
+# On-hit status elements granted by skill-tree status nodes ("fire"/"bleed"/
+# "frost"/"poison"/"curse"). Applied to enemies this cast hits via apply_on_hit().
+var on_hit: Array = []
 # Per-skill tuning keys the scene reads (duration_stacks, pierce, radius_stacks,
 # jumps_bonus, ...). Everything that isn't promoted to a typed field above.
 var mods: Dictionary = {}
@@ -51,6 +51,7 @@ static func from_mods(
 	ctx.is_visual_only = bool(m.get("visual_only", false))
 	ctx.net_mode = NetMode.VISUAL_REMOTE if ctx.is_visual_only else NetMode.LOCAL
 	ctx.transform = String(m.get("transform", ""))
+	ctx.on_hit = m.get("on_hit", [])
 	ctx.target_pos = target if target != Vector2.INF else ctx.direction  # best-effort
 	# Keep the full dict as `mods` so per-skill keys still resolve via ctx.mods.
 	ctx.mods = m
@@ -70,6 +71,34 @@ func to_mods() -> Dictionary:
 
 func get_mod(key: String, default_value: Variant = 0) -> Variant:
 	return mods.get(key, default_value)
+
+
+# Apply this cast's tree-granted on-hit statuses to a freshly-hit enemy. Reuses
+# enemy.gd's status API (apply_burn/apply_bleed/apply_chill/apply_poison/
+# add_curse_stack). Host-authoritative — skipped on the visual-only remote copy.
+func apply_on_hit(target: Node) -> void:
+	if is_visual_only or on_hit.is_empty() or target == null or not is_instance_valid(target):
+		return
+	if bool(target.get("dead")):
+		return
+	var dps: float = maxf(2.0, float(damage) * 0.15)
+	for el in on_hit:
+		match String(el):
+			"fire":
+				if target.has_method("apply_burn"):
+					target.call("apply_burn", 4.0, dps)
+			"bleed":
+				if target.has_method("apply_bleed"):
+					target.call("apply_bleed", 4.0, dps)
+			"frost":
+				if target.has_method("apply_chill"):
+					target.call("apply_chill", 3.0, 1)
+			"poison":
+				if target.has_method("apply_poison"):
+					target.call("apply_poison", 1, 5.0, dps * 0.7)
+			"curse":
+				if target.has_method("add_curse_stack"):
+					target.call("add_curse_stack")
 
 
 # Central dispatcher. Prefers the new typed entry; falls back to the legacy

@@ -13,8 +13,11 @@ var visual_only: bool = false
 var caster: Node = null
 var jump_bonus: int = 0
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
@@ -47,6 +50,8 @@ func _ready() -> void:
 		_draw_segment(prev_pos, next.global_position)
 		if next.has_method("take_damage"):
 			next.call("take_damage", current_dmg, prev_pos)
+			if _ctx != null:
+				_ctx.apply_on_hit(next)
 		# Add a static charge per hit.
 		if caster and caster.has_method("add_static_charge"):
 			caster.call("add_static_charge", 1)

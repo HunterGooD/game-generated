@@ -7,94 +7,56 @@ extends RefCounted
 # old inline SKILL_CATALOG dictionary. Authoring stays in code for now; each
 # entry can be exported to a .tres SkillDefinition later without touching callers.
 
-# Slot transform → alternate skill id (a unique OR a spec path replaces the base
-# slot skill). Mage ascensions add their slot swaps here; keyed id == skill id.
-const TRANSFORM_OVERRIDES: Dictionary = {
-	"necro_bone_spear": "necro_bone_spear",
-	"necro_curse_field": "necro_curse_field",
-	"druid_hurricane": "druid_hurricane",
-	"druid_dire_wolf": "druid_dire_wolf_form",
-	# Mage talent-tree slot swaps (bought as transform nodes in the run tree).
-	"frost_nova": "frost_nova",
-	"death_beam": "death_beam",
-	"meteor_shower": "meteor_shower",
-	# Battlemage (Mage) spec-path slot swaps.
-	"flame_cleave": "flame_cleave",
-	"frost_guard": "frost_guard",
-	"falling_brand": "falling_brand",
-	# Chronomancer (Mage) spec-path slot swaps.
-	"time_wall": "time_wall",
-	"time_link": "time_link",
-	"stasis_star": "stasis_star",
-	# Berserker (Barbarian) spec-path slot swaps.
-	"barb_bloodstorm": "barb_bloodstorm",
-	"barb_skullcrack_leap": "barb_skullcrack_leap",
-	"barb_rage_howl": "barb_rage_howl",
-	# Warchief (Barbarian) spec-path slot swaps.
-	"barb_commanding_shout": "barb_commanding_shout",
-	"barb_war_ground": "barb_war_ground",
-	"barb_guardian_leap": "barb_guardian_leap",
-	# Titanbreaker (Barbarian) spec-path slot swaps.
-	"barb_stone_grinder": "barb_stone_grinder",
-	"barb_fault_zone": "barb_fault_zone",
-	"barb_tremor_roar": "barb_tremor_roar",
-	# Rogue ascension slot swaps.
-	"rogue_vanish": "rogue_vanish",
-	"rogue_execution_fan": "rogue_execution_fan",
-	"rogue_razor_trap": "rogue_razor_trap",
-	"rogue_safehouse": "rogue_safehouse",
-	"rogue_trick_field": "rogue_trick_field",
-	"rogue_confusion_flask": "rogue_confusion_flask",
-	"rogue_triple_flask": "rogue_triple_flask",
-	"rogue_venom_fan": "rogue_venom_fan",
-	"rogue_toxic_spikes": "rogue_toxic_spikes",
-	# Stormcaller ascension slot swaps.
-	"storm_thunder_lunge": "storm_thunder_lunge",
-	"storm_body_discharge": "storm_body_discharge",
-	"storm_charged_slash": "storm_charged_slash",
-	"storm_forked_bolt": "storm_forked_bolt",
-	"storm_controlled_discharge": "storm_controlled_discharge",
-	"storm_pillar": "storm_pillar",
-	"storm_rescue_step": "storm_rescue_step",
-	"storm_energizing_discharge": "storm_energizing_discharge",
-	"storm_ally_arc": "storm_ally_arc",
-	# Hexen ascension slot swaps.
-	"hexen_open_wound": "hexen_open_wound",
-	"hexen_blood_scythe": "hexen_blood_scythe",
-	"hexen_blood_arena": "hexen_blood_arena",
-	"hexen_rotating_hex": "hexen_rotating_hex",
-	"hexen_curse_chain": "hexen_curse_chain",
-	"hexen_ritual_of_doom": "hexen_ritual_of_doom",
-	"hexen_binding_whip": "hexen_binding_whip",
-	"hexen_ally_tether": "hexen_ally_tether",
-	"hexen_safe_ritual": "hexen_safe_ritual",
-	# Necromancer ascension slot swaps.
-	"necro_skeletal_legion": "necro_skeletal_legion",
-	"necro_grave_champion": "necro_grave_champion",
-	"necro_rally_pulse": "necro_rally_pulse",
-	"necro_bone_turret": "necro_bone_turret",
-	"necro_bone_golem": "necro_bone_golem",
-	"necro_bone_nova": "necro_bone_nova",
-	"necro_oathbound_knight": "necro_oathbound_knight",
-	"necro_blood_ward": "necro_blood_ward",
-	"necro_mending_pulse": "necro_mending_pulse",
-	# Druid ascension slot swaps (slots 2 & 3 only — forms reuse 0/1).
-	"druid_hide_of_beast": "druid_hide_of_beast",
-	"druid_pack_spirit": "druid_pack_spirit",
-	"druid_barkskin_aura": "druid_barkskin_aura",
-	"druid_guardian_spirit": "druid_guardian_spirit",
-	"druid_earthen_pulse": "druid_earthen_pulse",
-	"druid_storm_totem": "druid_storm_totem",
+# Slot-swap / variant transform maps — DERIVED from the single SkillTrees table
+# (every variant node), so adding a tree variant needs no edit here.
+#   transform_overrides(): transform id → catalog skill id to cast instead of the
+#     base. Only "slot-swap" variants (a separate catalog skill); ctx-variants
+#     (ice_wall, hexen_bloodmoon, …) keep the base scene and branch on
+#     ctx.transform inside the skill script, so they're NOT in overrides.
+#   transform_base(): transform id → the BASE skill it belongs to. The guard in
+#     SkillSystem.get_transform deactivates a variant while the slot holds a
+#     different skill (druid forms reuse slots 0/1 per shape).
+static var _xf_overrides: Dictionary = {}
+static var _xf_base: Dictionary = {}
+static var _xf_built: bool = false
+
+# transform id → catalog skill id when they differ (else identity).
+const _XF_ALIASES := {"druid_dire_wolf": "druid_dire_wolf_form"}
+
+# Variants implemented as a ctx-flag on the BASE scene (no separate skill, no
+# slot swap). The base skill's script branches on ctx.transform == this id.
+const CTX_VARIANTS := {
+	"ice_wall": true,
+	"stone_armor_grinder": true,
+	"hexen_bloodmoon": true,
+	"hexen_eternal_mark": true,
+	"hexen_tether_shock": true,
+	"storm_capacitor_core": true,
+	"storm_heavens_spear": true,
+	"storm_stormveil": true,
 }
 
-# Which BASE skill a slot-swap transform is meant to replace. The druid reuses
-# slots 0/1 for different skills per form, so a transform keyed only by slot index
-# would leak onto whatever in-form skill now occupies that slot. Gating on the
-# slot's current skill_id fixes that. Transforms not listed always apply.
-const TRANSFORM_BASE_SKILL: Dictionary = {
-	"druid_hurricane": "druid_wolf_form",
-	"druid_dire_wolf": "druid_bear_form",
-}
+
+static func _ensure_transform_maps() -> void:
+	if _xf_built:
+		return
+	_xf_built = true
+	for b in SkillTrees.all_variant_bindings():
+		var t: String = String(b["transform"])
+		_xf_base[t] = String(b["base_skill"])
+		if CTX_VARIANTS.has(t):
+			continue
+		_xf_overrides[t] = String(_XF_ALIASES.get(t, t))
+
+
+static func transform_overrides() -> Dictionary:
+	_ensure_transform_maps()
+	return _xf_overrides
+
+
+static func transform_base() -> Dictionary:
+	_ensure_transform_maps()
+	return _xf_base
 
 # Druid form -> slot 0/1 swap. Slots 2 & 3 stay fixed; slot 4 is Eagle Form.
 const DRUID_FORM_SLOTS: Dictionary = {
@@ -214,6 +176,107 @@ const _RAW := {
 		"sfx": "res://assets/audio/sfx/player/player_spell_earthquake.mp3",
 		"spawn": "at_caster", "behavior": "telegraph_aoe",
 		"mod_wiring": {"wave_bonus": {"modifier": "barb_quake_waves"}},
+	},
+	# BARBARIAN SKILL-BLOCK OPTIONS — alternates pickable in the skill blocks
+	# (SkillBlocks.BLOCKS). Data-only where the composed runner suffices.
+	"barb_cleave": {
+		# TODO(art): dedicated icon; reuses Whirlwind's for now.
+		"name": "Cleave", "scene": "res://scenes/skills/skill_composed.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_whirlwind.png",
+		"cooldown": 5.0, "mana_cost": 14.0, "damage_mult": 1.6,
+		"sfx": "res://assets/audio/sfx/player/player_melee_swing.mp3",
+		"spawn": "ahead_of_caster", "behavior": "melee_arc",
+		"effects": [
+			{
+				"type": "vfx", "explosion_scale": 0.9,
+				"explosion_color": Color(0.9, 0.6, 0.4, 1), "shake_strength": 2.0, "shake_time": 0.12
+			},
+			{"type": "area_damage", "radius": 110.0, "damage_mult": 1.0},
+		],
+	},
+	"barb_sword_throw": {
+		# TODO(art): dedicated icon + sword projectile; reuses the thrown dagger.
+		"name": "Sword Throw", "scene": "res://scenes/skills/skill_composed.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_whirlwind.png",
+		"cooldown": 4.0, "mana_cost": 12.0, "damage_mult": 1.8,
+		"sfx": "res://assets/audio/sfx/player/player_dagger_throw.mp3",
+		"spawn": "at_caster", "behavior": "projectile",
+		"effects": [
+			{
+				"type": "projectile", "scene_path": "res://scenes/combat/player/thrown_dagger.tscn",
+				"count": 1, "aimed": true, "arc": 0.0, "spawn_offset": 28.0
+			},
+		],
+	},
+	"barb_charge": {
+		# TODO(art): dedicated icon; reuses Leap Slam's for now.
+		"name": "Crushing Charge", "scene": "res://scenes/skills/skill_composed.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_leap.png",
+		"cooldown": 7.0, "mana_cost": 18.0, "damage_mult": 1.5,
+		"sfx": "res://assets/audio/sfx/player/player_spell_leap.mp3",
+		"spawn": "with_caster", "behavior": "dash",
+		"effects": [
+			{
+				"type": "dash", "max_distance": 340.0, "width": 70.0, "duration": 0.18,
+				"path_damage": true,
+				"sparks_color": Color(0.95, 0.6, 0.3, 1), "sparks_count": 10
+			},
+		],
+	},
+	"barb_chain_hook": {
+		# TODO(art): dedicated icon; reuses Leap Slam's for now.
+		"name": "Chain Hook", "scene": "res://scenes/skills/skill_barb_chain_hook.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_leap.png",
+		"cooldown": 8.0, "mana_cost": 20.0, "damage_mult": 0.8,
+		"sfx": "res://assets/audio/sfx/player/player_melee_swing.mp3",
+		"spawn": "at_caster", "behavior": "melee_arc",
+		"mod_wiring": {"angle_bonus": {"modifier": "barb_hook_angle", "mul": 12.0}},
+	},
+	# SKILL-BLOCK COPIES OF ASCENSION R ABILITIES — same scenes, retuned from
+	# ult pacing (50–80s) to regular-slot pacing. Separate ids so a later
+	# ascension's R never collides with the block pick.
+	"barb_banner_block": {
+		"name": "Victory Banner", "scene": "res://scenes/skills/skill_barb_banner.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_cry.png",
+		"cooldown": 30.0, "mana_cost": 40.0, "damage_mult": 1.0,
+		"sfx": "res://assets/audio/sfx/player/player_spell_battlecry.mp3",
+		"spawn": "at_caster", "behavior": "ground",
+	},
+	"barb_blood_frenzy_block": {
+		"name": "Berserk", "scene": "res://scenes/skills/skill_barb_blood_frenzy.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_cry.png",
+		"cooldown": 28.0, "mana_cost": 30.0, "damage_mult": 1.0,
+		"sfx": "res://assets/audio/sfx/player/player_spell_battlecry.mp3",
+		"spawn": "at_caster", "behavior": "buff",
+	},
+	"barb_worldsplitter_block": {
+		"name": "Titan Strike", "scene": "res://scenes/skills/skill_barb_worldsplitter.tscn",
+		"icon": "res://assets/sprites/items/icon_barb_quake.png",
+		"cooldown": 22.0, "mana_cost": 40.0, "damage_mult": 2.2,
+		"sfx": "res://assets/audio/sfx/player/player_spell_earthquake.mp3",
+		"spawn": "at_caster", "behavior": "telegraph_aoe",
+	},
+	"storm_eye_of_storm_block": {
+		"name": "Eye of the Storm", "scene": "res://scenes/skills/skill_storm_eye_of_storm.tscn",
+		"icon": "res://assets/sprites/items/icon_storm_sky_strike.png",
+		"cooldown": 26.0, "mana_cost": 45.0, "damage_mult": 0.8,
+		"sfx": "res://assets/audio/sfx/player/player_storm_sky_strike_warn.mp3",
+		"spawn": "at_target", "behavior": "ground",
+	},
+	"necro_crown_of_dead_block": {
+		"name": "Crown of the Dead", "scene": "res://scenes/skills/skill_composed.tscn",
+		"icon": "res://assets/sprites/items/icon_necro_blood_pact.png",
+		"cooldown": 26.0, "mana_cost": 40.0, "damage_mult": 1.0,
+		"sfx": "res://assets/audio/sfx/player/player_necro_blood_pact.mp3",
+		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "apply_buff", "args": [10.0, 1.15, 1.05]},
+			{
+				"type": "group_call", "group": "necro_minion",
+				"method": "apply_blood_pact", "args": [10.0, 1.2, 1.1]
+			},
+			{"type": "vfx", "sparks_color": Color(0.6, 0.4, 0.9, 1), "sparks_count": 14},
+		],
 	},
 	# ROGUE
 	"caltrops": {

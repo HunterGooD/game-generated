@@ -7,6 +7,8 @@ signal closed
 
 const BTN_BLANK_STYLEBOX: String = "res://assets/ui/btn_blank.tres"
 const TRADE_PANEL_SCENE: PackedScene = preload("res://scenes/ui/trade_panel.tscn")
+# Сброс талантов в магазине (как у костра) — цена за каждое возвращаемое очко.
+const RESPEC_GOLD_PER_POINT: int = 20
 
 # Built procedurally inside _build_ui() — not present in the .tscn.
 var dim: ColorRect = null
@@ -23,6 +25,7 @@ var reroll_btn: Button = null
 var add_affix_btn: Button = null
 var craft_box: VBoxContainer = null
 var buy_btns: Dictionary = {}  # rarity → Button
+var respec_btn: Button = null
 var current_wave: int = 1
 
 
@@ -204,6 +207,14 @@ func _build_ui() -> void:
 		trade_btn.pressed.connect(_open_trade)
 		vb.add_child(trade_btn)
 
+	# Сброс талантов — здесь же, в магазине (наравне с костром). Текст/блокировка
+	# обновляются в _refresh; видимость зависит от наличия дерева и возврата очков.
+	if GameManager and GameManager.use_talent_tree:
+		respec_btn = _make_button("Сброс талантов", 280, 56, 18, Color(0.85, 0.8, 1.0, 1))
+		respec_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		respec_btn.pressed.connect(_do_respec)
+		vb.add_child(respec_btn)
+
 	var leave_btn := _make_button("ПОКИНУТЬ ЛАВКУ", 280, 60, 22, Color(0.95, 0.7, 0.4, 1))
 	leave_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	leave_btn.pressed.connect(_close)
@@ -280,7 +291,10 @@ func _refresh() -> void:
 		var parts: Array = []
 		for mid in ItemDatabase.MATERIAL_IDS:
 			parts.append(
-				"%s: %d" % [String(ItemDatabase.MATERIAL_DISPLAY[mid]), GameManager.get_material(mid)]
+				(
+					"%s: %d"
+					% [String(ItemDatabase.MATERIAL_DISPLAY[mid]), GameManager.get_material(mid)]
+				)
 			)
 		materials_label.text = "   ".join(parts)
 	# Refresh buy buttons (gray out unaffordable).
@@ -293,6 +307,14 @@ func _refresh() -> void:
 		}
 		for r in buy_btns.keys():
 			_set_btn_disabled(buy_btns[r], GameManager.gold < int(costs[r]))
+	# Talent respec — show only when there are points to refund; price per point.
+	if respec_btn and GameManager:
+		var refund: int = GameManager.talent_respec_refund()
+		respec_btn.visible = refund > 0
+		if refund > 0:
+			var cost: int = refund * RESPEC_GOLD_PER_POINT
+			respec_btn.text = "Сброс талантов — вернуть %d очк. (%dз)" % [refund, cost]
+			_set_btn_disabled(respec_btn, GameManager.gold < cost)
 	# Inventory grid.
 	if item_grid and InventorySystem:
 		for c in item_grid.get_children():
@@ -483,6 +505,18 @@ func _open_trade() -> void:
 	# the merchant — the user can pop back into shopping after gifting.
 	var trade := TRADE_PANEL_SCENE.instantiate()
 	get_tree().current_scene.add_child(trade)
+
+
+func _do_respec() -> void:
+	if not GameManager:
+		return
+	var cost: int = GameManager.talent_respec_refund() * RESPEC_GOLD_PER_POINT
+	if GameManager.talent_respec_refund() <= 0 or GameManager.gold < cost:
+		return
+	GameManager.gold -= cost
+	GameManager.gold_changed.emit(GameManager.gold)
+	GameManager.respec_talents()
+	_refresh()
 
 
 func _close() -> void:

@@ -239,6 +239,14 @@ const SKILL_MODIFIERS := [
 		"rarity": "rare",
 		"stack_bonus": "+1 ударная волна"
 	},
+	{
+		"id": "barb_hook_angle",
+		"slot": 1,
+		"title": "Широкий замах",
+		"desc": "Цепной захват цепляет врагов в более широком конусе",
+		"rarity": "common",
+		"stack_bonus": "+12° угла захвата"
+	},
 	# ROGUE — slots: Caltrops(0), Smoke Bomb(1), Poison Vial(2), Fan of Knives(3)
 	{
 		"id": "rogue_knives_damage",

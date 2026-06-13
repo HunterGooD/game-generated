@@ -14,8 +14,11 @@ var extra_lifetime: float = 0.0
 
 @onready var grid_root: Node2D = self
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	# Lasting Barbs modifier — each stack keeps the spikes on the ground longer.
@@ -100,5 +103,7 @@ func _physics_process(delta: float) -> void:
 			var enemy = area.get_parent()
 			if enemy and enemy.has_method("take_damage"):
 				enemy.take_damage(damage, spike.global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(enemy)
 			if enemy and enemy.has_method("apply_slow"):
 				enemy.apply_slow(slow_t, slow_mult)

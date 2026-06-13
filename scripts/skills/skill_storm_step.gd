@@ -13,6 +13,7 @@ var visual_only: bool = false
 var caster: Node = null
 var start_pos: Vector2 = Vector2.ZERO
 var end_pos: Vector2 = Vector2.ZERO
+var stormveil: bool = false
 
 
 func setup_context(ctx: SkillContext) -> void:
@@ -24,6 +25,8 @@ func setup_context(ctx: SkillContext) -> void:
 	if visual_only:
 		set_meta("visual_only", true)
 	caster = ctx.caster
+	# Stormveil — block variant (ctx.transform) or the unique — slows enemies hit.
+	stormveil = ctx.transform == "storm_stormveil"
 	if caster:
 		start_pos = (caster as Node2D).global_position
 		var to_mouse: Vector2 = (caster as Node2D).get_global_mouse_position() - start_pos
@@ -62,11 +65,12 @@ func _apply_damage() -> void:
 	if tree == null:
 		return
 	var hit: Dictionary = {}
-	var stormveil: bool = (
-		InventorySystem
-		and InventorySystem.has_method("has_unique")
-		and bool(InventorySystem.call("has_unique", "storm_stormveil"))
-	)
+	if not stormveil:
+		stormveil = (
+			InventorySystem
+			and InventorySystem.has_method("has_unique")
+			and bool(InventorySystem.call("has_unique", "storm_stormveil"))
+		)
 	var steps: int = 5
 	for i in steps + 1:
 		var t: float = float(i) / float(steps)

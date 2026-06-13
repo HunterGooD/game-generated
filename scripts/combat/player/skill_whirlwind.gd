@@ -16,8 +16,11 @@ var tick_t: float = 0.0
 var _spin_tween: Tween = null
 var caster_ref: Node = null
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	caster_ref = ctx.caster
@@ -65,8 +68,12 @@ func _tick_damage() -> void:
 		if area is HurtBoxComponent and hit_box:
 			hit_box.payload = _build_damage_payload()
 			(area as HurtBoxComponent).receive_hit(hit_box)
+			if enemy and _ctx != null:
+				_ctx.apply_on_hit(enemy)
 		elif enemy and enemy.has_method("take_damage"):
 			enemy.take_damage(damage, global_position)
+			if _ctx != null:
+				_ctx.apply_on_hit(enemy)
 		if enemy and VfxManager and randi() % 3 == 0:
 			VfxManager.spawn_hit_sparks(enemy.global_position, Color(1, 0.7, 0.4, 1), 4)
 
@@ -109,7 +116,9 @@ func _maybe_leave_fire_ring() -> void:
 
 
 func _build_damage_payload() -> DamageInstance:
-	return DamageInstance.new(float(damage), _resolve_damage_source(), self, [&"player", &"skill", &"whirlwind"], [])
+	return DamageInstance.new(
+		float(damage), _resolve_damage_source(), self, [&"player", &"skill", &"whirlwind"], []
+	)
 
 
 func _resolve_damage_source() -> Node:

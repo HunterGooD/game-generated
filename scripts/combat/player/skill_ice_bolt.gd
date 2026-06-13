@@ -19,6 +19,7 @@ var pierced_set: Dictionary = {}
 var slow_duration: float = SLOW_DURATION
 var slow_mult: float = SLOW_MULT
 var _caster: Node = null
+var _ctx: SkillContext = null
 
 
 func setup(dir: Vector2, dmg: int) -> void:
@@ -26,6 +27,7 @@ func setup(dir: Vector2, dmg: int) -> void:
 
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dir := ctx.direction
 	var dmg := ctx.damage
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
@@ -112,6 +114,8 @@ func _on_area_entered(area: Area2D) -> void:
 		enemy.apply_slow(slow_duration, slow_mult)
 	if enemy.has_method("mark_element"):
 		enemy.call("mark_element", "frost")
+	if _ctx != null:
+		_ctx.apply_on_hit(enemy)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(enemy.global_position, Color(0.7, 0.9, 1.4, 1.0), 8)
 	if pierce:
@@ -133,6 +137,8 @@ func _on_hit_hurtbox(area: Area2D) -> void:
 	pierced_set[id] = true
 	if enemy.has_method("apply_slow"):
 		enemy.apply_slow(slow_duration, slow_mult)
+	if _ctx != null:
+		_ctx.apply_on_hit(enemy)
 	if VfxManager:
 		VfxManager.spawn_hit_sparks(enemy.global_position, Color(0.7, 0.9, 1.4, 1.0), 8)
 	if pierce:
@@ -173,13 +179,7 @@ func _build_damage_payload() -> DamageInstance:
 	var attacker: Node = _caster
 	if attacker == null and is_inside_tree():
 		attacker = _resolve_local_player()
-	return DamageInstance.new(
-		float(damage),
-		attacker,
-		self,
-		[&"player", &"projectile", &"ice"],
-		[]
-	)
+	return DamageInstance.new(float(damage), attacker, self, [&"player", &"projectile", &"ice"], [])
 
 
 func _resolve_local_player() -> Node:

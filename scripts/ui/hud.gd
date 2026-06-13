@@ -361,8 +361,10 @@ func _refresh_hotbar_icons() -> void:
 	for i in 4:
 		if i >= skill_slots.size():
 			continue
+		if not skill_slots[i].has("icon"):
+			continue
 		var icon: Texture2D = skill_system_ref.call("get_skill_icon", i)
-		if icon and skill_slots[i].has("icon"):
+		if icon:
 			skill_slots[i]["icon"].texture = icon
 	_update_ult_slot()
 

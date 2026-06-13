@@ -10,8 +10,11 @@ var target_pos: Vector2 = Vector2.ZERO
 var visual_only: bool = false
 var _caster: Node = null
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dir := ctx.direction
 	var dmg := ctx.damage
 	damage = dmg
@@ -95,6 +98,8 @@ func _on_slam(tel: Sprite2D) -> void:
 				if d <= BLAST_RADIUS:
 					if e.has_method("take_damage"):
 						e.take_damage(damage, target_pos)
+						if _ctx != null:
+							_ctx.apply_on_hit(e)
 		if InventorySystem and InventorySystem.has_unique("worldcleaver"):
 			_worldcleaver_quake()
 	queue_free()

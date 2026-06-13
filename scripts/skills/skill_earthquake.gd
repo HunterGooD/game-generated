@@ -12,8 +12,11 @@ var hit_per_wave: Array = []
 var num_waves: int = BASE_WAVES
 var ring_gap: float = BASE_RING_GAP
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	# Aftershocks modifier — each stack adds a shockwave ring.
@@ -87,6 +90,8 @@ func _damage_ring(idx: int, max_r: float) -> void:
 			hits[id] = true
 			if e.has_method("take_damage"):
 				e.take_damage(damage, global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(e)
 			# Warbreaker Plate 5pc — shockwaves root enemies briefly.
 			if (
 				InventorySystem

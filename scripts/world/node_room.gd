@@ -9,6 +9,7 @@ const PORTAL_SCENE: PackedScene = preload("res://scenes/pickups/wave_portal.tscn
 const REST_CHOICE := preload("res://scripts/ui/rest_choice.gd")
 const SHRINE_EVENT := preload("res://scripts/ui/shrine_event.gd")
 const JEWELER_PANEL := preload("res://scripts/ui/jeweler_panel.gd")
+const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/skill_tree_panel.gd")
 const INTERACT_RANGE: float = 96.0
 
 @onready var _player: Node2D = $Player
@@ -34,6 +35,9 @@ var _shrine_used: bool = false
 var _shrine_in_range: bool = false
 var _shrine_open: bool = false
 
+# Дерево навыков открывается и в безопасных комнатах ([T]/[B]) — забег идёт.
+var _tree_panel: CanvasLayer = null
+
 
 func _ready() -> void:
 	_build_floor()
@@ -49,9 +53,37 @@ func _ready() -> void:
 			_build_shrine()
 	_spawn_exit_portal()
 	if AudioManager:
-		var music: AudioStream = load("res://assets/audio/music/music_exploration_dungeon_explore.mp3") as AudioStream
+		var music: AudioStream = (
+			load("res://assets/audio/music/music_exploration_dungeon_explore.mp3") as AudioStream
+		)
 		if music:
 			AudioManager.play_music(music, -14.0)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if (
+		(event.is_action_pressed("open_talents") or event.is_action_pressed("open_skills"))
+		and GameManager
+		and GameManager.can_open_skill_tree()
+	):
+		_toggle_tree_panel()
+		get_viewport().set_input_as_handled()
+
+
+# Открыть/закрыть дерево навыков (как в game_world, но без кнопки лвл-апа здесь).
+func _toggle_tree_panel() -> void:
+	if _tree_panel != null and is_instance_valid(_tree_panel):
+		_tree_panel.queue_free()
+		_tree_panel = null
+		return
+	var panel: CanvasLayer = SKILL_TREE_PANEL_SCRIPT.new()
+	panel.closed.connect(_on_tree_panel_closed)
+	add_child(panel)
+	_tree_panel = panel
+
+
+func _on_tree_panel_closed() -> void:
+	_tree_panel = null
 
 
 func _build_floor() -> void:
@@ -202,7 +234,9 @@ func _process(_delta: float) -> void:
 func _process_campfire() -> void:
 	if _campfire == null or _campfire_used or _rest_open:
 		return
-	var in_range: bool = _player.global_position.distance_to(_campfire.global_position) <= INTERACT_RANGE
+	var in_range: bool = (
+		_player.global_position.distance_to(_campfire.global_position) <= INTERACT_RANGE
+	)
 	if in_range != _campfire_in_range:
 		_campfire_in_range = in_range
 		_campfire_label.text = "Костёр — привал   [E]" if in_range else "Костёр — привал"
@@ -213,7 +247,9 @@ func _process_campfire() -> void:
 func _process_shrine() -> void:
 	if _shrine == null or _shrine_used or _shrine_open:
 		return
-	var in_range: bool = _player.global_position.distance_to(_shrine.global_position) <= INTERACT_RANGE
+	var in_range: bool = (
+		_player.global_position.distance_to(_shrine.global_position) <= INTERACT_RANGE
+	)
 	if in_range != _shrine_in_range:
 		_shrine_in_range = in_range
 		_shrine_label.text = "Алтарь сделки   [E]" if in_range else "Алтарь сделки"
@@ -224,10 +260,14 @@ func _process_shrine() -> void:
 func _process_jeweler() -> void:
 	if _jeweler == null or _jeweler_open:
 		return
-	var in_range: bool = _player.global_position.distance_to(_jeweler.global_position) <= INTERACT_RANGE
+	var in_range: bool = (
+		_player.global_position.distance_to(_jeweler.global_position) <= INTERACT_RANGE
+	)
 	if in_range != _jeweler_in_range:
 		_jeweler_in_range = in_range
-		_jeweler_label.text = "Ювелир — гранёж камней   [E]" if in_range else "Ювелир — гранёж камней"
+		_jeweler_label.text = (
+			"Ювелир — гранёж камней   [E]" if in_range else "Ювелир — гранёж камней"
+		)
 	if in_range and Input.is_action_just_pressed("interact"):
 		_open_jeweler()
 

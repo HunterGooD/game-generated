@@ -9,6 +9,7 @@ const SEARCH_RANGE: float = 480.0
 var damage: int = 12
 var target_world: Vector2 = Vector2.ZERO
 var jumps_bonus: int = 0
+var _ctx: SkillContext = null
 
 
 func setup(target: Vector2, dmg: int) -> void:
@@ -16,6 +17,7 @@ func setup(target: Vector2, dmg: int) -> void:
 
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var target := ctx.direction
 	var dmg := ctx.damage
 	target_world = target
@@ -60,6 +62,8 @@ func _ready() -> void:
 			enemy.take_damage(dmg_now, prev_pos)
 		if enemy.has_method("mark_element"):
 			enemy.call("mark_element", "storm")
+		if _ctx != null:
+			_ctx.apply_on_hit(enemy)
 		if VfxManager:
 			VfxManager.spawn_hit_sparks(enemy.global_position, Color(0.85, 0.95, 1.4, 1.0), 8)
 		prev_pos = enemy.global_position

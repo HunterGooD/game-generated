@@ -20,15 +20,19 @@ var life_t: float = DURATION
 var strike_t: float = 0.0
 var heavens_spear: bool = false
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 	caster = ctx.caster
-	if InventorySystem and InventorySystem.has_method("has_unique"):
+	heavens_spear = ctx.transform == "storm_heavens_spear"
+	if not heavens_spear and InventorySystem and InventorySystem.has_method("has_unique"):
 		heavens_spear = bool(InventorySystem.call("has_unique", "storm_heavens_spear"))
 
 
@@ -125,6 +129,8 @@ func _resolve_strike(pos: Vector2, tel: Sprite2D) -> void:
 			if pos.distance_to((e as Node2D).global_position) <= STRIKE_RADIUS:
 				if e.has_method("take_damage"):
 					e.call("take_damage", damage, pos)
+					if _ctx != null:
+						_ctx.apply_on_hit(e)
 				if caster and caster.has_method("add_static_charge"):
 					caster.call("add_static_charge", 1)
 	# Heaven's Spear charged patch.

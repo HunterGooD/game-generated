@@ -145,15 +145,15 @@ const SETS: Dictionary = {
 		{
 			"grants_by_class":
 			{
-				"barbarian": {"node": "warchief_dexterity", "ranks": 2},
-				"rogue": {"node": "trickster_dexterity", "ranks": 2},
-				"mage": {"node": "chronomancer_dexterity", "ranks": 2},
-				"stormcaller": {"node": "conductor_dexterity", "ranks": 2},
-				"hexen": {"node": "coven_mother_dexterity", "ranks": 2},
-				"necromancer": {"node": "gravebinder_dexterity", "ranks": 2},
-				"druid": {"node": "grovekeeper_dexterity", "ranks": 2},
+				"barbarian": {"node": "stat_dexterity", "ranks": 2},
+				"rogue": {"node": "stat_dexterity", "ranks": 2},
+				"mage": {"node": "stat_dexterity", "ranks": 2},
+				"stormcaller": {"node": "stat_dexterity", "ranks": 2},
+				"hexen": {"node": "stat_dexterity", "ranks": 2},
+				"necromancer": {"node": "stat_dexterity", "ranks": 2},
+				"druid": {"node": "stat_dexterity", "ranks": 2},
 			},
-			"label": "+2 ранга вашего таланта Ловкости",
+			"label": "+4 к Ловкости",
 		},
 		"bonus5":
 		{
@@ -172,15 +172,15 @@ const SETS: Dictionary = {
 		{
 			"grants_by_class":
 			{
-				"barbarian": {"node": "berserker_strength", "ranks": 2},
-				"rogue": {"node": "assassin_strength", "ranks": 2},
-				"mage": {"node": "battlemage_strength", "ranks": 2},
-				"stormcaller": {"node": "thunderblade_strength", "ranks": 2},
-				"hexen": {"node": "blood_witch_strength", "ranks": 2},
-				"necromancer": {"node": "deathlord_strength", "ranks": 2},
-				"druid": {"node": "primal_alpha_strength", "ranks": 2},
+				"barbarian": {"node": "stat_strength", "ranks": 2},
+				"rogue": {"node": "stat_strength", "ranks": 2},
+				"mage": {"node": "stat_strength", "ranks": 2},
+				"stormcaller": {"node": "stat_strength", "ranks": 2},
+				"hexen": {"node": "stat_strength", "ranks": 2},
+				"necromancer": {"node": "stat_strength", "ranks": 2},
+				"druid": {"node": "stat_strength", "ranks": 2},
 			},
-			"label": "+2 ранга вашего таланта Мощи",
+			"label": "+4 к Силе",
 		},
 		"bonus5":
 		{
@@ -660,7 +660,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "mage",
 		"transform": "shower_cascade",
 		"requires_transform": "meteor_shower",
-		"requires_label": "Требуется талант: Метеоритный дождь",
+		"requires_label": "Требуется вариант: Метеоритный дождь",
 		"transform_desc": "Метеоритный дождь обрушивает 2 дополнительных метеора.",
 		"fixed_affixes":
 		[
@@ -678,7 +678,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "mage",
 		"transform": "nova_glacial",
 		"requires_transform": "frost_nova",
-		"requires_label": "Требуется талант: Морозная нова",
+		"requires_label": "Требуется навык: Морозная нова",
 		"transform_desc": "Морозная нова вдобавок охлаждает — повторные новы намертво замораживают врагов.",
 		"fixed_affixes":
 		[
@@ -696,7 +696,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "mage",
 		"transform": "beam_twin",
 		"requires_transform": "death_beam",
-		"requires_label": "Требуется талант: Луч смерти",
+		"requires_label": "Требуется навык: Луч смерти",
 		"transform_desc": "Луч смерти выпускает второй луч позади вас.",
 		"fixed_affixes":
 		[
@@ -861,7 +861,7 @@ const UNIQUE_ITEMS: Array = [
 		"weapon_damage_mult": 1.85,
 		"transform": "bone_spear_splinters",
 		"requires_transform": "necro_bone_spear",
-		"requires_label": "Требуется талант: Костяное копьё",
+		"requires_label": "Требуется навык: Костяное копьё",
 		"transform_desc":
 		"Костяное копьё на последнем пробитии раскалывается на 3 осколка (50% урона).",
 		"fixed_affixes":
@@ -880,7 +880,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "necromancer",
 		"transform": "curse_field_harvest",
 		"requires_transform": "necro_curse_field",
-		"requires_label": "Требуется талант: Поле проклятия",
+		"requires_label": "Требуется навык: Поле проклятия",
 		"transform_desc":
 		"Враги, гибнущие в Поле проклятия, продлевают его на 1 с (до +5 с) и лечат приспешников на 10%.",
 		"fixed_affixes":
@@ -902,7 +902,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "druid",
 		"transform": "hurricane_twin",
 		"requires_transform": "druid_hurricane",
-		"requires_label": "Требуется талант: Ураган",
+		"requires_label": "Требуется вариант: Ураган",
 		"transform_desc": "Ураган призывает второй, меньший ураган (60% размера и урона).",
 		"fixed_affixes":
 		[
@@ -920,7 +920,7 @@ const UNIQUE_ITEMS: Array = [
 		"class_lock": "druid",
 		"transform": "dire_wolf_rend",
 		"requires_transform": "druid_dire_wolf",
-		"requires_label": "Требуется талант: Лютый волк",
+		"requires_label": "Требуется вариант: Лютый волк",
 		"transform_desc": "В облике лютого волка укусы рвут: цели кровоточат на 60% урона за 3 с.",
 		"fixed_affixes":
 		[

@@ -31,6 +31,7 @@ func execute(ctx: SkillContext, host: Node2D) -> void:
 			continue
 		if e.has_method("take_damage"):
 			e.call("take_damage", dmg, origin)
+		ctx.apply_on_hit(e)
 		if mark_element != "" and e.has_method("mark_element"):
 			e.call("mark_element", mark_element)
 		if slow_duration > 0.0 and e.has_method("apply_slow"):

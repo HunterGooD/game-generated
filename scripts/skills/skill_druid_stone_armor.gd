@@ -36,8 +36,10 @@ func setup_context(ctx: SkillContext) -> void:
 		if ss and ss.has_method("get_modifier"):
 			charge_stacks = int(ss.call("get_modifier", 2, "stone_armor_charges"))
 	charges_remaining = 1 + charge_stacks
-	# Grinder unique converts the armor into damaging spinning blades.
-	if caster and InventorySystem and InventorySystem.has_method("has_unique"):
+	# Grinder — the skill-block variant (ctx.transform) or the unique — converts
+	# the armor into damaging spinning blades.
+	grinder_active = ctx.transform == "stone_armor_grinder"
+	if not grinder_active and caster and InventorySystem and InventorySystem.has_method("has_unique"):
 		grinder_active = bool(InventorySystem.call("has_unique", "stone_armor_grinder"))
 
 

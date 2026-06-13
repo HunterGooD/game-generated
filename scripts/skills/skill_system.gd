@@ -16,11 +16,22 @@ signal modifier_applied(slot: int, modifier_id: String)
 signal transform_applied(slot: int, transform_id: String)
 signal skill_ids_changed
 
+# Per-rank scaling of the root skill node (SkillTrees skill-level): +damage and
+# −cooldown each rank. Cooldown never drops below MIN_COOLDOWN (absolute floor).
+const SKILL_LEVEL_DMG := 0.12
+const SKILL_LEVEL_CDR := 0.06
+const MIN_COOLDOWN := 0.5
+# Generic cooldown-reduction passives: any slot modifier id ending in "_cdr".
+const CDR_PER_RANK := 0.05
+
 var skill_ids: Array = SkillCatalog.DEFAULT_SKILL_IDS.duplicate()
 var cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var modifiers: Array = [{}, {}, {}, {}]
 var transforms: Array = ["", "", "", ""]
 var active_transforms: Array = []
+# Per-slot on-hit status elements granted by tree nodes ("fire"/"bleed"/"frost"/
+# "poison"/"curse"). Applied to enemies the slot's skill hits (SkillContext.apply_on_hit).
+var on_hit: Array = [[], [], [], []]
 
 # Druid-only: current shape ("human", "wolf", "bear", "eagle", "dire_wolf").
 var druid_form: String = "human"
@@ -53,6 +64,7 @@ func _on_class_selected(_class_id: String) -> void:
 		cooldowns[i] = 0.0
 		modifiers[i] = {}
 		transforms[i] = ""
+		on_hit[i] = []
 	active_transforms.clear()
 	ascension_skill_id = ""
 	ascension_cd = 0.0
@@ -66,6 +78,9 @@ func _refresh_skill_ids() -> void:
 	if ids.size() < 4:
 		ids = SkillCatalog.DEFAULT_SKILL_IDS
 	skill_ids = ids.duplicate()
+	# Skill trees: base skills are ALWAYS active from level 1 (nothing locked) —
+	# the class default skill_ids ARE the constellation roots. Variant swaps are
+	# applied on top via apply_transform/get_transform (one variant per slot).
 	# Druid: respect the current form for slots 0 & 1, and add Eagle Form as
 	# the 5th "ultimate" slot bound to Q.
 	if String(GameManager.player_class) == "druid":
@@ -80,6 +95,8 @@ func _refresh_skill_ids() -> void:
 			modifiers.append({})
 		while transforms.size() < 5:
 			transforms.append("")
+		while on_hit.size() < 5:
+			on_hit.append([])
 		_apply_druid_form_to_skill_ids()
 	else:
 		# Trim back to 4 for non-druid classes.
@@ -91,6 +108,8 @@ func _refresh_skill_ids() -> void:
 			modifiers.resize(4)
 		if transforms.size() > 4:
 			transforms.resize(4)
+		if on_hit.size() > 4:
+			on_hit.resize(4)
 	skill_ids_changed.emit()
 
 
@@ -262,12 +281,12 @@ func get_ascension_mana_cost() -> float:
 
 
 func get_skill_icon(slot: int) -> Texture2D:
-	# Honor unique transforms — show the bone-spear / curse-field / hurricane
-	# / dire-wolf icon when the corresponding unique is equipped.
+	# Honor the active variant — show its icon when a slot-swap variant is on.
 	var d: SkillDefinition = get_slot_def(slot)
 	var transform_id: String = get_transform(slot)
-	if transform_id != "" and SkillCatalog.TRANSFORM_OVERRIDES.has(transform_id):
-		d = SkillCatalog.get_def(String(SkillCatalog.TRANSFORM_OVERRIDES[transform_id]))
+	var overrides: Dictionary = SkillCatalog.transform_overrides()
+	if transform_id != "" and overrides.has(transform_id):
+		d = SkillCatalog.get_def(String(overrides[transform_id]))
 	if d == null:
 		return null
 	return d.get_icon()
@@ -276,8 +295,9 @@ func get_skill_icon(slot: int) -> Texture2D:
 func get_skill_name(slot: int) -> String:
 	var d: SkillDefinition = get_slot_def(slot)
 	var transform_id: String = get_transform(slot)
-	if transform_id != "" and SkillCatalog.TRANSFORM_OVERRIDES.has(transform_id):
-		d = SkillCatalog.get_def(String(SkillCatalog.TRANSFORM_OVERRIDES[transform_id]))
+	var overrides: Dictionary = SkillCatalog.transform_overrides()
+	if transform_id != "" and overrides.has(transform_id):
+		d = SkillCatalog.get_def(String(overrides[transform_id]))
 	return d.display_name if d else "?"
 
 
@@ -293,13 +313,40 @@ func add_modifier(slot: int, modifier_id: String) -> void:
 func apply_transform(slot: int, transform_id: String) -> void:
 	if slot < 0 or slot >= transforms.size():
 		return
+	# One variant per slot (radio): setting a new one replaces the old.
 	transforms[slot] = transform_id
-	if not active_transforms.has(transform_id):
-		active_transforms.append(transform_id)
+	_rebuild_active_transforms()
 	transform_applied.emit(slot, transform_id)
-	# Tell the HUD to repaint slot icon (so e.g. Bone Spear's icon replaces
-	# Raise Skeleton's the moment the unique is equipped).
+	# Repaint the HUD slot icon (variant icon replaces the base skill's).
 	skill_ids_changed.emit()
+
+
+# Clear the slot's active variant (radio "deselect" → back to the base skill).
+func clear_slot_variant(slot: int) -> void:
+	if slot < 0 or slot >= transforms.size():
+		return
+	transforms[slot] = ""
+	_rebuild_active_transforms()
+	skill_ids_changed.emit()
+
+
+# active_transforms is the deduped set of currently-applied variants. Rebuilt
+# from transforms[] so a switched-off variant never leaves a stale effect flag
+# (player.gd / InventorySystem.has_unique read this set).
+func _rebuild_active_transforms() -> void:
+	active_transforms.clear()
+	for t in transforms:
+		var ts := String(t)
+		if ts != "" and not active_transforms.has(ts):
+			active_transforms.append(ts)
+
+
+# Grant a slot an on-hit status element (tree status node). Idempotent per element.
+func add_on_hit(slot: int, element: String) -> void:
+	if slot < 0 or slot >= on_hit.size() or element == "":
+		return
+	if not (on_hit[slot] as Array).has(element):
+		(on_hit[slot] as Array).append(element)
 
 
 func get_modifier(slot: int, modifier_id: String) -> int:
@@ -320,6 +367,8 @@ func clear_run_upgrades() -> void:
 		modifiers[i] = {}
 	for i in transforms.size():
 		transforms[i] = ""
+	for i in on_hit.size():
+		on_hit[i] = []
 	active_transforms.clear()
 	skill_ids_changed.emit()
 
@@ -332,14 +381,12 @@ func get_transform(slot: int) -> String:
 	var t: String = transforms[slot]
 	if t == "":
 		return ""
-	# Form-aware guard: a slot-swap transform with a known base skill only applies
-	# while the slot actually holds that base skill. Without this, a druid in a
-	# beast form (slots 0/1 reused for in-form skills) would have those skills
-	# hijacked by the human-form transform sitting on the same slot index.
-	if (
-		SkillCatalog.TRANSFORM_BASE_SKILL.has(t)
-		and String(skill_ids[slot]) != String(SkillCatalog.TRANSFORM_BASE_SKILL[t])
-	):
+	# Form-aware guard: a variant with a known base skill only applies while the
+	# slot actually holds that base skill. Without this, a druid in a beast form
+	# (slots 0/1 reused for in-form skills) would have those skills hijacked by
+	# the human-form variant sitting on the same slot index.
+	var base_map: Dictionary = SkillCatalog.transform_base()
+	if base_map.has(t) and String(skill_ids[slot]) != String(base_map[t]):
 		return ""
 	return t
 
@@ -350,11 +397,12 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	if cooldowns[slot] > 0.0:
 		skill_failed.emit(slot, "cooldown")
 		return false
-	# Slot transform → alternate skill (uniques replace the base slot).
+	# Active variant → alternate skill scene (slot-swap variants).
 	var skill_id_local: String = String(skill_ids[slot])
 	var transform_id: String = get_transform(slot)
-	if transform_id != "" and SkillCatalog.TRANSFORM_OVERRIDES.has(transform_id):
-		skill_id_local = String(SkillCatalog.TRANSFORM_OVERRIDES[transform_id])
+	var overrides: Dictionary = SkillCatalog.transform_overrides()
+	if transform_id != "" and overrides.has(transform_id):
+		skill_id_local = String(overrides[transform_id])
 	var def: SkillDefinition = SkillCatalog.get_def(skill_id_local)
 	if def == null:
 		return false
@@ -369,7 +417,16 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 		skill_failed.emit(slot, "mana")
 		return false
 
-	cooldowns[slot] = def.cooldown * cd_mult
+	# Root skill level + generic "_cdr" passives lower cooldown; raise damage.
+	# Floored at MIN_COOLDOWN before cd_mult, so a Chronomancer free cast can still
+	# go below. CDR: any slot modifier id ending in "_cdr" → −5% per stack.
+	var skill_level: int = GameManager.get_skill_level(slot) if GameManager else 0
+	var cdr_ranks: int = _slot_cdr_ranks(slot)
+	var cd_factor: float = (
+		(1.0 - SKILL_LEVEL_CDR * float(skill_level)) * (1.0 - CDR_PER_RANK * float(cdr_ranks))
+	)
+	var leveled_cd: float = maxf(MIN_COOLDOWN, def.cooldown * cd_factor)
+	cooldowns[slot] = leveled_cd * cd_mult
 	cooldown_started.emit(slot, cooldowns[slot])
 
 	if AudioManager:
@@ -396,8 +453,11 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 	# Buff multiplier (from Battle Cry etc.) and Intelligence skill-damage scaling.
 	var buff_mult: float = _player_buff_dmg(caster)
 	var stat_mult: float = GameManager.get_stat_skill_damage_mult() if GameManager else 1.0
+	var level_mult: float = 1.0 + SKILL_LEVEL_DMG * float(skill_level)
 	var scaled_damage: int = int(
-		round(float(base_damage) * dmg_mult * (1.0 + stack_bonus) * buff_mult * stat_mult)
+		round(
+			float(base_damage) * dmg_mult * (1.0 + stack_bonus) * buff_mult * stat_mult * level_mult
+		)
 	)
 
 	# Build per-skill modifier dict and delegate the spawn.
@@ -413,10 +473,23 @@ func try_cast(slot: int, caster: Node2D, mouse_world: Vector2) -> bool:
 # resolves to  const + mul * get_modifier(slot, modifier)  (or a bool via as_bool),
 # preserving int-ness when both const and mul are ints so consumers see identical
 # values. `transform` and `caster` are always provided.
+# Total ranks of generic cooldown-reduction modifiers (id ends in "_cdr") on a slot.
+func _slot_cdr_ranks(slot: int) -> int:
+	if slot < 0 or slot >= modifiers.size():
+		return 0
+	var total: int = 0
+	for mod_id in modifiers[slot]:
+		if String(mod_id).ends_with("_cdr"):
+			total += int(modifiers[slot][mod_id])
+	return total
+
+
 func _build_mods(slot: int, def: SkillDefinition, caster: Node) -> Dictionary:
+	var slot_on_hit: Array = on_hit[slot] if slot >= 0 and slot < on_hit.size() else []
 	var mods: Dictionary = {
 		"transform": get_transform(slot),
 		"caster": caster,
+		"on_hit": slot_on_hit,
 	}
 	for key in def.mod_wiring:
 		var entry: Dictionary = def.mod_wiring[key]

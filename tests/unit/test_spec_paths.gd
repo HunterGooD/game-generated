@@ -1,7 +1,8 @@
 extends GutTest
 
-# SpecPaths data integrity: every class has 3 paths and every path's R ability and
-# slot transforms resolve to a real SkillDefinition. Pure data — trivial to test.
+# SpecPaths data integrity: every class has 3 paths and every path's R ability
+# resolves to a real SkillDefinition. Slot transforms moved to SkillBlocks
+# (`requires_path` sub-choices) — paths must NOT define them anymore.
 
 const CLASSES := ["mage", "barbarian", "rogue", "stormcaller", "hexen", "necromancer", "druid"]
 
@@ -11,7 +12,7 @@ func test_each_class_has_three_paths() -> void:
 		assert_eq(SpecPaths.paths_for(cls).size(), 3, "%s should have 3 spec paths" % cls)
 
 
-func test_path_ability_and_transforms_resolve_in_catalog() -> void:
+func test_path_ability_resolves_in_catalog() -> void:
 	for cls in CLASSES:
 		for p in SpecPaths.paths_for(cls):
 			var ability: String = String(p.get("ability", ""))
@@ -19,11 +20,17 @@ func test_path_ability_and_transforms_resolve_in_catalog() -> void:
 				assert_not_null(
 					SkillCatalog.get_def(ability), "%s ability '%s' missing from catalog" % [cls, ability]
 				)
-			for slot_skill in (p.get("transforms", {}) as Dictionary).values():
-				assert_not_null(
-					SkillCatalog.get_def(String(slot_skill)),
-					"%s transform '%s' missing from catalog" % [cls, slot_skill]
-				)
+
+
+func test_paths_define_no_slot_transforms() -> void:
+	# Ascension slot swaps live in SkillBlocks as requires_path sub-choices now;
+	# a transforms key here would silently do nothing (player.gd no longer applies it).
+	for cls in CLASSES:
+		for p in SpecPaths.paths_for(cls):
+			assert_false(
+				p.has("transforms"),
+				"%s path '%s' still defines transforms — move them to SkillBlocks" % [cls, p.get("id")]
+			)
 
 
 func test_find_returns_matching_path() -> void:

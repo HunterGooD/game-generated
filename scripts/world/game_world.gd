@@ -36,7 +36,7 @@ const ACTIVITY_DEFS := [
 
 const CLASS_SELECTOR_SCENE: PackedScene = preload("res://scenes/ui/class_selector.tscn")
 const LEVEL_UP_SCENE: PackedScene = preload("res://scenes/ui/level_up_choice.tscn")
-const TALENT_PANEL_SCRIPT: Script = preload("res://scripts/ui/talent_panel.gd")
+const SKILL_TREE_PANEL_SCRIPT: Script = preload("res://scripts/ui/skill_tree_panel.gd")
 const GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over.tscn")
 const NET_SYNC_SCRIPT: Script = preload("res://scripts/world/net_sync.gd")
 const WORLD_BACKDROP_SCRIPT: Script = preload("res://scripts/world/world_backdrop.gd")
@@ -47,8 +47,9 @@ var level_up_active: bool = false
 # open the 3-card overlay when it's safe (it can be minimised + reopened). Much kinder
 # in co-op where the world keeps running.
 var _level_up_btn: Button = null
-# Open talent panel (GameManager.use_talent_tree mode); null when closed.
-var _talent_panel: CanvasLayer = null
+# Open unified skill-tree panel [T]; null when closed. Holds skills, stats AND
+# the ascension pick (folded in — no separate overlay).
+var _tree_panel: CanvasLayer = null
 # The current level-up's rolled cards, kept so minimising + reopening shows the SAME offer
 # (no free re-roll). Cleared only when a card is actually taken — the next level rolls fresh.
 var _saved_offers: Array = []
@@ -125,13 +126,17 @@ func _ready() -> void:
 	if dungeon_runner:
 		_setup_camera_limits()  # runner overrides limits to the dungeon bounds
 		dungeon_runner.call("build")
-		var biome: String = String(dungeon_runner.get("_biome")) if dungeon_runner.get("_biome") != null else "ruins"
+		var biome: String = (
+			String(dungeon_runner.get("_biome"))
+			if dungeon_runner.get("_biome") != null
+			else "ruins"
+		)
 		backdrop.call("setup_from_camera", camera, biome)
 	else:
 		_build_floor()
 		_build_walls()
 		_place_decorations()
-	#	_place_activities()
+		#	_place_activities()
 		_setup_camera_limits()
 		backdrop.call("setup_from_camera", camera, "ruins")
 
@@ -166,7 +171,7 @@ func _ready() -> void:
 		# Talent-tree mode: the button mirrors unspent points (they survive scene
 		# changes on the autoload, unlike the per-world pending_level_ups counter).
 		GameManager.talents_changed.connect(_refresh_level_up_button)
-		if GameManager.use_talent_tree and GameManager.talent_points > 0:
+		if GameManager.use_talent_tree:
 			call_deferred("_refresh_level_up_button")
 		GameManager.spec_path_offered.connect(_on_spec_path_offered)
 		GameManager.spec_path_chosen.connect(_on_spec_path_chosen)
@@ -209,8 +214,10 @@ func _spawn_class_selector() -> void:
 
 func _on_player_levelled_up(_lv: int) -> void:
 	# Talent-tree mode: the point was already granted by GameManager.add_xp and
-	# talents_changed refreshed the button — nothing to queue here.
+	# talents_changed refreshed the button. A level-up can also unlock a skill
+	# block — refresh so the button flips to «НОВЫЙ НАВЫК».
 	if GameManager and GameManager.use_talent_tree:
+		_refresh_level_up_button()
 		return
 	pending_level_ups += 1
 	# Don't slam a modal in the player's face mid-fight — surface a HUD button they
@@ -259,11 +266,12 @@ func _refresh_level_up_button() -> void:
 		return
 	var show: bool
 	if GameManager and GameManager.use_talent_tree:
-		# Talent mode: surface unspent points; hide while the panel is open.
+		# Surface unspent points; hide while the tree panel is open.
+		var panel_closed: bool = _tree_panel == null or not is_instance_valid(_tree_panel)
 		var pts: int = GameManager.talent_points
-		show = pts > 0 and (_talent_panel == null or not is_instance_valid(_talent_panel))
+		show = panel_closed and pts > 0
 		if show:
-			_level_up_btn.text = "⬆ TALENTS ×%d" % pts if pts > 1 else "⬆ TALENTS"
+			_level_up_btn.text = "⬆ РАЗВИТИЕ ×%d" % pts if pts > 1 else "⬆ РАЗВИТИЕ"
 	else:
 		show = pending_level_ups > 0 and not level_up_active
 		if show:
@@ -275,40 +283,39 @@ func _refresh_level_up_button() -> void:
 	_refresh_spec_button()
 
 
-# Toggle the talent panel (button or [T]). Stays usable with 0 points — you can
-# always browse the tree; only spending is gated.
-func _toggle_talent_panel() -> void:
-	if _talent_panel != null and is_instance_valid(_talent_panel):
-		_talent_panel.queue_free()
-		_talent_panel = null
+# Toggle the unified skill-tree panel (button, [T] or [B]). Browsable any time;
+# only spending is gated. Holds skills, stats and the ascension pick.
+func _toggle_tree_panel() -> void:
+	if _tree_panel != null and is_instance_valid(_tree_panel):
+		_tree_panel.queue_free()
+		_tree_panel = null
 		_refresh_level_up_button()
 		return
-	var panel: CanvasLayer = TALENT_PANEL_SCRIPT.new()
-	panel.closed.connect(_on_talent_panel_closed)
+	var panel: CanvasLayer = SKILL_TREE_PANEL_SCRIPT.new()
+	panel.closed.connect(_on_tree_panel_closed)
 	add_child(panel)
-	_talent_panel = panel
+	_tree_panel = panel
 	_refresh_level_up_button()
 
 
-func _on_talent_panel_closed() -> void:
-	_talent_panel = null
+func _on_tree_panel_closed() -> void:
+	_tree_panel = null
 	_refresh_level_up_button()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if (
-		event.is_action_pressed("open_talents")
+		(event.is_action_pressed("open_talents") or event.is_action_pressed("open_skills"))
 		and GameManager
-		and GameManager.use_talent_tree
-		and not GameManager.game_over
+		and GameManager.can_open_skill_tree()
 	):
-		_toggle_talent_panel()
+		_toggle_tree_panel()
 		get_viewport().set_input_as_handled()
 
 
 func _open_level_up_choice() -> void:
 	if GameManager and GameManager.use_talent_tree:
-		_toggle_talent_panel()
+		_toggle_tree_panel()
 		return
 	if level_up_active or pending_level_ups <= 0:
 		return
@@ -353,10 +360,10 @@ func _on_spec_path_offered() -> void:
 	_refresh_spec_button()
 
 
+# Ascension is its own level-7 choice (R ability + passive), NOT part of the
+# skill tree. Open the dedicated overlay; the choice stays PENDING until a card
+# is actually picked, so a minimise / scene change can never lose it.
 func _try_show_spec_path() -> void:
-	# Try to auto-open once it's safe: wait until level-up overlays clear AND the player isn't
-	# downed/dead. The choice stays PENDING (not cleared here) until a card is actually picked,
-	# so a minimise, a roulette, or a scene change can never lose it — the HUD button persists.
 	if spec_path_active or not spec_path_pending or level_up_active or pending_level_ups > 0:
 		_refresh_spec_button()
 		return
@@ -369,6 +376,16 @@ func _try_show_spec_path() -> void:
 	ov.collapsed.connect(_on_spec_path_collapsed)
 	ov.tree_exited.connect(_on_spec_path_closed)
 	add_child(ov)
+
+
+func _on_spec_path_collapsed() -> void:
+	spec_path_active = false
+	_refresh_spec_button()
+
+
+func _on_spec_path_closed() -> void:
+	spec_path_active = false
+	_refresh_spec_button()
 
 
 # Build (once) the bottom-left "AWAKENING" button — sits just above the level-up button.
@@ -413,17 +430,6 @@ func _refresh_spec_button() -> void:
 # A path was actually chosen (GameManager.spec_path_chosen) — clear the pending awakening.
 func _on_spec_path_chosen(_path_id: String) -> void:
 	spec_path_pending = false
-	spec_path_active = false
-	_refresh_spec_button()
-
-
-# Minimised without choosing — keep the awakening pending and re-show the button.
-func _on_spec_path_collapsed() -> void:
-	spec_path_active = false
-	_refresh_spec_button()
-
-
-func _on_spec_path_closed() -> void:
 	spec_path_active = false
 	_refresh_spec_button()
 

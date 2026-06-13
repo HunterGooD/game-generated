@@ -10,8 +10,11 @@ const HEAL_CAP_PCT: float = 0.40
 var damage: int = 24
 var visual_only: bool = false
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
@@ -39,6 +42,8 @@ func setup_context(ctx: SkillContext) -> void:
 		if d <= radius:
 			if e.has_method("take_damage"):
 				e.take_damage(damage, caster.global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(e)
 			hits += 1
 	# Heal up to the cap.
 	if hits > 0 and GameManager:

@@ -20,6 +20,7 @@ var scale_mult: float = 1.0
 var _is_shower: bool = false
 var _is_shower_child: bool = false
 var _visual_only: bool = false
+var _ctx: SkillContext = null
 
 
 func setup(dmg: int) -> void:
@@ -27,6 +28,7 @@ func setup(dmg: int) -> void:
 
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	_visual_only = ctx.is_visual_only
@@ -95,7 +97,9 @@ func _spawn_shower_child() -> void:
 	var child: Node2D = packed.instantiate()
 	child.position = (
 		global_position
-		+ Vector2(randf_range(-SHOWER_SPREAD, SHOWER_SPREAD), randf_range(-SHOWER_SPREAD, SHOWER_SPREAD))
+		+ Vector2(
+			randf_range(-SHOWER_SPREAD, SHOWER_SPREAD), randf_range(-SHOWER_SPREAD, SHOWER_SPREAD)
+		)
 	)
 	var mods: Dictionary = {
 		"transform": "meteor_shower",
@@ -150,6 +154,8 @@ func _explode() -> void:
 					e.take_damage(dmg, global_position)
 				if e.has_method("mark_element"):
 					e.call("mark_element", "fire")
+				if _ctx != null:
+					_ctx.apply_on_hit(e)
 
 	# Pyrocrown unique / Cinderweave 5pc — leave a burning crater that ticks fire damage.
 	if (

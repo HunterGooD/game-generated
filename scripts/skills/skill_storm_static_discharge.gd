@@ -10,15 +10,21 @@ const REFUND_THRESHOLD: int = 6
 var damage: int = 28
 var visual_only: bool = false
 var caster: Node = null
+var capacitor_core: bool = false
+
+var _ctx: SkillContext = null
 
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 	caster = ctx.caster
+	# Capacitor Core — block variant (ctx.transform) or the unique.
+	capacitor_core = ctx.transform == "storm_capacitor_core"
 
 
 func _ready() -> void:
@@ -57,12 +63,19 @@ func _ready() -> void:
 				if global_position.distance_to((e as Node2D).global_position) <= RADIUS:
 					if e.has_method("take_damage"):
 						e.call("take_damage", burst_dmg, global_position)
+						if _ctx != null:
+							_ctx.apply_on_hit(e)
 		# Capacitor Core refund.
 		if (
 			stacks >= REFUND_THRESHOLD
-			and InventorySystem
-			and InventorySystem.has_method("has_unique")
-			and bool(InventorySystem.call("has_unique", "storm_capacitor_core"))
+			and (
+				capacitor_core
+				or (
+					InventorySystem
+					and InventorySystem.has_method("has_unique")
+					and bool(InventorySystem.call("has_unique", "storm_capacitor_core"))
+				)
+			)
 		):
 			var ss = caster.get_node_or_null("SkillSystem")
 			if ss and ss.cooldowns.size() > 3:

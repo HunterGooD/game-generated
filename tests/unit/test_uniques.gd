@@ -3,24 +3,25 @@ extends GutTest
 # Uniques after the rework: every unique is a (possibly conditional) skill
 # EFFECT — never a node-rank grant, never a slot swap.
 
-# Talent-tree transform ids per class (uniques requiring a talent must point at
-# a real transform node).
-var _talent_transform_ids: Dictionary = {}
+# Ids a conditional unique may require: a SkillTrees variant transform or a
+# constellation root skill (the ex-talent transforms that are now base skills).
+var _requirable_ids: Dictionary = {}
 
 
 func before_all() -> void:
-	for cls in ["barbarian", "rogue", "mage", "stormcaller", "hexen", "necromancer", "druid"]:
-		for branch in TalentTrees.branches_for(String(cls)):
-			for tier in branch.get("tiers", []):
-				for node in tier:
-					if String(node.get("kind", "")) == "transform":
-						_talent_transform_ids[String(node.get("transform", ""))] = true
+	for cls in SkillTrees.CLASS_IDS:
+		for n in SkillTrees.nodes_for(String(cls)):
+			match String(n.get("kind", "")):
+				"skill":
+					_requirable_ids[String(n["skill_id"])] = true
+				"variant":
+					_requirable_ids[String(n["transform"])] = true
 
 
 func after_each() -> void:
 	InventorySystem.equipment.clear()
 	InventorySystem._rebuild_transform_cache()
-	GameManager.talents = {}
+	GameManager.tree_nodes = {}
 
 
 func test_every_unique_has_effect_id() -> void:
@@ -30,20 +31,20 @@ func test_every_unique_has_effect_id() -> void:
 		)
 
 
-func test_requires_transform_points_at_real_talent() -> void:
+func test_requires_transform_points_at_real_tree_entry() -> void:
 	for u in ItemDatabase.UNIQUE_ITEMS:
 		var req: String = String(u.get("requires_transform", ""))
 		if req == "":
 			continue
 		assert_true(
-			_talent_transform_ids.has(req),
-			"%s requires unknown talent transform %s" % [u.get("id"), req]
+			_requirable_ids.has(req),
+			"%s requires unknown tree skill/variant %s" % [u.get("id"), req]
 		)
 		# Conditional uniques must use their OWN effect id, distinct from the
-		# talent transform they enhance (otherwise equipping the item would
-		# masquerade as having taken the talent).
+		# skill/variant they enhance (otherwise equipping the item would
+		# masquerade as having made that choice).
 		assert_ne(
-			String(u.get("transform", "")), req, "%s effect id collides with its talent" % u.get("id")
+			String(u.get("transform", "")), req, "%s effect id collides with its requirement" % u.get("id")
 		)
 		assert_ne(String(u.get("requires_label", "")), "", "%s missing requires_label" % u.get("id"))
 

@@ -25,7 +25,11 @@ func setup(dir: Vector2, dmg: int) -> void:
 	setup_context(SkillContext.from_mods(dir, dmg, {}))
 
 
+var _ctx: SkillContext = null
+
+
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dir := ctx.direction
 	var dmg := ctx.damage
 	direction = dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
@@ -131,6 +135,8 @@ func _process(delta: float) -> void:
 				else:
 					if enemy and enemy.has_method("take_damage"):
 						enemy.take_damage(damage, global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(enemy)
 				if is_ice and enemy and enemy.has_method("apply_slow"):
 					enemy.apply_slow(1.2, 0.4)
 					if enemy.has_method("mark_element"):

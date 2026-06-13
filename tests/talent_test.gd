@@ -1,8 +1,8 @@
 extends Node
 
-# Headless logic test for the in-run talent tree: point spending, tier gating,
-# stat application, ult gating, and respec refunds — pure GameManager/TalentTrees
-# state, no player node needed (skill-side effects no-op without a SkillSystem).
+# Headless logic test for the unified skill tree: point spending, constellation
+# gating, stat application, ult gating, variant radio, and respec refunds — pure
+# GameManager/SkillTrees state (skill-side effects no-op without a SkillSystem).
 #
 # Run:  godot --headless res://tests/talent_test.tscn --path .
 # Exit: 0 = all checks passed, 1 = at least one failure.
@@ -12,8 +12,8 @@ var _checks: int = 0
 
 
 func _ready() -> void:
-	print("=== TALENT TEST ===")
-	_test_spend_and_tiers()
+	print("=== SKILL TREE TEST ===")
+	_test_spend_and_gating()
 	_test_ult_gating()
 	_test_respec()
 	_test_stat_effects()
@@ -31,57 +31,52 @@ func _expect(cond: bool, msg: String) -> void:
 func _fresh_mage(points: int) -> void:
 	GameManager.use_talent_tree = true
 	GameManager.choose_class("mage")
+	GameManager.player_spec_path = ""
+	GameManager.tree_nodes = {}
 	GameManager.talent_points = points
 
 
-func _test_spend_and_tiers() -> void:
-	_fresh_mage(10)
-	# Tier-2 node is locked until 3 points sit in the branch.
+func _test_spend_and_gating() -> void:
+	_fresh_mage(12)
+	# Edge gating: flame_cleave hangs off the fw_duration diamond (row 2) → closed
+	# until that passive is taken.
 	_expect(
-		GameManager.talent_block_reason("fw_damage") != "",
-		"tier-2 node must be locked at 0 branch points"
+		GameManager.node_block_reason("flame_cleave") != "",
+		"variant must be gated before its parent passive"
 	)
-	# Tier-1 stat node: 3 ranks = +6 Strength and unlocks tier 2.
-	var str_before: int = GameManager.player_strength
-	for i in 3:
-		_expect(
-			GameManager.spend_talent_point("battlemage_strength"),
-			"tier-1 stat spend %d must succeed" % i
-		)
+	# Passive under the root is open immediately (root satisfies its children).
+	_expect(GameManager.node_block_reason("fw_damage") == "", "passive under root must be open")
+	_expect(GameManager.spend_node("fw_damage"), "passive spend must succeed")
+	_expect(GameManager.spend_node("fw_duration"), "diamond passive spend must succeed")
 	_expect(
-		GameManager.player_strength == str_before + 6,
-		"3 stat ranks must add +6 Strength (got %d, was %d)"
-		% [GameManager.player_strength, str_before]
+		GameManager.node_block_reason("flame_cleave") == "",
+		"variant must open once its parent passive is taken"
 	)
-	_expect(GameManager.talent_points == 7, "7 points must remain after 3 spends")
+	# Leveling the root skill itself.
+	_expect(GameManager.spend_node("fire_wall"), "root skill spend must succeed")
+	_expect(GameManager.get_skill_level(0) == 1, "skill level must be 1 after one rank")
+	# Variant costs VARIANT_COST; switching to a sibling under the same diamond is net-0.
+	var pts: int = GameManager.talent_points
+	_expect(GameManager.spend_node("flame_cleave"), "variant select must succeed")
+	_expect(GameManager.talent_points == pts - SkillTrees.VARIANT_COST, "variant costs 2")
+	var pts2: int = GameManager.talent_points
+	_expect(GameManager.spend_node("ice_wall"), "variant switch must succeed")
 	_expect(
-		GameManager.talent_block_reason("fw_damage") == "",
-		"tier-2 node must unlock at 3 branch points"
+		int(GameManager.tree_nodes.get("flame_cleave", 0)) == 0, "old variant refunded on switch"
 	)
-	_expect(GameManager.spend_talent_point("fw_damage"), "tier-2 spend must succeed")
-	# Cross-branch isolation: elementalist tier 2 is still locked.
-	_expect(
-		GameManager.talent_block_reason("ib_damage") != "",
-		"other branch's tier 2 must stay locked"
-	)
+	_expect(GameManager.talent_points == pts2, "switch is net-0 points")
 	# Unknown node id is rejected.
-	_expect(not GameManager.spend_talent_point("no_such_node"), "unknown node must be rejected")
-	# Zero points: everything blocked.
-	GameManager.talent_points = 0
-	_expect(
-		GameManager.talent_block_reason("battlemage_strength") != "",
-		"spending with 0 points must be blocked"
-	)
+	_expect(not GameManager.spend_node("no_such_node"), "unknown node must be rejected")
 
 
 func _test_ult_gating() -> void:
 	_fresh_mage(5)
 	_expect(
-		GameManager.talent_block_reason("ult_power") == "Requires an ascension",
+		GameManager.node_block_reason("ult_power") == "Требуется вознесение",
 		"ult node must require an ascension"
 	)
 	GameManager.choose_spec_path("battlemage")
-	_expect(GameManager.spend_talent_point("ult_power"), "ult spend must succeed after ascension")
+	_expect(GameManager.spend_node("ult_power"), "ult spend must succeed after ascension")
 	_expect(GameManager.get_talent_rank("ult_power") == 1, "ult rank must be 1")
 
 
@@ -89,18 +84,20 @@ func _test_respec() -> void:
 	_fresh_mage(6)
 	var str_base: int = GameManager.player_strength
 	for i in 3:
-		GameManager.spend_talent_point("battlemage_strength")
-	GameManager.spend_talent_point("fw_damage")
+		GameManager.spend_node("stat_strength")
+	GameManager.spend_node("fw_damage")
 	_expect(GameManager.talent_points == 2, "2 points must remain before respec")
 	_expect(GameManager.talent_respec_refund() == 4, "respec must refund 4 points")
 	GameManager.respec_talents()
 	_expect(GameManager.talent_points == 6, "all points must be back after respec")
 	_expect(
 		GameManager.player_strength == str_base,
-		"stat ranks must be reverted on respec (got %d, want %d)"
-		% [GameManager.player_strength, str_base]
+		(
+			"stat ranks must be reverted on respec (got %d, want %d)"
+			% [GameManager.player_strength, str_base]
+		)
 	)
-	_expect(GameManager.talents.is_empty(), "talents must be empty after respec")
+	_expect(GameManager.tree_nodes.is_empty(), "tree_nodes must be empty after respec")
 
 
 func _test_stat_effects() -> void:

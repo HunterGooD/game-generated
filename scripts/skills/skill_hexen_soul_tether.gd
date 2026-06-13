@@ -14,14 +14,18 @@ var tether_shock: bool = false
 var linked: Array = []  # Array[Node]
 var life_t: float = LINK_DURATION
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
-	if InventorySystem and InventorySystem.has_method("has_unique"):
+	tether_shock = ctx.transform == "hexen_tether_shock"
+	if not tether_shock and InventorySystem and InventorySystem.has_method("has_unique"):
 		tether_shock = bool(InventorySystem.call("has_unique", "hexen_tether_shock"))
 
 
@@ -86,6 +90,8 @@ func mirror_damage(source: Node, amount: int) -> void:
 				mirror,
 				(source as Node2D).global_position if source is Node2D else global_position
 			)
+			if _ctx != null:
+				_ctx.apply_on_hit(n)
 			# Tether Shock — stun if the original hit was huge.
 			if tether_shock and n.get("max_hp") != null and int(n.get("max_hp")) > 0:
 				var frac: float = float(amount) / float(n.get("max_hp"))

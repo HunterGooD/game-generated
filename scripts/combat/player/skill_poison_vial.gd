@@ -14,8 +14,11 @@ var life: float = LIFETIME
 var tick_t: float = 0.0
 var caster_ref: Node = null
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	caster_ref = ctx.caster
@@ -67,8 +70,12 @@ func _tick() -> void:
 		if area is HurtBoxComponent and hit_box:
 			hit_box.payload = _build_damage_payload()
 			(area as HurtBoxComponent).receive_hit(hit_box)
+			if enemy and _ctx != null:
+				_ctx.apply_on_hit(enemy)
 		elif enemy and enemy.has_method("take_damage"):
 			enemy.take_damage(damage, global_position)
+			if _ctx != null:
+				_ctx.apply_on_hit(enemy)
 
 
 func _done() -> void:
@@ -78,7 +85,9 @@ func _done() -> void:
 
 
 func _build_damage_payload() -> DamageInstance:
-	return DamageInstance.new(float(damage), _resolve_damage_source(), self, [&"player", &"skill", &"poison_vial"], [])
+	return DamageInstance.new(
+		float(damage), _resolve_damage_source(), self, [&"player", &"skill", &"poison_vial"], []
+	)
 
 
 func _resolve_damage_source() -> Node:

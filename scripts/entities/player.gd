@@ -51,6 +51,9 @@ const STATIC_CHARGE_CAP_BOOSTED: int = 9
 
 
 func get_static_charge_cap() -> int:
+	# Capacitor Core — bought as a skill-block variant or worn as the unique.
+	if skill_system and skill_system.active_transforms.has("storm_capacitor_core"):
+		return STATIC_CHARGE_CAP_BOOSTED
 	if InventorySystem and InventorySystem.has_method("has_unique"):
 		if InventorySystem.call("has_unique", "storm_capacitor_core"):
 			return STATIC_CHARGE_CAP_BOOSTED
@@ -300,14 +303,10 @@ func _on_spec_path_chosen(path_id: String) -> void:
 		var ring := ElemOrbRing.new()
 		ring.name = "ElemOrbRing"
 		add_child(ring)
-	# Path may replace the basic attack (Battlemage → melee fire blade) and swap
-	# skill slots (transforms). Re-derive the basic attack, and apply any slot
-	# transforms the path defines.
+	# Path may replace the basic attack (Battlemage → melee fire blade). Slot
+	# swaps moved to SkillBlocks: the path unlocks its `requires_path` variants
+	# there instead of transforming slots directly.
 	_refresh_basic_attack()
-	var transforms: Dictionary = p.get("transforms", {})
-	for slot_key in transforms:
-		if skill_system.has_method("apply_transform"):
-			skill_system.call("apply_transform", int(slot_key), String(transforms[slot_key]))
 
 
 func _on_revived() -> void:

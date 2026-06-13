@@ -17,9 +17,9 @@ extends SkillEffect
 @export var slow_mult: float = 1.0
 @export var chill_duration: float = 0.0
 @export var chill_stacks: int = 0
-@export var ally_shield_frac: float = 0.0    # ally shield = ctx.damage * this
+@export var ally_shield_frac: float = 0.0  # ally shield = ctx.damage * this
 @export var caster_shield_frac: float = 0.0  # caster shield = ctx.damage * this
-@export var cooldown_refund: float = 0.0     # caster.skill_system.reduce_all_cooldowns
+@export var cooldown_refund: float = 0.0  # caster.skill_system.reduce_all_cooldowns
 @export var notify_control: bool = false
 @export var telegraph_color: Color = Color(1, 0.4, 0.4, 0.85)
 @export var telegraph_texture: String = ""
@@ -71,56 +71,59 @@ func execute(ctx: SkillContext, host: Node2D) -> void:
 	var l_flash_t := flash_time
 
 	var t := tree.create_timer(delay)
-	t.timeout.connect(func() -> void:
-		if is_instance_valid(tel):
-			tel.queue_free()
-		if VfxManager:
-			if l_expl > 0.0:
-				VfxManager.spawn_explosion(origin, l_expl, l_expl_c)
-			if l_shake_t > 0.0:
-				VfxManager.screen_shake(l_shake, l_shake_t)
-			if l_flash_t > 0.0:
-				VfxManager.screen_flash(l_flash_c, l_flash_t)
-		if is_visual:
-			return
-		var tr := Engine.get_main_loop() as SceneTree
-		if tr == null:
-			return
-		for e in tr.get_nodes_in_group("enemy"):
-			if not is_instance_valid(e) or bool(e.get("dead")):
-				continue
-			var dist: float = origin.distance_to((e as Node2D).global_position)
-			if dist > l_radius:
-				continue
-			var d: int = dmg
-			if l_falloff:
-				d = int(round(float(dmg) * clampf(1.0 - (dist / l_radius) * 0.5, 0.4, 1.0)))
-			if e.has_method("take_damage"):
-				e.call("take_damage", d, origin)
-			if l_mark != "" and e.has_method("mark_element"):
-				e.call("mark_element", l_mark)
-			if l_chill_d > 0.0 and e.has_method("apply_chill"):
-				e.call("apply_chill", l_chill_d, l_chill_s)
-			elif l_slow_d > 0.0 and e.has_method("apply_slow"):
-				e.call("apply_slow", l_slow_d, l_slow_m)
-		if l_ally > 0.0:
-			for grp in ["player", "remote_player"]:
-				for a in tr.get_nodes_in_group(grp):
-					if not is_instance_valid(a) or not (a is Node2D):
-						continue
-					if origin.distance_to((a as Node2D).global_position) > l_radius:
-						continue
-					if a.has_method("add_shield"):
-						a.call("add_shield", float(base_dmg) * l_ally, -1.0)
-		if caster and is_instance_valid(caster):
-			if l_cshield > 0.0 and caster.has_method("add_shield"):
-				caster.call("add_shield", float(base_dmg) * l_cshield, -1.0)
-			if l_cd > 0.0:
-				var ss = caster.get("skill_system")
-				if ss and ss.has_method("reduce_all_cooldowns"):
-					ss.call("reduce_all_cooldowns", l_cd)
-			if l_control and caster.has_method("notify_control_applied"):
-				caster.call("notify_control_applied"))
+	t.timeout.connect(
+		func() -> void:
+			if is_instance_valid(tel):
+				tel.queue_free()
+			if VfxManager:
+				if l_expl > 0.0:
+					VfxManager.spawn_explosion(origin, l_expl, l_expl_c)
+				if l_shake_t > 0.0:
+					VfxManager.screen_shake(l_shake, l_shake_t)
+				if l_flash_t > 0.0:
+					VfxManager.screen_flash(l_flash_c, l_flash_t)
+			if is_visual:
+				return
+			var tr := Engine.get_main_loop() as SceneTree
+			if tr == null:
+				return
+			for e in tr.get_nodes_in_group("enemy"):
+				if not is_instance_valid(e) or bool(e.get("dead")):
+					continue
+				var dist: float = origin.distance_to((e as Node2D).global_position)
+				if dist > l_radius:
+					continue
+				var d: int = dmg
+				if l_falloff:
+					d = int(round(float(dmg) * clampf(1.0 - (dist / l_radius) * 0.5, 0.4, 1.0)))
+				if e.has_method("take_damage"):
+					e.call("take_damage", d, origin)
+					ctx.apply_on_hit(e)
+				if l_mark != "" and e.has_method("mark_element"):
+					e.call("mark_element", l_mark)
+				if l_chill_d > 0.0 and e.has_method("apply_chill"):
+					e.call("apply_chill", l_chill_d, l_chill_s)
+				elif l_slow_d > 0.0 and e.has_method("apply_slow"):
+					e.call("apply_slow", l_slow_d, l_slow_m)
+			if l_ally > 0.0:
+				for grp in ["player", "remote_player"]:
+					for a in tr.get_nodes_in_group(grp):
+						if not is_instance_valid(a) or not (a is Node2D):
+							continue
+						if origin.distance_to((a as Node2D).global_position) > l_radius:
+							continue
+						if a.has_method("add_shield"):
+							a.call("add_shield", float(base_dmg) * l_ally, -1.0)
+			if caster and is_instance_valid(caster):
+				if l_cshield > 0.0 and caster.has_method("add_shield"):
+					caster.call("add_shield", float(base_dmg) * l_cshield, -1.0)
+				if l_cd > 0.0:
+					var ss = caster.get("skill_system")
+					if ss and ss.has_method("reduce_all_cooldowns"):
+						ss.call("reduce_all_cooldowns", l_cd)
+				if l_control and caster.has_method("notify_control_applied"):
+					caster.call("notify_control_applied")
+	)
 
 
 static func from_data(d: Dictionary) -> SkillEffectTelegraph:

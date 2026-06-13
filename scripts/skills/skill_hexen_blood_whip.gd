@@ -17,8 +17,11 @@ var _caster: Node = null
 # +40% under 35% HP, and reports the cast back for HP cost / 3rd-strike heal.
 var _possessed: bool = false
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dir := ctx.direction
 	var dmg := ctx.damage
 	damage = dmg
@@ -102,13 +105,17 @@ func _apply_to(target: Node, caster_pos: Vector2, allow_pull: bool = true) -> vo
 	# Damage + fresh mark (the lash curses what it touches).
 	if target.has_method("take_damage"):
 		target.call("take_damage", damage, caster_pos)
+		if _ctx != null:
+			_ctx.apply_on_hit(target)
 	target.set_meta("hex_marked", true)
 	if target.has_method("add_curse_stack"):
 		target.call("add_curse_stack")
 	# Pull / dash.
 	if not allow_pull:
 		if VfxManager:
-			VfxManager.spawn_hit_sparks((target as Node2D).global_position, Color(1.0, 0.2, 0.35, 1), 5)
+			VfxManager.spawn_hit_sparks(
+				(target as Node2D).global_position, Color(1.0, 0.2, 0.35, 1), 5
+			)
 		return
 	var to_target: Vector2 = (target as Node2D).global_position - caster_pos
 	var dist: float = to_target.length()

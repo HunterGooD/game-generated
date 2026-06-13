@@ -23,7 +23,7 @@ func _ready() -> void:
 	_check_composed_skills()
 	_check_reward_class_mapping()
 	_check_unique_item_transforms()
-	_check_talent_trees()
+	_check_skill_trees()
 	print("=== RESULT: %d checks, %d failures ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -100,7 +100,9 @@ func _check_composed_skills() -> void:
 				var g := effect as SkillEffectGroupCall
 				if g.group == "" or g.method == "":
 					_fail("skill '%s' group_call effect missing group/method" % str(key))
-			elif effect is SkillEffectAreaDamage and (effect as SkillEffectAreaDamage).radius <= 0.0:
+			elif (
+				effect is SkillEffectAreaDamage and (effect as SkillEffectAreaDamage).radius <= 0.0
+			):
 				_fail("skill '%s' area_damage effect has non-positive radius" % str(key))
 			elif effect is SkillEffectSummon:
 				var s := effect as SkillEffectSummon
@@ -110,7 +112,10 @@ func _check_composed_skills() -> void:
 					_fail("skill '%s' summon scene missing: %s" % [str(key), s.scene_path])
 			elif effect is SkillEffectGroupHeal and (effect as SkillEffectGroupHeal).group == "":
 				_fail("skill '%s' group_heal effect has empty group" % str(key))
-			elif effect is SkillEffectGroupShield and (effect as SkillEffectGroupShield).groups.is_empty():
+			elif (
+				effect is SkillEffectGroupShield
+				and (effect as SkillEffectGroupShield).groups.is_empty()
+			):
 				_fail("skill '%s' group_shield effect has no groups" % str(key))
 			elif effect is SkillEffectTransform and (effect as SkillEffectTransform).form == "":
 				_fail("skill '%s' transform effect has empty form" % str(key))
@@ -174,14 +179,20 @@ func _check_reward_class_mapping() -> void:
 		print("  class %s: %d modifiers, %d transform-uniques" % [cls, nmods, nuniq])
 
 
-# Every unique item must actually DO something when equipped. After the uniques
-# rework, a unique's `transform` is ALWAYS a has_unique() behaviour flag read by
-# a skill script — never a slot swap. A unique whose effect id appears in
-# TRANSFORM_OVERRIDES would masquerade as a talent slot-swap (the old removed
-# mechanism), so guard against that. Conditional uniques additionally declare
-# requires_transform, which must be a real talent transform id.
+# Every unique item must actually DO something when equipped. A unique's
+# `transform` is a has_unique() behaviour flag read by a skill script — never a
+# slot swap. Conditional uniques declare requires_transform: a SkillTrees variant
+# (slot-swap in transform_overrides() or a ctx-id in transform_base()) or a base
+# skill that's a constellation root the player can build into.
 func _check_unique_item_transforms() -> void:
-	var overrides: Dictionary = SkillCatalog.TRANSFORM_OVERRIDES
+	var overrides: Dictionary = SkillCatalog.transform_overrides()
+	var base_skills: Dictionary = SkillCatalog.transform_base()
+	# Every root skill_id (constellation roots), across all classes.
+	var root_ids := {}
+	for cls in SkillTrees.CLASS_IDS:
+		for n in SkillTrees.nodes_for(String(cls)):
+			if String(n.get("kind", "")) == "skill":
+				root_ids[String(n["skill_id"])] = true
 	for u in ItemDatabase.UNIQUE_ITEMS:
 		var tid: String = String(u.get("transform", ""))
 		_ok()
@@ -192,86 +203,102 @@ func _check_unique_item_transforms() -> void:
 		if req == "":
 			continue
 		_ok()
-		if not overrides.has(req) and req not in ["stone_armor_grinder"]:
-			# requires_transform must point at a talent transform that exists
-			# (slot-swap in TRANSFORM_OVERRIDES, or a known ctx-checked id).
+		if not overrides.has(req) and not base_skills.has(req) and not root_ids.has(req):
 			_fail(
 				(
-					"unique item '%s' requires unknown talent transform '%s'"
+					"unique item '%s' requires unknown transform/skill '%s'"
 					% [str(u.get("id", "?")), req]
 				)
 			)
 
 
-# Talent trees must stay consistent with the catalogs they reference: every
-# modifier node resolves to a RewardData modifier OF THAT CLASS, every transform
-# node to a transform unique, branch ids mirror SpecPaths (the ult cluster keys
-# off them), and item grants point at real modifier nodes of the right class.
-func _check_talent_trees() -> void:
-	var classes := [
-		"mage", "barbarian", "rogue", "druid", "necromancer", "hexen", "stormcaller"
-	]
+# Skill-tree graph stays consistent: roots resolve in the catalog, passive
+# targets map to RewardData modifiers, variants are wired in the transform maps,
+# every parent edge points at a real node of the same class, every node has
+# coordinates, and item set grants target a real tree/stat node.
+func _check_skill_trees() -> void:
 	var total_nodes: int = 0
-	for cls in classes:
-		var branches: Array = TalentTrees.branches_for(cls)
+	var overrides: Dictionary = SkillCatalog.transform_overrides()
+	var base_skills: Dictionary = SkillCatalog.transform_base()
+	var status_elements := ["fire", "bleed", "frost", "poison", "curse"]
+	for cls in SkillTrees.CLASS_IDS:
+		var nodes: Array = SkillTrees.nodes_for(String(cls))
+		var ids := {}
+		var max_row: int = 0
+		for node in nodes:
+			ids[String(node["id"])] = true
+			max_row = maxi(max_row, int(node.get("row", 0)))
+		# Tree should be at least 6 rows deep (a real downward tree, not pyramids).
 		_ok()
-		if branches.size() != 3:
-			_fail("class %s has %d talent branches (want 3)" % [cls, branches.size()])
-			continue
-		var path_ids := {}
-		for p in SpecPaths.paths_for(cls):
-			path_ids[String(p["id"])] = true
-		var seen_ids := {}
-		for branch in branches:
+		if max_row < 5:
+			_fail("class %s tree only %d rows deep (want >=6)" % [cls, max_row + 1])
+		for node in nodes:
+			total_nodes += 1
+			var nid: String = String(node["id"])
+			# Every node has grid coordinates.
 			_ok()
-			if not path_ids.has(String(branch["id"])):
-				_fail("class %s branch '%s' has no matching spec path" % [cls, branch["id"]])
-			for tier in branch["tiers"]:
-				for node in tier:
-					total_nodes += 1
-					var nid: String = String(node["id"])
+			if not node.has("col") or not node.has("row"):
+				_fail("class %s node '%s' missing col/row" % [cls, nid])
+			# Parent edges reference real nodes of this class.
+			for pid in SkillTrees.node_parents(node):
+				_ok()
+				if not ids.has(String(pid)):
+					_fail("class %s node '%s' parent '%s' is unknown" % [cls, nid, pid])
+			match String(node["kind"]):
+				"skill":
 					_ok()
-					if seen_ids.has(nid):
-						_fail("class %s has duplicate talent node id '%s'" % [cls, nid])
-					seen_ids[nid] = true
-					match String(node["kind"]):
-						"modifier":
-							_ok()
-							var m: Dictionary = RewardData.find_modifier(String(node["modifier"]))
-							if m.is_empty():
-								_fail("talent '%s' references unknown modifier" % nid)
-							elif RewardData.class_for_entry(m) != cls:
-								_fail("talent '%s' modifier belongs to another class" % nid)
-						"transform":
-							_ok()
-							var u: Dictionary = RewardData.find_unique_by_transform(
-								String(node["transform"])
+					if SkillCatalog.get_def(String(node["skill_id"])) == null:
+						_fail("class %s root '%s' missing from catalog" % [cls, node["skill_id"]])
+				"passive":
+					# On-hit status node: validate its element instead of modifiers.
+					if String(node.get("on_hit", "")) != "":
+						_ok()
+						if not (String(node["on_hit"]) in status_elements):
+							_fail(
+								"status node '%s' has unknown element '%s'" % [nid, node["on_hit"]]
 							)
-							if u.is_empty():
-								_fail("talent '%s' references unknown transform" % nid)
-							elif RewardData.class_for_entry(u) != cls:
-								_fail("talent '%s' transform belongs to another class" % nid)
-						"stat":
-							_ok()
-							if not String(node["stat"]) in ["strength", "dexterity", "intelligence"]:
-								_fail("talent '%s' has unknown stat" % nid)
-	# Set 4pc grants must target real nodes that exist in the owning class's
-	# tree (modifier or stat nodes both work — both flow through get_talent_rank).
+						continue
+					for t in SkillTrees.passive_targets(node):
+						_ok()
+						# "_cdr"/"_damage" passives are generic (try_cast handles them;
+						# no RewardData entry needed).
+						var mid: String = String(t["modifier"])
+						if (
+							not mid.ends_with("_cdr")
+							and not mid.ends_with("_damage")
+							and RewardData.find_modifier(mid).is_empty()
+						):
+							_fail(
+								(
+									"passive '%s' references unknown modifier '%s'"
+									% [nid, t["modifier"]]
+								)
+							)
+				"variant":
+					_ok()
+					var t2: String = String(node["transform"])
+					if not overrides.has(t2) and not SkillCatalog.CTX_VARIANTS.has(t2):
+						_fail("variant '%s' is wired nowhere" % nid)
+					_ok()
+					if not base_skills.has(t2):
+						_fail("variant '%s' has no base-skill binding" % nid)
+				"perk":
+					_ok()  # inline name/desc, nothing to resolve
+	# Set 4pc grants must target a real tree node or a stat-column node.
 	for set_id in ItemDatabase.SETS:
-		for cls in classes:
+		for cls in SkillTrees.CLASS_IDS:
 			var grant: Dictionary = ItemDatabase.set_node_grant(String(set_id), String(cls))
 			if grant.is_empty():
 				continue
 			_ok()
-			var info: Dictionary = TalentTrees.node_info(String(cls), String(grant["node"]))
-			if info.is_empty():
+			if SkillTrees.find_node(String(cls), String(grant["node"])).is_empty():
 				_fail(
 					(
 						"set '%s' 4pc grant targets unknown node '%s' for class %s"
 						% [set_id, grant["node"], cls]
 					)
 				)
-	print("Talent nodes across classes: %d" % total_nodes)
+	print("Skill-tree nodes across classes: %d" % total_nodes)
 
 
 # Recursive .tscn walk. Returns absolute res:// paths.

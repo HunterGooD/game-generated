@@ -10,7 +10,7 @@ signal player_died
 signal player_downed_changed(is_downed: bool)
 signal player_revived
 signal player_levelled_up(new_level: int)
-# In-run talent tree: fired when talent points are gained, spent, or respecced.
+# Skill tree: fired when a node is bought/refunded/respecced (panel + HUD repaint).
 signal talents_changed
 signal spec_path_offered
 signal spec_path_chosen(path_id: String)
@@ -383,7 +383,11 @@ var player_intelligence: int = 5
 # read live from equipment via TalentTrees.set_grant_ranks).
 var use_talent_tree: bool = true
 var talent_points: int = 0
-var talents: Dictionary = {}
+# Unified skill tree (SkillTrees): every bought node — passives, variant swaps,
+# stat-column ranks, ascension ult nodes, perks — keyed node_id → ranks. One
+# shared pool (talent_points, +1/level). Run-scoped, local per player in co-op
+# (casts replicate by scene path; the tree itself is not synced).
+var tree_nodes: Dictionary = {}
 # Meta-progression grain: meta XP per character level-up (+3 per difficulty
 # tier), plus a flat bonus for finishing the run (+50 per tier). Deliberately
 # NOT proportional to run XP — that curve is exponential.
@@ -510,7 +514,7 @@ func reset_run() -> void:
 	player_dexterity = int(base.get("dexterity", 5))
 	player_intelligence = int(base.get("intelligence", 5))
 	talent_points = 0
-	talents = {}
+	tree_nodes = {}
 	# Meta-mirror passives — fold the player's persistent tree bonuses on top of the base
 	# stat line so every run starts already empowered. Per-player & local in co-op (each
 	# peer applies its own save to its own player). Empty {} when the class has no tree.
@@ -591,7 +595,9 @@ func loop_loot_luck() -> float:
 func run_travel_to(id: int) -> bool:
 	if run_state == null:
 		return false
-	var is_client: bool = NetManager != null and NetManager.is_multiplayer and not NetManager.is_host
+	var is_client: bool = (
+		NetManager != null and NetManager.is_multiplayer and not NetManager.is_host
+	)
 	if is_client:
 		return false  # TODO(Phase 1): send run_nav request to host once the relay allows it
 	if not run_state.travel(id):
@@ -691,6 +697,13 @@ func arena_spend(cost: int) -> bool:
 	arena_currency -= cost
 	arena_currency_changed.emit(arena_currency)
 	return true
+
+
+# Дерево навыков открывается ВЕЗДЕ В ЗАБЕГЕ, кроме хаба: в хабе run_node_active пуст
+# (ноды забега заданы через begin_run_node, в хаб не входят). Бой/подземелье/
+# безопасные комнаты — открыто. Сброс талантов отдельно ограничен костром/магазином.
+func can_open_skill_tree() -> bool:
+	return not run_node_active.is_empty() and not game_over
 
 
 # Mark that the party is now playing `node` (its gameplay scene is loading).
@@ -951,144 +964,228 @@ func _apply_stat_dict(s: Dictionary) -> void:
 	player_intelligence += int(s.get("intelligence", 0))
 
 
-# ── In-run talent tree ────────────────────────────────────────────────────────
-# Total rank of a node: bought ranks + free ranks from equipped unique items.
+# ── Unified skill tree ────────────────────────────────────────────────────────
+# Total ranks of a node: bought (tree_nodes) + free ranks from worn sets. Read by
+# SkillSystem.cast_ascension (ult_power/ult_haste) and item set grants.
 func get_talent_rank(node_id: String) -> int:
-	return int(talents.get(node_id, 0)) + TalentTrees.set_grant_ranks(node_id)
+	return int(tree_nodes.get(node_id, 0)) + TalentTrees.set_grant_ranks(node_id)
 
 
-# Why a node can't be bought right now ("" = it can). The panel uses this both
-# to disable buttons and to explain the gate in the tooltip.
-func talent_block_reason(node_id: String) -> String:
-	var info: Dictionary = TalentTrees.node_info(player_class, node_id)
+# Rank of a slot's root skill node = its "skill level" (read by SkillSystem for
+# damage/cooldown scaling). 0 if the root was never invested in.
+func get_skill_level(slot: int) -> int:
+	var root_id: String = SkillTrees.root_node_id_for_slot(player_class, slot)
+	return int(tree_nodes.get(root_id, 0)) if root_id != "" else 0
+
+
+# The variant node currently active on a slot ("" = none / base skill). Variants
+# are radio-exclusive per slot.
+func _slot_active_variant(slot: int) -> String:
+	for vid in SkillTrees.variant_ids_for_slot(player_class, slot):
+		if int(tree_nodes.get(vid, 0)) > 0:
+			return String(vid)
+	return ""
+
+
+# Edge-prerequisite: a node opens when at least one parent is satisfied. A ROOT
+# skill node satisfies its children always (the skill is innate from level 1);
+# other parents need rank ≥ 1. No parents → always open (roots).
+func _parents_satisfied(node: Dictionary) -> bool:
+	var parents: Array = SkillTrees.node_parents(node)
+	if parents.is_empty():
+		return true
+	for pid in parents:
+		var pinfo: Dictionary = SkillTrees.find_node(player_class, String(pid))
+		if pinfo.is_empty():
+			continue
+		if String(pinfo["node"].get("kind", "")) == "skill":
+			return true
+		if int(tree_nodes.get(String(pid), 0)) > 0:
+			return true
+	return false
+
+
+# Why a node can't be bought/toggled right now ("" = it can). Drives panel
+# disabling + tooltips.
+func node_block_reason(node_id: String) -> String:
+	var info: Dictionary = SkillTrees.find_node(player_class, node_id)
 	if info.is_empty():
-		return "Неизвестный талант"
+		return "Неизвестный узел"
 	var node: Dictionary = info["node"]
-	var kind: String = String(node["kind"])
-	var max_r: int = TalentTrees.max_ranks(node)
-	# Ult nodes ignore tier gates — they're gated on the ascension instead.
-	var tier_ok: bool = (
-		kind == "ult"
-		or TalentTrees.tier_unlocked(
-			player_class, int(info["branch_index"]), int(info["tier_index"]), talents
-		)
-	)
-	var reason: String = ""
+	var group: String = String(info["group"])
+	var kind: String = String(node.get("kind", ""))
+
+	# A variant: clicking the active one deselects (refund) — always allowed.
+	# Selecting another variant on a slot that already has one is a net-0 switch.
+	if kind == "variant":
+		var slot: int = int(info["slot"])
+		var active: String = _slot_active_variant(slot)
+		if active == node_id:
+			return ""
+		if not _parents_satisfied(node):
+			return "Сначала возьмите узел выше"
+		var need_path: String = String(node.get("requires_path", ""))
+		if need_path != "" and player_spec_path != need_path:
+			var p: Dictionary = SpecPaths.find(player_class, need_path)
+			return "Требуется вознесение: %s" % String(p.get("name", need_path))
+		# Switch from another active variant is net-0 points; a fresh select costs VARIANT_COST.
+		if active == "" and talent_points < SkillTrees.VARIANT_COST:
+			return "Нужно %d очка" % SkillTrees.VARIANT_COST
+		return ""
+
 	if talent_points <= 0:
-		reason = "Нет очков талантов"
-	elif max_r >= 0 and int(talents.get(node_id, 0)) >= max_r:
-		reason = "Уже максимальный ранг"
-	elif kind == "ult" and (player_spec_path == "" or player_spec_path == SpecPaths.MORTAL_ID):
-		reason = "Требуется вознесение"
-	elif not tier_ok:
-		reason = (
-			"Нужно %d очков в этой ветви"
-			% (TalentTrees.POINTS_PER_TIER * int(info["tier_index"]))
-		)
-	elif kind == "transform":
-		# One transform per slot — an ascension (or another node) may already
-		# hold this slot, and apply_transform would silently overwrite it.
-		var ss := _find_skill_system()
-		if ss != null and ss.has_method("get_transform"):
-			var current: String = String(ss.call("get_transform", TalentTrees.node_slot(node)))
-			if current != "" and current != String(node["transform"]):
-				reason = "Этот слот навыка уже преобразован"
-	return reason
+		return "Нет очков талантов"
+	var max_r: int = SkillTrees.node_max_ranks(node)
+	if max_r >= 0 and int(tree_nodes.get(node_id, 0)) >= max_r:
+		return "Уже максимальный ранг"
+	if group == "stat":
+		return ""
+	if group == "ult":
+		if player_spec_path == "" or player_spec_path == SpecPaths.MORTAL_ID:
+			return "Требуется вознесение"
+		return ""
+	# skill group: root skill / passive / perk — gate on edges.
+	if not _parents_satisfied(node):
+		return "Сначала возьмите узел выше"
+	# Choice node (mutually-exclusive group): if a sibling is already taken, lock.
+	var excl: String = String(node.get("exclusive", ""))
+	if excl != "" and SkillTrees.exclusive_group_taken(player_class, excl, node_id, tree_nodes):
+		return "Выбрана другая ветвь"
+	return ""
 
 
-func spend_talent_point(node_id: String) -> bool:
-	if talent_block_reason(node_id) != "":
+# Buy (or toggle, for variants) a tree node. Returns true on success.
+func spend_node(node_id: String) -> bool:
+	var info: Dictionary = SkillTrees.find_node(player_class, node_id)
+	if info.is_empty():
 		return false
-	var info: Dictionary = TalentTrees.node_info(player_class, node_id)
 	var node: Dictionary = info["node"]
-	talents[node_id] = int(talents.get(node_id, 0)) + 1
+	if String(node.get("kind", "")) == "variant":
+		return _toggle_variant(int(info["slot"]), node_id, node)
+	if node_block_reason(node_id) != "":
+		return false
+	tree_nodes[node_id] = int(tree_nodes.get(node_id, 0)) + 1
 	talent_points -= 1
-	_apply_talent_rank(node)
+	_apply_node(info)
 	talents_changed.emit()
 	return true
 
 
-func _apply_talent_rank(node: Dictionary) -> void:
-	match String(node["kind"]):
+# Radio variant (costs VARIANT_COST): select, switch (refund old + spend new =
+# net 0), or deselect the active one (refund → back to the base skill).
+func _toggle_variant(slot: int, node_id: String, node: Dictionary) -> bool:
+	var active: String = _slot_active_variant(slot)
+	if active == node_id:
+		tree_nodes.erase(node_id)
+		talent_points += SkillTrees.VARIANT_COST
+		var ss0 := _find_skill_system()
+		if ss0 != null:
+			ss0.call("clear_slot_variant", slot)
+		talents_changed.emit()
+		return true
+	if node_block_reason(node_id) != "":
+		return false
+	if active != "":
+		tree_nodes.erase(active)  # switch: refund the previous variant (net 0)
+		talent_points += SkillTrees.VARIANT_COST
+	tree_nodes[node_id] = 1
+	talent_points -= SkillTrees.VARIANT_COST
+	var ss := _find_skill_system()
+	if ss != null:
+		ss.call("apply_transform", slot, String(node["transform"]))
+	talents_changed.emit()
+	return true
+
+
+# Apply one bought rank's live effect. Skill (root) nodes have NO immediate
+# effect — their rank is read live in SkillSystem.try_cast.
+func _apply_node(info: Dictionary) -> void:
+	var node: Dictionary = info["node"]
+	match String(info["group"]):
 		"stat":
-			_apply_stat_dict({String(node["stat"]): int(node["amount"])})
+			_apply_stat_dict({String(node["stat"]): SkillTrees.STAT_PER_RANK})
 			player_stats_changed.emit()
-		"modifier":
-			var ss := _find_skill_system()
-			if ss != null:
-				ss.call("add_modifier", TalentTrees.node_slot(node), String(node["modifier"]))
-		"transform":
-			var ss := _find_skill_system()
-			if ss != null:
-				ss.call("apply_transform", TalentTrees.node_slot(node), String(node["transform"]))
-		"perk":
-			if String(node["id"]) == "berserker_grip" and InventorySystem:
-				InventorySystem.grant_berserker_grip()
 		"ult":
 			pass  # Read live by SkillSystem.cast_ascension via get_talent_rank.
+		"skill":
+			match String(node.get("kind", "")):
+				"passive":
+					var ss := _find_skill_system()
+					if ss != null:
+						if String(node.get("on_hit", "")) != "":
+							ss.call("add_on_hit", int(node.get("slot", -1)), String(node["on_hit"]))
+						else:
+							for t in SkillTrees.passive_targets(node):
+								ss.call("add_modifier", int(t["slot"]), String(t["modifier"]))
+				"perk":
+					if String(node["id"]) == "berserker_grip" and InventorySystem:
+						InventorySystem.grant_berserker_grip()
+				"skill":
+					pass  # skill level read live in try_cast
 
 
-# Points spent that a respec would refund (perks are kept — Berserker's Grip
-# can't be un-granted once two 2H weapons may be equipped).
+# Points a respec would refund (perks are kept — Berserker's Grip can't be
+# un-granted once two 2H weapons may be equipped). Variants refund their cost.
 func talent_respec_refund() -> int:
 	var refund: int = 0
-	for node_id in talents:
-		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
-		if info.is_empty() or String(info["node"]["kind"]) == "perk":
+	for node_id in tree_nodes:
+		var info: Dictionary = SkillTrees.find_node(player_class, String(node_id))
+		if info.is_empty():
 			continue
-		refund += int(talents[node_id])
+		if String(info["group"]) == "skill" and String(info["node"].get("kind", "")) == "perk":
+			continue
+		refund += int(tree_nodes[node_id]) * SkillTrees.node_cost(info["node"])
 	return refund
 
 
-# Refund all non-perk talents: revert stat ranks, wipe run modifiers/transforms,
-# then re-apply the ascension's own transforms (those are not talents).
+# Refund all non-perk nodes: revert stat ranks, wipe run modifiers/variants from
+# the SkillSystem. Stats live on this autoload, perks on InventorySystem.
 func respec_talents() -> void:
 	var refund: int = talent_respec_refund()
 	if refund <= 0:
 		return
 	var kept: Dictionary = {}
-	for node_id in talents:
-		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
+	for node_id in tree_nodes:
+		var info: Dictionary = SkillTrees.find_node(player_class, String(node_id))
 		if info.is_empty():
 			continue
 		var node: Dictionary = info["node"]
-		if String(node["kind"]) == "perk":
-			kept[node_id] = talents[node_id]
-		elif String(node["kind"]) == "stat":
-			_apply_stat_dict({String(node["stat"]): -int(node["amount"]) * int(talents[node_id])})
-	talents = kept
+		if String(info["group"]) == "skill" and String(node.get("kind", "")) == "perk":
+			kept[node_id] = tree_nodes[node_id]
+		elif String(info["group"]) == "stat":
+			_apply_stat_dict(
+				{String(node["stat"]): -SkillTrees.STAT_PER_RANK * int(tree_nodes[node_id])}
+			)
+	tree_nodes = kept
 	talent_points += refund
 	var ss := _find_skill_system()
 	if ss != null and ss.has_method("clear_run_upgrades"):
 		ss.call("clear_run_upgrades")
-		if player_spec_path != "" and player_spec_path != SpecPaths.MORTAL_ID:
-			var p: Dictionary = SpecPaths.find(player_class, player_spec_path)
-			var transforms: Dictionary = p.get("transforms", {})
-			for slot in transforms:
-				ss.call("apply_transform", int(slot), String(transforms[slot]))
 	player_stats_changed.emit()
 	talents_changed.emit()
 
 
-# Re-apply bought talent skill effects to a FRESH SkillSystem (the player node —
-# and its SkillSystem child — is recreated on every scene change, dropping all
-# run-acquired modifiers/transforms). Called from player._restore_run_upgrades.
-# Stat ranks live on this autoload and perks on InventorySystem, so only the
-# skill-side effects need replaying.
+# Re-apply bought skill-side effects to a FRESH SkillSystem (player node + its
+# SkillSystem are recreated on every scene change). Stats live on this autoload,
+# perks on InventorySystem, skill levels read live — so only passives + variants replay.
 func reapply_talent_effects(ss: Node) -> void:
 	if ss == null or not use_talent_tree:
 		return
-	for node_id in talents:
-		var info: Dictionary = TalentTrees.node_info(player_class, String(node_id))
-		if info.is_empty():
+	for node_id in tree_nodes:
+		var info: Dictionary = SkillTrees.find_node(player_class, String(node_id))
+		if info.is_empty() or String(info["group"]) != "skill":
 			continue
 		var node: Dictionary = info["node"]
-		match String(node["kind"]):
-			"modifier":
-				for _i in int(talents[node_id]):
-					ss.call("add_modifier", TalentTrees.node_slot(node), String(node["modifier"]))
-			"transform":
-				ss.call("apply_transform", TalentTrees.node_slot(node), String(node["transform"]))
+		match String(node.get("kind", "")):
+			"passive":
+				if String(node.get("on_hit", "")) != "":
+					ss.call("add_on_hit", int(node.get("slot", -1)), String(node["on_hit"]))
+				else:
+					for _i in int(tree_nodes[node_id]):
+						for t in SkillTrees.passive_targets(node):
+							ss.call("add_modifier", int(t["slot"]), String(t["modifier"]))
+			"variant":
+				ss.call("apply_transform", int(info["slot"]), String(node["transform"]))
 
 
 func _find_skill_system() -> Node:
@@ -1106,24 +1203,30 @@ func _find_skill_system() -> Node:
 # clever barbarians). Flat HP/mana/move-speed pieces live in the get_effective_*
 # getters below; these are the multipliers combat code reads. Equipment can roll
 # attribute affixes, so every consumer goes through get_effective_* attributes.
+# Set 4pc bonuses can grant ranks of a stat-column node (stat_strength, …);
+# fold them in live, STAT_PER_RANK each (no other path applies them).
+func _stat_set_bonus(stat_node_id: String) -> int:
+	return TalentTrees.set_grant_ranks(stat_node_id) * SkillTrees.STAT_PER_RANK
+
+
 func get_effective_strength() -> int:
-	var bonus: int = 0
+	var bonus: int = _stat_set_bonus("stat_strength")
 	if InventorySystem and InventorySystem.has_method("get_total"):
-		bonus = int(round(float(InventorySystem.call("get_total", "strength"))))
+		bonus += int(round(float(InventorySystem.call("get_total", "strength"))))
 	return player_strength + bonus
 
 
 func get_effective_dexterity() -> int:
-	var bonus: int = 0
+	var bonus: int = _stat_set_bonus("stat_dexterity")
 	if InventorySystem and InventorySystem.has_method("get_total"):
-		bonus = int(round(float(InventorySystem.call("get_total", "dexterity"))))
+		bonus += int(round(float(InventorySystem.call("get_total", "dexterity"))))
 	return player_dexterity + bonus
 
 
 func get_effective_intelligence() -> int:
-	var bonus: int = 0
+	var bonus: int = _stat_set_bonus("stat_intelligence")
 	if InventorySystem and InventorySystem.has_method("get_total"):
-		bonus = int(round(float(InventorySystem.call("get_total", "intelligence"))))
+		bonus += int(round(float(InventorySystem.call("get_total", "intelligence"))))
 	return player_intelligence + bonus
 
 

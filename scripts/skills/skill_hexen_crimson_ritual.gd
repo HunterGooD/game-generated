@@ -21,15 +21,19 @@ var killed_inside: bool = false
 # Enemies already cursed by THIS ritual (one visible curse stack per visit).
 var _cursed_ids: Dictionary = {}
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
 	caster = ctx.caster
-	if InventorySystem and InventorySystem.has_method("has_unique"):
+	bloodmoon = ctx.transform == "hexen_bloodmoon"
+	if not bloodmoon and InventorySystem and InventorySystem.has_method("has_unique"):
 		bloodmoon = bool(InventorySystem.call("has_unique", "hexen_bloodmoon"))
 
 
@@ -76,6 +80,8 @@ func _physics_process(delta: float) -> void:
 		if global_position.distance_to((e as Node2D).global_position) <= RADIUS:
 			if e.has_method("take_damage"):
 				e.call("take_damage", int(round(float(damage) * TICK_DMG_FRAC)), global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(e)
 			# First touch of the sigil curses the enemy (visible stack), once
 			# per ritual so the counter reads as "zones visited", not a blur.
 			var eid: int = e.get_instance_id()

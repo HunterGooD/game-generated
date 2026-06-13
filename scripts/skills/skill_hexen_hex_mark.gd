@@ -21,16 +21,20 @@ var aura: Sprite2D = null
 var tick_t: float = 0.0
 var life_t: float = DURATION
 
+var _ctx: SkillContext = null
+
 
 func setup_context(ctx: SkillContext) -> void:
+	_ctx = ctx
 	var dmg := ctx.damage
 	damage = dmg
 	visual_only = ctx.is_visual_only
 	if visual_only:
 		set_meta("visual_only", true)
-	# Eternal Mark unique modifies behavior.
+	# Eternal Mark — block variant (ctx.transform) or the unique — modifies behavior.
 	var caster = ctx.caster
-	if caster and InventorySystem and InventorySystem.has_method("has_unique"):
+	eternal = ctx.transform == "hexen_eternal_mark"
+	if not eternal and caster and InventorySystem and InventorySystem.has_method("has_unique"):
 		eternal = bool(InventorySystem.call("has_unique", "hexen_eternal_mark"))
 	# Lingering Hex modifier — each stack ticks longer before detonating.
 	life_t = DURATION + float(ctx.get_mod("duration_bonus", 0.0))
@@ -120,6 +124,8 @@ func detonate() -> void:
 	var pos: Vector2 = marked_enemy.global_position
 	if marked_enemy.has_method("take_damage"):
 		marked_enemy.call("take_damage", int(round(float(damage) * DETONATE_MULT)), pos)
+		if _ctx != null:
+			_ctx.apply_on_hit(marked_enemy)
 	if VfxManager:
 		VfxManager.spawn_explosion(pos, 0.85, Color(0.95, 0.2, 0.35, 1))
 		VfxManager.screen_shake(2.0, 0.1)
