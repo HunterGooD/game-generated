@@ -1161,11 +1161,17 @@ const _RAW := {
 		],
 	},
 	"druid_hide_of_beast": {
-		"name": "Hide of the Beast", "scene": "res://scenes/skills/skill_druid_hide_of_beast.tscn",
+		"name": "Hide of the Beast", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_stone_armor.png",
 		"cooldown": 14.0, "mana_cost": 32.0, "damage_mult": 0.6,
 		"sfx": "res://assets/audio/sfx/player/player_druid_stone_armor_form.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"params": {"lifetime": 0.4},
+		"effects": [
+			{"type": "caster_set", "property": "stone_armor_charges", "value": 2.0, "mode": "max"},
+			{"type": "caster_call", "method": "apply_buff", "args": [6.0, 1.0, 1.3]},
+			{"type": "vfx", "sparks_color": Color(0.8, 0.7, 0.5, 1), "sparks_count": 12},
+		],
 	},
 	"druid_pack_spirit": {
 		"name": "Pack Spirit", "scene": "res://scenes/skills/skill_composed.tscn",
@@ -1196,11 +1202,20 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "summon",
 	},
 	"druid_barkskin_aura": {
-		"name": "Barkskin Aura", "scene": "res://scenes/skills/skill_druid_barkskin_aura.tscn",
+		"name": "Barkskin Aura", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_druid_stone_armor.png",
 		"cooldown": 14.0, "mana_cost": 32.0, "damage_mult": 0.6,
 		"sfx": "res://assets/audio/sfx/player/player_druid_stone_armor_form.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"params": {"lifetime": 0.4},
+		"effects": [
+			{"type": "caster_set", "property": "stone_armor_charges", "value": 1.0, "mode": "max"},
+			{
+				"type": "group_call", "group": "remote_player", "method": "apply_aura",
+				"args": [1.0, 0.15, 8.0], "radius": 240.0, "skip_if_visual": true
+			},
+			{"type": "vfx", "explosion_scale": 1.1, "explosion_color": Color(0.5, 0.7, 0.4, 1)},
+		],
 	},
 	"druid_tempest_communion": {
 		"name": "Tempest Communion", "scene": "res://scenes/skills/skill_druid_tempest_communion.tscn",

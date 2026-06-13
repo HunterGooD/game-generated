@@ -22,6 +22,8 @@ static func from_data(d: Dictionary) -> SkillEffect:
 	match String(d.get("type", "")):
 		"caster_call":
 			return SkillEffectCasterCall.from_data(d)
+		"caster_set":
+			return SkillEffectCasterSet.from_data(d)
 		"group_call":
 			return SkillEffectGroupCall.from_data(d)
 		"area_damage":

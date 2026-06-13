@@ -77,10 +77,11 @@ func _host(pos: Vector2 = Vector2.ZERO) -> Node2D:
 	return h
 
 
-# ── from_data resolves all 12 types ───────────────────────────────────────────
+# ── from_data resolves all 13 types ───────────────────────────────────────────
 func test_from_data_resolves_all_types() -> void:
 	var types := {
 		"caster_call": SkillEffectCasterCall,
+		"caster_set": SkillEffectCasterSet,
 		"group_call": SkillEffectGroupCall,
 		"area_damage": SkillEffectAreaDamage,
 		"summon": SkillEffectSummon,
