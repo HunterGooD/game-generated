@@ -54,6 +54,15 @@ static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDefinition:
 	return w
 
 
+# Index of the combo step for the next basic attack. `window_open` = the previous
+# attack's chain window hasn't expired -> advance (wrapping at the end); otherwise
+# the combo resets to step 0. Pure (no state) so it's unit-testable.
+static func next_combo_step(size: int, cur: int, window_open: bool) -> int:
+	if size <= 0:
+		return 0
+	return ((cur + 1) % size) if window_open else 0
+
+
 static func unknown(weapon_id: String) -> WeaponDefinition:
 	var w := WeaponDefinition.new()
 	w.id = weapon_id

@@ -81,6 +81,16 @@ var stone_armor_grinder: bool = false
 
 var is_attacking: bool = false
 var attack_anim_t: float = 0.0
+# Per-attack animation name (from the weapon kind / active combo step; falls back
+# to "attack" if the AnimatedSprite2D lacks it).
+var _attack_anim: String = "attack"
+# Basic-attack combo state. Advanced only when the current weapon kind defines
+# WeaponDefinition.combo steps; dormant (zero behaviour change) while every
+# weapon's combo[] is empty. A step tweaks the player anim + damage of each
+# consecutive hit chained within its window.
+var _combo_step: int = 0
+var _combo_window_t: float = 0.0
+var _combo_step_data: Dictionary = {}
 var facing_right: bool = true
 var invuln_t: float = 0.0
 
@@ -662,13 +672,19 @@ func _physics_process(delta: float) -> void:
 		if attack_anim_t <= 0.0:
 			is_attacking = false
 
+	# Combo chain window — when it lapses, the next basic attack restarts at step 0.
+	if _combo_window_t > 0.0:
+		_combo_window_t = max(_combo_window_t - delta, 0.0)
+
 
 func _update_animation() -> void:
 	if sprite == null or sprite.sprite_frames == null:
 		return
 	var target: String
-	if is_attacking and sprite.sprite_frames.has_animation("attack"):
-		target = "attack"
+	if is_attacking and sprite.sprite_frames.has_animation(_attack_anim):
+		target = _attack_anim
+	elif is_attacking and sprite.sprite_frames.has_animation("attack"):
+		target = "attack"  # combo step's anim is missing on this class — fall back
 	elif velocity.length() > 30.0 and sprite.sprite_frames.has_animation("walk"):
 		target = "walk"
 	else:
@@ -1461,6 +1477,7 @@ func _remove_stealth() -> void:
 func _perform_basic_attack() -> void:
 	is_attacking = true
 	attack_anim_t = 0.22
+	_advance_combo(WeaponCatalog.get_def(basic_attack_kind))
 	var origin: Vector2 = cast_origin.global_position if cast_origin else global_position
 	var dir: Vector2 = get_global_mouse_position() - origin
 	if dir.length_squared() < 0.001:
@@ -1505,6 +1522,22 @@ func _perform_basic_attack() -> void:
 			)
 
 
+# Pick the combo step for this attack (or clear combo state when the weapon has
+# no combo). Sets _attack_anim + _combo_step_data, which _update_animation and
+# _resolve_basic_attack_damage read. No-combo weapons keep the base anim/damage.
+func _advance_combo(w: WeaponDefinition) -> void:
+	if w.combo.is_empty():
+		_combo_step = 0
+		_combo_window_t = 0.0
+		_combo_step_data = {}
+		_attack_anim = w.anim
+		return
+	_combo_step = WeaponDefinition.next_combo_step(w.combo.size(), _combo_step, _combo_window_t > 0.0)
+	_combo_step_data = w.combo[_combo_step]
+	_combo_window_t = float(_combo_step_data.get("window", 0.0))
+	_attack_anim = String(_combo_step_data.get("anim", w.anim))
+
+
 # Roll the basic attack's final damage and fire the on-attack side effects
 # (Battlemage melee mult + Flameblade proc, Blood Frenzy leech, stealth auto-crit
 # + Whisper-Edge burst). Returns the damage the spawned attack should carry.
@@ -1530,6 +1563,9 @@ func _resolve_basic_attack_damage(dir: Vector2) -> int:
 		_remove_stealth()
 		# Whisper-Edge unique: stealth attack also blows up in a wide arc.
 		_maybe_whisper_edge_burst(dmg, dir)
+	# Combo step damage multiplier (1.0 / no-op when not mid-combo).
+	if not _combo_step_data.is_empty():
+		dmg = int(round(float(dmg) * float(_combo_step_data.get("dmg_mult", 1.0))))
 	return dmg
 
 
