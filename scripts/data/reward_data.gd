@@ -706,11 +706,29 @@ static func uniques_for_class(cls: String) -> Array:
 	return out
 
 
-static func find_modifier(id: String) -> Dictionary:
-	for m in SKILL_MODIFIERS:
-		if String(m["id"]) == id:
-			return m
-	return {}
+# Lazily-built typed view of SKILL_MODIFIERS (id -> SkillModifierDefinition).
+# SKILL_MODIFIERS stays the authoring source.
+static var _mod_defs_cache: Dictionary = {}
+
+
+static func _mod_defs() -> Dictionary:
+	if _mod_defs_cache.is_empty():
+		for m in SKILL_MODIFIERS:
+			var def := SkillModifierDefinition.from_dict(m)
+			_mod_defs_cache[def.id] = def
+	return _mod_defs_cache
+
+
+static func has_modifier(id: String) -> bool:
+	return _mod_defs().has(id)
+
+
+# Typed skill modifier. Returns a SkillModifierDefinition.unknown() placeholder for
+# an unknown id (guard with has_modifier() to detect a genuine miss). The level-up
+# offer pools (modifiers_for_class/uniques_for_class) still hand out raw dicts.
+static func find_modifier(id: String) -> SkillModifierDefinition:
+	var d = _mod_defs().get(id, null)
+	return d if d != null else SkillModifierDefinition.unknown(id)
 
 
 static func find_unique_by_transform(transform_id: String) -> Dictionary:

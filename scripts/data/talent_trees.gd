@@ -70,8 +70,9 @@ static func set_granted_modifiers(slot: int) -> Dictionary:
 	var grants: Dictionary = _set_grants()
 	var out: Dictionary = {}
 	for node_id in grants:
-		var m: Dictionary = RewardData.find_modifier(String(node_id))
-		if m.is_empty() or int(m.get("slot", -1)) != slot:
+		if not RewardData.has_modifier(String(node_id)):
+			continue
+		if RewardData.find_modifier(String(node_id)).slot != slot:
 			continue
 		out[node_id] = grants[node_id]
 	return out

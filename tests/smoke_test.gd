@@ -266,7 +266,7 @@ func _check_skill_trees() -> void:
 						if (
 							not mid.ends_with("_cdr")
 							and not mid.ends_with("_damage")
-							and RewardData.find_modifier(mid).is_empty()
+							and not RewardData.has_modifier(mid)
 						):
 							_fail(
 								(

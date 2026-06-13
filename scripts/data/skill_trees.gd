@@ -3623,8 +3623,9 @@ static func node_display_name(node: Dictionary) -> String:
 	if String(node["kind"]) == "passive":
 		var t: Array = node.get("targets", [])
 		if not t.is_empty():
-			var m: Dictionary = RewardData.find_modifier(String(t[0]["modifier"]))
-			return String(m.get("title", node["id"]))
+			var mid: String = String(t[0]["modifier"])
+			if RewardData.has_modifier(mid):
+				return RewardData.find_modifier(mid).title
 	return String(node["id"])
 
 
@@ -3634,9 +3635,9 @@ static func node_display_desc(node: Dictionary) -> String:
 	if String(node["kind"]) == "passive":
 		var t: Array = node.get("targets", [])
 		if not t.is_empty():
-			var m: Dictionary = RewardData.find_modifier(String(t[0]["modifier"]))
-			var desc: String = String(m.get("desc", ""))
-			var stack: String = String(m.get("stack_bonus", ""))
+			var m := RewardData.find_modifier(String(t[0]["modifier"]))
+			var desc: String = m.desc
+			var stack: String = m.stack_bonus
 			if stack != "":
 				desc += "\nЗа ранг: " + stack
 			return desc
