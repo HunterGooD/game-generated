@@ -75,11 +75,8 @@ func _on_materials_changed() -> void:
 # ─────────────────────────────────────────────────────────────────────────────
 # UI build
 func _build_ui() -> void:
-	dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.78)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim = UIBuilder.dim_overlay(Color(0, 0, 0, 0.78))
 	add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root = Control.new()
 	root.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(root)

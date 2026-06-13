@@ -77,9 +77,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _build_chrome() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.05, 0.86)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.02, 0.05, 0.86))
 	add_child(dim)
 
 	var panel := PanelContainer.new()

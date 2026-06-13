@@ -95,10 +95,7 @@ func _exit_tree() -> void:
 
 
 func _build_ui(wave: int, class_id: String) -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.04, 0.9)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.02, 0.04, 0.9))
 	add_child(dim)
 
 	heading = Label.new()

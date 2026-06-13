@@ -124,9 +124,7 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.05, 0.92)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.02, 0.05, 0.92))
 	add_child(dim)
 
 	# Graph viewport (clips the pannable world) — sits behind the chrome panels.

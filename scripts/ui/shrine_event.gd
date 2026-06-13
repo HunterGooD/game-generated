@@ -64,9 +64,7 @@ func _roll_offers() -> Array:
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.05, 0.88)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.03, 0.05, 0.88))
 	add_child(dim)
 
 	var vb := VBoxContainer.new()

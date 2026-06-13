@@ -46,9 +46,7 @@ func _ready() -> void:
 
 # ─────────────────────────────────────────────────────────────────────────────
 func _build_shell() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.05, 0.82)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.02, 0.05, 0.82))
 	dim.gui_input.connect(_on_dim_input)
 	add_child(dim)
 

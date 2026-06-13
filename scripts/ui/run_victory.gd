@@ -18,10 +18,7 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.02, 0.06, 0.93)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := UIBuilder.dim_overlay(Color(0.03, 0.02, 0.06, 0.93))
 	add_child(dim)
 
 	var vb := VBoxContainer.new()

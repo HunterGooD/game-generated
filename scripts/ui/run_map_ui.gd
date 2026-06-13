@@ -69,9 +69,7 @@ func _rebuild(_a = null) -> void:
 	_dungeon_warn.clear()
 	_edges = null
 	_banner = null
-	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.05, 0.92)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := UIBuilder.dim_overlay(Color(0.02, 0.02, 0.05, 0.92))
 	add_child(dim)
 	_root = Control.new()
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

@@ -127,11 +127,8 @@ func _build_background() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ctrl.add_child(bg)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.7)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dim := UIBuilder.dim_overlay(Color(0, 0, 0, 0.7), false)
 	root_ctrl.add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

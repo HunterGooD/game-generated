@@ -42,10 +42,7 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.02, 0.05, 0.88)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := UIBuilder.dim_overlay(Color(0.03, 0.02, 0.05, 0.88))
 	add_child(dim)
 
 	var panel := PanelContainer.new()
