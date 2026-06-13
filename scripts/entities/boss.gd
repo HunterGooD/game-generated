@@ -747,6 +747,14 @@ func _die() -> void:
 	if dead:
 		return
 	dead = true
+	_die_disable_bodies()
+	_die_play_fx()
+	_die_announce()
+	_die_dissolve_and_free()
+
+
+# Stop the hurtbox and drop the body collision so the corpse doesn't block the player.
+func _die_disable_bodies() -> void:
 	if hurtbox:
 		hurtbox.set_deferred("monitoring", false)
 		hurtbox.set_deferred("monitorable", false)
@@ -754,6 +762,10 @@ func _die() -> void:
 	var body_shape: CollisionShape2D = get_node_or_null("CollisionShape2D")
 	if body_shape:
 		body_shape.set_deferred("disabled", true)
+
+
+# Heavy death burst (shake/flash/hit-stop) and the boss death SFX.
+func _die_play_fx() -> void:
 	if VfxManager:
 		VfxManager.spawn_death_burst(global_position, "boss")
 		VfxManager.screen_shake(15.0, 0.6)
@@ -761,6 +773,11 @@ func _die() -> void:
 		VfxManager.hit_stop(0.2)
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/enemy/enemy_boss_death.mp3", -3.0)
+
+
+# Bump the kill counter, broadcast the death to puppets, and emit boss_defeated
+# so the spawner/world can hand out the reward.
+func _die_announce() -> void:
 	if GameManager:
 		GameManager.enemies_killed += 1
 	# Multiplayer host: broadcast death so puppets also fade away.
@@ -770,8 +787,12 @@ func _die() -> void:
 			ns.call("broadcast_enemy_death", network_id, global_position, 0, 0, 0)
 	# Emit defeat so spawner / world can hand out reward.
 	boss_defeated.emit(boss_id, String(boss_data.get("reward", "legendary")))
-	# Dissolve-on-death — and ACTUALLY queue_free at the end. Boss corpses
-	# were sticking around because this branch never freed them.
+
+
+# Dissolve-on-death — and ACTUALLY queue_free at the end. Boss corpses
+# were sticking around because this branch never freed them. A safety Timer
+# guarantees the free even if the tween is interrupted.
+func _die_dissolve_and_free() -> void:
 	if sprite and is_inside_tree():
 		var dm := ShaderMaterial.new()
 		dm.shader = DISSOLVE_SHADER
