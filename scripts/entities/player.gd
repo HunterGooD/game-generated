@@ -1952,21 +1952,24 @@ func _frostwalker_tick(area: Area2D) -> void:
 			enemy.apply_slow(0.6, 0.55)
 
 
-func receive_damage_payload(payload: DamageInstance) -> bool:
+# Pre-mitigation avoidance gates: active invuln window, downed/game-over,
+# stealth, Trickster evasion roll, Druid Stone Armor charge. Returns true when
+# the hit is fully negated so the caller bails before applying any damage.
+func _incoming_hit_avoided() -> bool:
 	if invuln_t > 0.0:
-		return false
+		return true
 	# Downed players are already at 0 HP — no further damage until revived/dead.
 	if GameManager and (GameManager.player_downed or GameManager.game_over):
-		return false
+		return true
 	# Stealth ignores damage.
 	if stealth_t > 0.0:
-		return false
+		return true
 	# Evasion (Trickster auras): chance to dodge the hit outright.
 	if evasion_chance > 0.0 and randf() < evasion_chance:
 		invuln_t = 0.1
 		if VfxManager:
 			VfxManager.spawn_damage_number(global_position + Vector2(0, -22), 0, Color(0.7, 0.9, 1, 1))
-		return false
+		return true
 	# Stone Armor: absorb one incoming hit per charge, then break a stone.
 	if stone_armor_charges > 0:
 		stone_armor_charges -= 1
@@ -1982,6 +1985,12 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var sa: Node = get_node_or_null("StoneArmor")
 		if sa and sa.has_method("on_charge_consumed"):
 			sa.call("on_charge_consumed")
+		return true
+	return false
+
+
+func receive_damage_payload(payload: DamageInstance) -> bool:
+	if _incoming_hit_avoided():
 		return false
 	invuln_t = 0.4
 	var amount: int = int(round(payload.amount))
@@ -2030,6 +2039,16 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	var applied_amount: int = max(0, int(round(previous_hp - health_component.current_hp)) if health_component else amount)
 	if applied_amount <= 0:
 		return false
+	_play_hit_feedback(applied_amount)
+	# Pain Dividend (Blood Witch): the HP just lost banks into the next skill's burst.
+	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
+		_bank_pain(applied_amount)
+	return true
+
+
+# Damage-number, sparks, screen shake/flash and the red sprite flash for a hit
+# that actually landed (applied_amount HP lost).
+func _play_hit_feedback(applied_amount: int) -> void:
 	if VfxManager:
 		VfxManager.spawn_damage_number(
 			global_position + Vector2(0, -22), applied_amount, Color(1.0, 0.4, 0.4, 1)
@@ -2041,10 +2060,6 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		var tw := create_tween()
 		tw.tween_property(sprite, "modulate", Color(1.6, 0.3, 0.3), 0.05)
 		tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.15)
-	# Pain Dividend (Blood Witch): the HP just lost banks into the next skill's burst.
-	if GameManager and String(GameManager.player_spec_path) == "blood_witch":
-		_bank_pain(applied_amount)
-	return true
 
 
 # ── Blood Witch: Scarlet Possession (R) ──────────────────────────────────────
