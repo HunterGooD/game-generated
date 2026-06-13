@@ -34,17 +34,9 @@ func _ready() -> void:
 
 
 func _damage_ring() -> void:
-	var tree := get_tree()
-	if tree == null:
-		return
 	# Glacial Heart unique — novas also stack chill (freezes at the cap).
 	var glacial: bool = InventorySystem != null and InventorySystem.has_unique("nova_glacial")
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")):
-			continue
-		var ep: Vector2 = (e as Node2D).global_position
-		if global_position.distance_to(ep) > BASE_RADIUS:
-			continue
+	for e in SkillTargeting.in_radius(get_tree(), global_position, BASE_RADIUS):
 		if e.has_method("take_damage"):
 			e.call("take_damage", damage, global_position)
 		if e.has_method("mark_element"):

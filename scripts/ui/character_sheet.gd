@@ -141,7 +141,23 @@ func _build_layout() -> void:
 	main.add_theme_constant_override("separation", 10)
 	margin.add_child(main)
 
-	# ── Шапка: класс + уровень + опыт + золото/материалы ──
+	_build_header(main)
+	main.add_child(HSeparator.new())
+
+	# ── Три колонки: характеристики | кукла | инвентарь ──
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 22)
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main.add_child(cols)
+
+	_build_stats_column(cols)
+	_build_equipment_column(cols)
+	_build_inventory_column(cols)
+	_build_hint(main)
+
+
+# Шапка: класс + уровень + полоса опыта + золото/материалы.
+func _build_header(main: VBoxContainer) -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 18)
 	main.add_child(head)
@@ -202,15 +218,9 @@ func _build_layout() -> void:
 	materials_label.add_theme_font_size_override("font_size", 13)
 	money_box.add_child(materials_label)
 
-	main.add_child(HSeparator.new())
 
-	# ── Три колонки: характеристики | кукла | инвентарь ──
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 22)
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	main.add_child(cols)
-
-	# ЛЕВО: портрет + характеристики (прокручиваемые).
+# ЛЕВО: портрет + характеристики (прокручиваемые).
+func _build_stats_column(cols: HBoxContainer) -> void:
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(330, 0)
 	left.add_theme_constant_override("separation", 8)
@@ -238,7 +248,9 @@ func _build_layout() -> void:
 	stats_box.add_theme_constant_override("separation", 1)
 	scroll.add_child(stats_box)
 
-	# ЦЕНТР: кукла экипировки + бонусы комплектов.
+
+# ЦЕНТР: кукла экипировки + бонусы комплектов.
+func _build_equipment_column(cols: HBoxContainer) -> void:
 	var mid := VBoxContainer.new()
 	mid.custom_minimum_size = Vector2(360, 0)
 	mid.add_theme_constant_override("separation", 8)
@@ -265,7 +277,9 @@ func _build_layout() -> void:
 	set_summary_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mid.add_child(set_summary_label)
 
-	# ПРАВО: инвентарь.
+
+# ПРАВО: инвентарь.
+func _build_inventory_column(cols: HBoxContainer) -> void:
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 8)
@@ -305,7 +319,9 @@ func _build_layout() -> void:
 	inventory_grid.add_theme_constant_override("v_separation", 6)
 	inv_margin.add_child(inventory_grid)
 
-	# ── Подсказка снизу ──
+
+# ── Подсказка снизу ──
+func _build_hint(main: VBoxContainer) -> void:
 	var hint := Label.new()
 	hint.text = "Tab / Esc — закрыть  •  ЛКМ — надеть/снять  •  ПКМ — действия  •  самоцветы тащите в гнёзда, ПКМ по гнезду — повернуть"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
