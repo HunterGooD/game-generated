@@ -22,12 +22,14 @@ var gem_faces: Array = []
 var sockets: Array = []
 
 
-func get_template() -> Dictionary:
+# Typed unified template for this instance. Resolves the source dict per kind
+# (gem / unique / base) and wraps it in ItemTemplate.
+func get_template() -> ItemTemplate:
 	if gem_id != "":
-		return SocketGems.template_for(gem_id)
+		return ItemTemplate.from_dict(SocketGems.template_for(gem_id))
 	if is_unique:
-		return ItemDatabase.find_unique(unique_id)
-	return ItemDatabase.find_base(base_id)
+		return ItemTemplate.from_dict(ItemDatabase.find_unique(unique_id))
+	return ItemTemplate.from_dict(ItemDatabase.find_base(base_id))
 
 
 func is_gem() -> bool:
@@ -66,11 +68,11 @@ func socketed_gem_ids() -> Array:
 
 
 func get_title() -> String:
-	return String(get_template().get("title", "Unknown"))
+	return get_template().title
 
 
 func get_icon_path() -> String:
-	return String(get_template().get("icon", ""))
+	return get_template().icon
 
 
 func get_icon() -> Texture2D:
@@ -81,11 +83,11 @@ func get_icon() -> Texture2D:
 
 
 func get_slot() -> int:
-	return int(get_template().get("slot", -1))
+	return get_template().slot
 
 
 func get_kind() -> String:
-	return String(get_template().get("kind", "armor"))
+	return get_template().kind
 
 
 func is_weapon() -> bool:
@@ -95,25 +97,25 @@ func is_weapon() -> bool:
 func is_two_handed() -> bool:
 	if not is_weapon():
 		return false
-	return int(get_template().get("weapon_hands", 1)) == 2
+	return get_template().weapon_hands == 2
 
 
 func get_weapon_damage_mult() -> float:
 	if not is_weapon():
 		return 0.0
-	return float(get_template().get("weapon_damage_mult", 1.0))
+	return get_template().weapon_damage_mult
 
 
 func get_transform_id() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("transform", ""))
+	return get_template().transform
 
 
 func get_transform_desc() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("transform_desc", ""))
+	return get_template().transform_desc
 
 
 # Some uniques only do something while a specific talent transform is taken
@@ -121,11 +123,11 @@ func get_transform_desc() -> String:
 func get_requires_label() -> String:
 	if not is_unique:
 		return ""
-	return String(get_template().get("requires_label", ""))
+	return get_template().requires_label
 
 
 func get_class_lock() -> String:
-	return String(get_template().get("class_lock", ""))
+	return get_template().class_lock
 
 
 func get_set_id() -> String:
