@@ -62,6 +62,25 @@ jobs:
           cargo clippy --manifest-path server/Cargo.toml -- -D warnings
           cargo clippy --manifest-path dungeon/Cargo.toml -- -D warnings
 
+  gdscript-lint:
+    name: GDScript lint (gdformat + gdlint) — advisory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install gdtoolkit (GDScript 4)
+        run: pip install "gdtoolkit==4.*"
+      # Advisory until the existing code is formatted/clean — .gdlintrc relaxes the
+      # noisiest thresholds. Flip continue-on-error off and make required once green.
+      - name: gdformat --check
+        continue-on-error: true
+        run: gdformat --check scripts tests
+      - name: gdlint
+        continue-on-error: true
+        run: gdlint scripts tests
+
   godot-tests:
     name: Godot headless (smoke + GUT)
     runs-on: ubuntu-latest

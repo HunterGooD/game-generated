@@ -1,0 +1,22 @@
+Echoes of the Forgotten
+Copyright (c) 2026 HunterGooD. All rights reserved where not granted by LICENSE.
+
+The PolyForm Noncommercial License 1.0.0 in LICENSE covers the ORIGINAL code and
+content of this project authored by the copyright holder. It does NOT relicense
+the third-party components bundled or depended on here — each keeps its own license:
+
+- addons/gut/            — GUT test framework (see addons/gut/LICENSE.md, MIT)
+- addons/limboai/        — LimboAI (see addons/limboai/LICENSE.md)
+- addons/limbo_console/  — Limbo Console (see addons/limbo_console/LICENSE.md)
+- Godot Engine           — MIT (not bundled; the engine you run the project with)
+- Rust crate deps (server/, dungeon/) — their respective licenses (MIT/Apache-2.0/…),
+  see each crate's Cargo.toml + the dependencies' own license files.
+
+Third-party ASSETS (sprites, audio, fonts, textures), if any are not original to
+this project, retain the terms of their original authors/packs. The copyright
+holder is responsible for securing the rights needed for any commercial use of
+such assets; the noncommercial grant to others in LICENSE does not extend
+third-party asset rights.
+
+Commercial use of the original project is reserved to the copyright holder and
+requires their separate written permission for anyone else.
