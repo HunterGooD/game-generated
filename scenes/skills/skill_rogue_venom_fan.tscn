@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://rogueasc11"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_rogue_venom_fan.gd" id="1_rogue_venom_fan"]
+[ext_resource type="Script" path="res://scripts/skills/rogue/skill_rogue_venom_fan.gd" id="1_rogue_venom_fan"]
 
 [node name="VenomFan" type="Node2D"]
 script = ExtResource("1_rogue_venom_fan")

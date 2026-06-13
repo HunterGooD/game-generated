@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://85dbwakyn1dk"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_frost_guard.gd" id="1_frost_guard"]
+[ext_resource type="Script" path="res://scripts/skills/mage/skill_frost_guard.gd" id="1_frost_guard"]
 
 [node name="FrostGuard" type="Node2D"]
 script = ExtResource("1_frost_guard")

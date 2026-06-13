@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b_skill_necro_death_pulse"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_necro_death_pulse.gd" id="1_dp"]
+[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_death_pulse.gd" id="1_dp"]
 
 [node name="SkillNecroDeathPulse" type="Node2D"]
 script = ExtResource("1_dp")

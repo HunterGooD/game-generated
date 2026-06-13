@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://stormasc11"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_storm_energizing_discharge.gd" id="1_storm_energizing_discharge"]
+[ext_resource type="Script" path="res://scripts/skills/stormcaller/skill_storm_energizing_discharge.gd" id="1_storm_energizing_discharge"]
 
 [node name="EnergizingDischarge" type="Node2D"]
 script = ExtResource("1_storm_energizing_discharge")

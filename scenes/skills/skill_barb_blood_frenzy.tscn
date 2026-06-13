@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://barbskill01"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_barb_blood_frenzy.gd" id="1_barb_blood_frenzy"]
+[ext_resource type="Script" path="res://scripts/skills/barbarian/skill_barb_blood_frenzy.gd" id="1_barb_blood_frenzy"]
 
 [node name="BloodFrenzy" type="Node2D"]
 script = ExtResource("1_barb_blood_frenzy")

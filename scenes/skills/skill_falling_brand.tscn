@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://ctklmmougqgyy"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_falling_brand.gd" id="1_falling_brand"]
+[ext_resource type="Script" path="res://scripts/skills/mage/skill_falling_brand.gd" id="1_falling_brand"]
 
 [node name="FallingBrand" type="Node2D"]
 script = ExtResource("1_falling_brand")

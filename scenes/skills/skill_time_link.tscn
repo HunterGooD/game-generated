@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://chrtimelink01"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_time_link.gd" id="1_time_link"]
+[ext_resource type="Script" path="res://scripts/skills/mage/skill_time_link.gd" id="1_time_link"]
 
 [node name="TimeLink" type="Node2D"]
 script = ExtResource("1_time_link")

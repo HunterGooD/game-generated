@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b_skill_necro_blood_pact"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_necro_blood_pact.gd" id="1_bp"]
+[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_blood_pact.gd" id="1_bp"]
 
 [node name="SkillNecroBloodPact" type="Node2D"]
 script = ExtResource("1_bp")

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://necroasc10"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_necro_blood_ward.gd" id="1_necro_blood_ward"]
+[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_blood_ward.gd" id="1_necro_blood_ward"]
 
 [node name="BloodWard" type="Node2D"]
 script = ExtResource("1_necro_blood_ward")

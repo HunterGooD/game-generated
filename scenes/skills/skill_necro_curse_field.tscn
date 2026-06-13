@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b_skill_necro_curse_field"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_necro_curse_field.gd" id="1_cf"]
+[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_curse_field.gd" id="1_cf"]
 
 [node name="SkillNecroCurseField" type="Node2D"]
 script = ExtResource("1_cf")

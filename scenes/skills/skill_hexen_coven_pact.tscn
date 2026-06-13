@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://hexenasc1a"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_hexen_coven_pact.gd" id="1_hexen_coven_pact"]
+[ext_resource type="Script" path="res://scripts/skills/hexen/skill_hexen_coven_pact.gd" id="1_hexen_coven_pact"]
 
 [node name="CovenPact" type="Node2D"]
 script = ExtResource("1_hexen_coven_pact")

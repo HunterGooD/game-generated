@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://g10njko6xqgq"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_arcane_flameblade.gd" id="1_afb"]
+[ext_resource type="Script" path="res://scripts/skills/shared/skill_arcane_flameblade.gd" id="1_afb"]
 
 [node name="ArcaneFlameblade" type="Node2D"]
 script = ExtResource("1_afb")

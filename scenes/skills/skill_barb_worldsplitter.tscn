@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://barbskill1a"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_barb_worldsplitter.gd" id="1_barb_worldsplitter"]
+[ext_resource type="Script" path="res://scripts/skills/barbarian/skill_barb_worldsplitter.gd" id="1_barb_worldsplitter"]
 
 [node name="Worldsplitter" type="Node2D"]
 script = ExtResource("1_barb_worldsplitter")

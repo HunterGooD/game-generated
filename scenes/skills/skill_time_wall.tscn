@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://chrtimewall01"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_time_wall.gd" id="1_time_wall"]
+[ext_resource type="Script" path="res://scripts/skills/mage/skill_time_wall.gd" id="1_time_wall"]
 
 [node name="TimeWall" type="Node2D"]
 script = ExtResource("1_time_wall")

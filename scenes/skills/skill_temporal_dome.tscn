@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://chrtempdome01"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_temporal_dome.gd" id="1_temporal_dome"]
+[ext_resource type="Script" path="res://scripts/skills/shared/skill_temporal_dome.gd" id="1_temporal_dome"]
 
 [node name="TemporalDome" type="Node2D"]
 script = ExtResource("1_temporal_dome")

@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b_skill_druid_bite"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_druid_bite.gd" id="1_bite"]
+[ext_resource type="Script" path="res://scripts/skills/druid/skill_druid_bite.gd" id="1_bite"]
 
 [node name="SkillDruidBite" type="Node2D"]
 script = ExtResource("1_bite")

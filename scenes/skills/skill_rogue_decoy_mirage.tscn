@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://rogueasc05"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_rogue_decoy_mirage.gd" id="1_rogue_decoy_mirage"]
+[ext_resource type="Script" path="res://scripts/skills/rogue/skill_rogue_decoy_mirage.gd" id="1_rogue_decoy_mirage"]
 
 [node name="DecoyMirage" type="Node2D"]
 script = ExtResource("1_rogue_decoy_mirage")

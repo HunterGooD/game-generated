@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://necroasc11"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_necro_mending_pulse.gd" id="1_necro_mending_pulse"]
+[ext_resource type="Script" path="res://scripts/skills/necromancer/skill_necro_mending_pulse.gd" id="1_necro_mending_pulse"]
 
 [node name="MendingPulse" type="Node2D"]
 script = ExtResource("1_necro_mending_pulse")

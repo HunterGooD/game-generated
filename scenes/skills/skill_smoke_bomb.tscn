@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b8plyrarsmokebomb"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_smoke_bomb.gd" id="1_sb"]
+[ext_resource type="Script" path="res://scripts/skills/rogue/skill_smoke_bomb.gd" id="1_sb"]
 
 [node name="SmokeBomb" type="Node2D"]
 script = ExtResource("1_sb")

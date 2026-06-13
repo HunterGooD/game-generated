@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b_skill_hexen_crimson_ritual"]
 
-[ext_resource type="Script" path="res://scripts/skills/skill_hexen_crimson_ritual.gd" id="1_cr"]
+[ext_resource type="Script" path="res://scripts/skills/hexen/skill_hexen_crimson_ritual.gd" id="1_cr"]
 
 [node name="SkillHexenCrimsonRitual" type="Node2D"]
 script = ExtResource("1_cr")
