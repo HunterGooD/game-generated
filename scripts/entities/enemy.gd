@@ -1496,6 +1496,13 @@ func get_active_statuses() -> Array:
 
 
 func _tick_status(delta: float) -> void:
+	_tick_elemental_status(delta)
+	_tick_curses_and_control(delta)
+
+
+# Elemental / physical effects: freeze + chill, fracture, recently-seen element
+# decay, and the burn/bleed/poison damage-over-time ticks.
+func _tick_elemental_status(delta: float) -> void:
 	if frozen_t > 0.0:
 		frozen_t -= delta
 		slow_mult = min(slow_mult, 0.05)
@@ -1523,14 +1530,6 @@ func _tick_status(delta: float) -> void:
 		if _bleed_tick_t <= 0.0:
 			_bleed_tick_t = 0.5
 			_apply_bleed_tick()
-	if vuln_t > 0.0:
-		vuln_t -= delta
-		if vuln_t <= 0.0:
-			vuln_amp = 0.0
-	if taunt_t > 0.0:
-		taunt_t -= delta
-		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
-			taunt_target = null
 	if poison_t > 0.0:
 		poison_t -= delta
 		_poison_tick_t -= delta
@@ -1539,6 +1538,19 @@ func _tick_status(delta: float) -> void:
 			_apply_poison_tick()
 		if poison_t <= 0.0:
 			poison_stacks = 0
+
+
+# Control + hex effects: Vulnerable, Taunt, the named curse timers (with the
+# Agony DoT and Doom payoff teardown) and the ally-passive internal cooldowns.
+func _tick_curses_and_control(delta: float) -> void:
+	if vuln_t > 0.0:
+		vuln_t -= delta
+		if vuln_t <= 0.0:
+			vuln_amp = 0.0
+	if taunt_t > 0.0:
+		taunt_t -= delta
+		if taunt_t <= 0.0 or not is_instance_valid(taunt_target):
+			taunt_target = null
 	if curse_t > 0.0:
 		curse_t -= delta
 		if curse_t <= 0.0:
