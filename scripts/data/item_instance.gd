@@ -163,7 +163,7 @@ func add_stats_to(totals: Dictionary) -> void:
 	# Socketed gems add their small flat lines (link bonuses are computed
 	# cross-item by InventorySystem via SocketGems.resolve, not here).
 	for gid in socketed_gem_ids():
-		var gstats: Dictionary = SocketGems.get_gem(String(gid)).get("stats", {})
+		var gstats: Dictionary = SocketGems.get_gem(String(gid)).stats
 		for k in gstats:
 			totals[k] = float(totals.get(k, 0.0)) + float(gstats[k])
 	# Weapons contribute a base damage multiplier as a separate key.
