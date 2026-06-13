@@ -263,4 +263,7 @@ func test_scene_based_skill_keeps_its_scene() -> void:
 	var def: SkillDefinition = SkillCatalog.get_def("meteor")
 	assert_not_null(def, "meteor resolves in the catalog")
 	assert_ne(def.scene_path, "", "authored skill keeps its scene_path")
-	assert_not_null(def.instantiate_node(), "instantiate_node() builds from the scene")
+	var node := def.instantiate_node()
+	assert_not_null(node, "instantiate_node() builds from the scene")
+	if node:
+		node.free()  # don't leak the instanced scene (GUT orphan)

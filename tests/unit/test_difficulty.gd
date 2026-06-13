@@ -17,7 +17,7 @@ func after_each() -> void:
 # ── the tier table ────────────────────────────────────────────────────────────
 func test_has_multiple_tiers() -> void:
 	assert_gte(Difficulty.count(), 3, "at least normal/hard/nightmare")
-	assert_eq(Difficulty.name_of(0), "Normal")
+	assert_eq(Difficulty.name_of(0), "Обычный")  # RU-only localization (tier 0 name)
 
 
 func test_tiers_scale_monotonically() -> void:
