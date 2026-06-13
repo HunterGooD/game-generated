@@ -11,8 +11,21 @@ extends RefCounted
 # (any non-melee/claw/dagger basic was a ranged bolt).
 #
 # To add/retune a weapon: edit WEAPONS. To add a NEW attack scene, drop it in
-# scenes/combat/player/ and point "scene" at it. Future: a "combo" array on an
-# entry will drive chained attacks (see WeaponDefinition).
+# scenes/combat/player/ and point "scene" at it.
+#
+# COMBO (machine is live but every weapon ships combo[]=empty = no combo). To
+# ACTIVATE a chained attack later — once the hero has the extra attack frames —
+# add a "combo" array to a weapon. Each step: {anim, dmg_mult, window}. `window`
+# = seconds after this hit during which the next click chains to the next step
+# (lapse -> restart at step 0). `anim` is an AnimatedSprite2D animation on the
+# class (falls back to "attack" if missing), `dmg_mult` scales that hit's damage.
+# Example (melee 3-hit finisher; needs attack2/attack3 frames on the class):
+#   "combo": [
+#       {"anim": "attack",  "dmg_mult": 0.85, "window": 0.55},
+#       {"anim": "attack2", "dmg_mult": 0.95, "window": 0.55},
+#       {"anim": "attack3", "dmg_mult": 1.35, "window": 0.0},
+#   ],
+# v1 combo affects ANIM + DAMAGE only; per-step scene/sfx is a later extension.
 
 const WEAPONS := {
 	"melee":
