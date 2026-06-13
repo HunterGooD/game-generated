@@ -410,7 +410,7 @@ func _refresh_header() -> void:
 			parts.append(
 				"Камень «%s»: %d"
 				% [
-					String(ItemDatabase.find_set(String(set_id)).get("name", set_id)),
+					ItemDatabase.find_set(String(set_id)).name,
 					GameManager.get_set_stones(String(set_id))
 				]
 			)
@@ -786,11 +786,10 @@ func _on_inv_hover(item: ItemInstance) -> void:
 		var counts: Dictionary = InventorySystem.get_set_piece_counts() if InventorySystem else {}
 		var worn: int = int(counts.get(item.get_set_id(), 0))
 		body += "\n\n%s  (%d/5)" % [item.get_set_name(), worn]
-		var def: Dictionary = ItemDatabase.find_set(item.get_set_id())
-		for pair in [[2, "bonus2"], [4, "bonus4"], [5, "bonus5"]]:
-			var b: Dictionary = def.get(String(pair[1]), {})
-			var mark: String = "✓" if worn >= int(pair[0]) else "·"
-			body += "\n %s (%d) %s" % [mark, int(pair[0]), String(b.get("label", ""))]
+		var def := ItemDatabase.find_set(item.get_set_id())
+		for threshold in [2, 4, 5]:
+			var mark: String = "✓" if worn >= threshold else "·"
+			body += "\n %s (%d) %s" % [mark, threshold, def.bonus_for(threshold).label]
 	# Сравнение с надетым в тот же слот (только при наведении на предмет ИЗ СУМКИ).
 	if InventorySystem and not InventorySystem.equipment.values().has(item):
 		var eq: ItemInstance = InventorySystem.get_equipped(item.get_slot())

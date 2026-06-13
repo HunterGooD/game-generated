@@ -182,7 +182,7 @@ static func _roll_set(ilvl: int, class_id: String) -> ItemInstance:
 # The theme picks ignore slot legality on purpose — that's the chase: a set
 # ring can carry an affix its slot could never roll.
 static func roll_set_affixes(set_id: String, slot: int, ilvl: int) -> Array:
-	var theme: Array = ItemDatabase.find_set(set_id).get("theme_affixes", []).duplicate()
+	var theme: Array = ItemDatabase.find_set(set_id).theme_affixes.duplicate()
 	theme.shuffle()
 	var out: Array = []
 	var used: Dictionary = {}

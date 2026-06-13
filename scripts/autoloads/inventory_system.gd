@@ -561,8 +561,8 @@ func _set_bonus(stat_id: String) -> float:
 	for set_id in counts.keys():
 		if int(counts[set_id]) < 2:
 			continue
-		var def: Dictionary = ItemDatabase.find_set(String(set_id))
-		total += float(def.get("bonus2", {}).get("stats", {}).get(stat_id, 0))
+		var def := ItemDatabase.find_set(String(set_id))
+		total += float(def.bonus2.stats.get(stat_id, 0))
 	return total
 
 
@@ -589,20 +589,18 @@ func get_active_set_bonuses() -> Array:
 	var out: Array = []
 	var counts: Dictionary = get_set_piece_counts()
 	for set_id in counts.keys():
-		var def: Dictionary = ItemDatabase.find_set(String(set_id))
-		if def.is_empty():
+		if not ItemDatabase.has_set(String(set_id)):
 			continue
+		var def := ItemDatabase.find_set(String(set_id))
 		var n: int = int(counts[set_id])
 		var bonuses: Array = []
-		for pair in [[2, "bonus2"], [4, "bonus4"], [5, "bonus5"]]:
-			var threshold: int = int(pair[0])
-			var b: Dictionary = def.get(String(pair[1]), {})
+		for threshold in [2, 4, 5]:
 			(
 				bonuses
 				. append(
 					{
 						"threshold": threshold,
-						"label": String(b.get("label", "")),
+						"label": def.bonus_for(threshold).label,
 						"active": n >= threshold,
 					}
 				)
@@ -612,8 +610,8 @@ func get_active_set_bonuses() -> Array:
 			. append(
 				{
 					"set_id": set_id,
-					"name": String(def.get("name", set_id)),
-					"flavor": String(def.get("flavor", "")),
+					"name": def.name,
+					"flavor": def.flavor,
 					"pieces": n,
 					"bonuses": bonuses,
 				}
@@ -707,9 +705,7 @@ func _rebuild_transform_cache() -> void:
 	for set_id in counts.keys():
 		if int(counts[set_id]) < 5:
 			continue
-		var eff: String = String(
-			ItemDatabase.find_set(String(set_id)).get("bonus5", {}).get("effect", "")
-		)
+		var eff: String = ItemDatabase.find_set(String(set_id)).bonus5.effect
 		if eff != "":
 			_active_set_effects[eff] = true
 	# Gear-socket links — resolved once per equipment/socket mutation, read by

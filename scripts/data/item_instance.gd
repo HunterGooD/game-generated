@@ -137,7 +137,7 @@ func get_set_id() -> String:
 func get_set_name() -> String:
 	if set_id == "":
 		return ""
-	return String(ItemDatabase.find_set(set_id).get("name", set_id))
+	return ItemDatabase.find_set(set_id).name
 
 
 func get_salvage_gold() -> int:

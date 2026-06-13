@@ -1171,8 +1171,27 @@ static func slot_name(slot: int) -> String:
 	return String(SLOT_NAMES.get(slot, "Неизвестно"))
 
 
-static func find_set(set_id: String) -> Dictionary:
-	return SETS.get(set_id, {})
+# Lazily-built typed view of SETS (set id -> SetDefinition). SETS stays the
+# authoring source.
+static var _set_defs_cache: Dictionary = {}
+
+
+static func _set_defs() -> Dictionary:
+	if _set_defs_cache.is_empty():
+		for sid in SETS:
+			_set_defs_cache[sid] = SetDefinition.from_dict(String(sid), SETS[sid])
+	return _set_defs_cache
+
+
+static func has_set(set_id: String) -> bool:
+	return SETS.has(set_id)
+
+
+# Typed set definition. Returns a SetDefinition.unknown() placeholder for an
+# unknown id (guard with has_set() to detect a genuine miss).
+static func find_set(set_id: String) -> SetDefinition:
+	var d = _set_defs().get(set_id, null)
+	return d if d != null else SetDefinition.unknown(set_id)
 
 
 # Sets a class can drop/wear: both generics + the class's own set.

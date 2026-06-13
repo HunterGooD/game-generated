@@ -156,10 +156,10 @@ func test_roll_set_never_weapons_three_affixes() -> void:
 		)
 		assert_eq(it.affixes.size(), 3, "set items carry exactly 3 affixes")
 		# Set must be eligible for the class (generic or mage's own).
-		var classes: Array = ItemDatabase.find_set(it.set_id).get("classes", [])
+		var classes: Array = ItemDatabase.find_set(it.set_id).classes
 		assert_true(classes.is_empty() or classes.has("mage"), "no foreign class sets")
 		# At least 2 affixes from the theme pool.
-		var theme: Array = ItemDatabase.find_set(it.set_id).get("theme_affixes", [])
+		var theme: Array = ItemDatabase.find_set(it.set_id).theme_affixes
 		var theme_n: int = 0
 		for a in it.affixes:
 			if theme.has(String(a.get("id", ""))):

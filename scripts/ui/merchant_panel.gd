@@ -426,7 +426,7 @@ func _refresh_craft_buttons() -> void:
 		_label("СОЗДАТЬ КОМПЛЕКТНЫЙ (из выбранного предмета)", 14, Color(0.45, 0.95, 0.45, 1))
 	)
 	for set_id in owned:
-		var set_name: String = String(ItemDatabase.find_set(set_id).get("name", set_id))
+		var set_name: String = ItemDatabase.find_set(set_id).name
 		var cost: Dictionary = InventorySystem.craft_cost(selected_item, set_id)
 		var btn := _make_button("", 280, 50, 14, Color(0.55, 0.95, 0.55, 1))
 		if cost.is_empty():
