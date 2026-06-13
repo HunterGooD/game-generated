@@ -1123,11 +1123,28 @@ static func find_base(id: String) -> Dictionary:
 	return {}
 
 
-static func find_unique(id: String) -> Dictionary:
-	for u in UNIQUE_ITEMS:
-		if String(u.get("id", "")) == id:
-			return u
-	return {}
+# Lazily-built typed view of UNIQUE_ITEMS (unique id -> UniqueDefinition).
+# UNIQUE_ITEMS stays the authoring source.
+static var _unique_defs_cache: Dictionary = {}
+
+
+static func _unique_defs() -> Dictionary:
+	if _unique_defs_cache.is_empty():
+		for u in UNIQUE_ITEMS:
+			var def := UniqueDefinition.from_dict(u)
+			_unique_defs_cache[def.id] = def
+	return _unique_defs_cache
+
+
+static func has_unique(id: String) -> bool:
+	return _unique_defs().has(id)
+
+
+# Typed unique definition. Returns a UniqueDefinition.unknown() placeholder for an
+# unknown id (guard with has_unique() to detect a genuine miss).
+static func find_unique(id: String) -> UniqueDefinition:
+	var d = _unique_defs().get(id, null)
+	return d if d != null else UniqueDefinition.unknown(id)
 
 
 # Lazily-built typed view of AFFIX_POOL (affix id -> AffixDefinition). AFFIX_POOL
@@ -1243,17 +1260,17 @@ static func get_base_items_for_slot(slot: int, class_id: String) -> Array:
 
 static func get_uniques_for_class(class_id: String) -> Array:
 	var out: Array = []
-	for u in UNIQUE_ITEMS:
-		if String(u.get("class_lock", "")) == class_id:
+	for u in _unique_defs().values():
+		if u.class_lock == class_id:
 			out.append(u)
 	return out
 
 
-static func find_unique_by_transform(transform_id: String) -> Dictionary:
-	for u in UNIQUE_ITEMS:
-		if String(u.get("transform", "")) == transform_id:
+static func find_unique_by_transform(transform_id: String) -> UniqueDefinition:
+	for u in _unique_defs().values():
+		if u.transform == transform_id:
 			return u
-	return {}
+	return UniqueDefinition.unknown("")
 
 
 static func rarity_color(rarity: String) -> Color:

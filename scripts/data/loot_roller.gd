@@ -122,14 +122,14 @@ static func _roll_unique(class_id: String, ilvl: int = 1) -> ItemInstance:
 	var pool: Array = ItemDatabase.get_uniques_for_class(class_id)
 	if pool.is_empty():
 		return null
-	var pick: Dictionary = pool[randi() % pool.size()]
+	var pick: UniqueDefinition = pool[randi() % pool.size()]
 	var inst := ItemInstance.new()
 	inst.is_unique = true
-	inst.unique_id = String(pick.get("id", ""))
+	inst.unique_id = pick.id
 	inst.rarity = ItemDatabase.RARITY_UNIQUE
 	inst.ilvl = max(1, ilvl)
 	# Copy fixed affixes (deep) and append title/suffix from the affix pool.
-	var fixed: Array = pick.get("fixed_affixes", [])
+	var fixed: Array = pick.fixed_affixes
 	var used: Dictionary = {}
 	for f in fixed:
 		var aid: String = String(f.get("id", ""))
@@ -144,7 +144,7 @@ static func _roll_unique(class_id: String, ilvl: int = 1) -> ItemInstance:
 		used[aid] = true
 	# Uniques carry 5 affixes: the fixed identity + one rolled from the slot
 	# pool, so two copies of the same unique are never quite identical.
-	var slot: int = int(pick.get("slot", -1))
+	var slot: int = pick.slot
 	var want: int = int(ItemDatabase.RARITY_AFFIX_COUNT.get(ItemDatabase.RARITY_UNIQUE, 5))
 	var extra: int = max(0, want - inst.affixes.size())
 	if extra > 0:

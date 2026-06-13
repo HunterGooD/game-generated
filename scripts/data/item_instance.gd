@@ -28,7 +28,7 @@ func get_template() -> ItemTemplate:
 	if gem_id != "":
 		return ItemTemplate.from_dict(SocketGems.template_for(gem_id))
 	if is_unique:
-		return ItemTemplate.from_dict(ItemDatabase.find_unique(unique_id))
+		return ItemDatabase.find_unique(unique_id).to_template()
 	return ItemTemplate.from_dict(ItemDatabase.find_base(base_id))
 
 

@@ -228,13 +228,12 @@ func cmd_give_unique(unique_id: String = "") -> void:
 	if unique_id == "":
 		item = LootRoller._roll_unique(cls, maxi(1, 1 + int(float(_current_wave()) / 2.0)))
 	else:
-		var tpl: Dictionary = ItemDatabase.find_unique(unique_id)
-		if tpl.is_empty():
+		if not ItemDatabase.has_unique(unique_id):
 			_info("unknown unique '%s' — try list_uniques" % unique_id)
 			return
 		# Roll repeatedly until the exact unique lands (pool is small) — or build
 		# it directly when it belongs to another class.
-		var lock: String = String(tpl.get("class_lock", ""))
+		var lock: String = ItemDatabase.find_unique(unique_id).class_lock
 		for _i in 64:
 			item = LootRoller._roll_unique(lock if lock != "" else cls, 1)
 			if item != null and item.unique_id == unique_id:
@@ -273,7 +272,7 @@ func cmd_list_uniques() -> void:
 	var cls: String = String(GameManager.player_class) if GameManager else ""
 	var ids: Array = []
 	for u in ItemDatabase.get_uniques_for_class(cls):
-		ids.append(String(u.get("id", "")))
+		ids.append(u.id)
 	_info("uniques for %s: %s" % [cls, ", ".join(ids)])
 
 
