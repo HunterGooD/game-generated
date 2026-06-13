@@ -982,21 +982,9 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	if payload == null or dead:
 		return false
 
-	var amount: int = int(round(payload.amount))
+	var amount: int = _amplify_incoming_damage(int(round(payload.amount)))
 	if dead:
 		return false
-	# Curse Field amplification — if we're standing in a necromancer's curse
-	# zone, scale up the incoming damage.
-	if has_meta("curse_amp"):
-		var amp: float = float(get_meta("curse_amp", 0.0))
-		if amp > 0.0:
-			amount = int(round(float(amount) * (1.0 + amp)))
-	# Vulnerable / Armor Break amplifies all incoming damage.
-	if vuln_t > 0.0 and vuln_amp > 0.0:
-		amount = int(round(float(amount) * (1.0 + vuln_amp)))
-	# Frailty curse — cursed flesh takes more from everything.
-	if curses.has("frailty"):
-		amount = int(round(float(amount) * (1.0 + FRAILTY_AMP)))
 	# Soul Tether mirror — broadcast a fraction of this hit to other linked
 	# enemies. has_meta() guard avoids the get_meta-missing-key spam when no
 	# Hexen tether is active.
@@ -1056,7 +1044,32 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 	var applied_amount: int = max(0, previous_hp - hp)
 	if applied_amount <= 0:
 		return false
-	# Damage number + hit sparks.
+	_play_hit_feedback(applied_amount, knockback)
+	if health_component == null and hp <= 0:
+		_die()
+	return true
+
+
+# Pre-mitigation damage amplifiers stacked on this hit: necromancer Curse Field
+# zone, Vulnerable/Armor Break, and the Frailty curse.
+func _amplify_incoming_damage(amount: int) -> int:
+	# Curse Field amplification — standing in a necromancer's curse zone.
+	if has_meta("curse_amp"):
+		var amp: float = float(get_meta("curse_amp", 0.0))
+		if amp > 0.0:
+			amount = int(round(float(amount) * (1.0 + amp)))
+	# Vulnerable / Armor Break amplifies all incoming damage.
+	if vuln_t > 0.0 and vuln_amp > 0.0:
+		amount = int(round(float(amount) * (1.0 + vuln_amp)))
+	# Frailty curse — cursed flesh takes more from everything.
+	if curses.has("frailty"):
+		amount = int(round(float(amount) * (1.0 + FRAILTY_AMP)))
+	return amount
+
+
+# Visual/audio feedback for a hit that landed: damage number + sparks + hit-stop,
+# hit-flash shader, HP-bar reveal/update, knockback impulse and the hurt SFX.
+func _play_hit_feedback(applied_amount: int, knockback: Vector2) -> void:
 	if VfxManager:
 		VfxManager.spawn_damage_number(
 			global_position + Vector2(0, -20), applied_amount, Color(1, 0.85, 0.4, 1)
@@ -1077,9 +1090,6 @@ func receive_damage_payload(payload: DamageInstance) -> bool:
 		velocity = knockback
 	if AudioManager:
 		AudioManager.play_sfx_path("res://assets/audio/sfx/enemy/enemy_enemy_hurt.mp3", -10.0)
-	if health_component == null and hp <= 0:
-		_die()
-	return true
 
 
 # `from_net` — урон пришёл от другого игрока через relay (кооп-хост применяет
