@@ -266,7 +266,26 @@ func reset_for_reuse() -> void:
 	if _bt_player != null and is_instance_valid(_bt_player):
 		_bt_player.queue_free()
 	_bt_player = null
-	# Elite affixes — clear flags and tear down the aura silhouette.
+	_reset_affix_state()
+	_reset_status_state()
+	# Combat / AI timers.
+	attack_cd = 0.0
+	attack_lockout = 0.0
+	retarget_t = 0.0
+	_spider_retreat_t = 0.0
+	_idle_jitter = Vector2.ZERO
+	_idle_jitter_t = 0.0
+	_status_ui_t = 0.0
+	# Physics / networking.
+	velocity = Vector2.ZERO
+	is_puppet = false
+	network_id = -1
+	_puppet_target_pos = global_position
+	_reset_bodies_and_visuals()
+
+
+# Elite affixes — clear flags and tear down the aura silhouette.
+func _reset_affix_state() -> void:
 	affixes = []
 	_regen_frac = 0.0
 	_explosive = false
@@ -276,7 +295,10 @@ func reset_for_reuse() -> void:
 	if _aura != null and is_instance_valid(_aura):
 		_aura.queue_free()
 	_aura = null
-	# Status effects / DoTs.
+
+
+# All status-effect / DoT / curse / slow / taunt timers back to baseline.
+func _reset_status_state() -> void:
 	burn_t = 0.0
 	burn_dps = 0.0
 	chill_stacks = 0
@@ -303,19 +325,11 @@ func reset_for_reuse() -> void:
 	slow_mult = 1.0
 	taunt_target = null
 	taunt_t = 0.0
-	# Combat / AI timers.
-	attack_cd = 0.0
-	attack_lockout = 0.0
-	retarget_t = 0.0
-	_spider_retreat_t = 0.0
-	_idle_jitter = Vector2.ZERO
-	_idle_jitter_t = 0.0
-	_status_ui_t = 0.0
-	# Physics / networking.
-	velocity = Vector2.ZERO
-	is_puppet = false
-	network_id = -1
-	_puppet_target_pos = global_position
+
+
+# Re-enable collision/hurt/hit boxes, reset the status strip + HP bar, and undo
+# the death dissolve material so the recycled corpse looks alive again.
+func _reset_bodies_and_visuals() -> void:
 	# Collision back on (corpse disables it).
 	if collision_shape:
 		collision_shape.set_deferred("disabled", false)
