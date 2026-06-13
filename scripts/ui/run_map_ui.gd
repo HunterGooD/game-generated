@@ -59,7 +59,32 @@ func _ready() -> void:
 	# Co-op: repaint vote badges whenever the tally changes.
 	if RunFlow and not RunFlow.votes_changed.is_connected(_refresh):
 		RunFlow.votes_changed.connect(_refresh)
+	# Solo: pause the world while the map overlay is open (mirrors the character
+	# sheet). Co-op never pauses the shared tree (coop pause invariant). This node
+	# is PROCESS_MODE_ALWAYS, so it keeps running while paused.
+	if not (RunFlow and RunFlow.is_coop()):
+		get_tree().paused = true
 	_rebuild()
+
+
+# Esc / pause closes the map. Caught in _input (not _unhandled_input) so it beats
+# the HUD's _unhandled_input pause handler while the map is open.
+func _input(event: InputEvent) -> void:
+	if (
+		event.is_action_pressed("pause")
+		or (event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_ESCAPE)
+	):
+		get_viewport().set_input_as_handled()
+		_on_close()
+
+
+# Unpause when the overlay leaves the tree — on Esc/close AND when picking a node
+# swaps the scene out from under us. Solo only; co-op never paused.
+func _exit_tree() -> void:
+	if not (RunFlow and RunFlow.is_coop()):
+		var tree := get_tree()
+		if tree != null:
+			tree.paused = false
 
 
 func _rebuild(_a = null) -> void:
@@ -295,13 +320,8 @@ func _build_chrome() -> void:
 	_banner.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
 	_root.add_child(_banner)
 
-	var close := Button.new()
-	close.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	close.position = Vector2(-104, 16)
-	close.custom_minimum_size = Vector2(120, 36)
-	close.text = "Назад в хаб"
-	close.pressed.connect(_on_close)
-	_root.add_child(close)
+	# (No "to hub" button — the map is an overlay now; close it with Esc. Leaving
+	# the run to the hub is done from the pause menu.)
 
 	# Co-op: vote hint + host's force-resolve button.
 	if RunFlow and RunFlow.is_coop() and GameManager.run_state != null and GameManager.run_state.is_active():
@@ -324,11 +344,9 @@ func _build_chrome() -> void:
 
 
 func _on_close() -> void:
-	# As a scene root, freeing ourselves would leave an empty tree — return to the hub.
-	if get_parent() == get_tree().root:
-		RunFlow.exit_to_hub()
-	else:
-		queue_free()  # overlay use (e.g. dev): just dismiss
+	# The map is an overlay over the current scene — closing just dismisses it (no
+	# scene change, no teleport). _exit_tree unpauses (solo).
+	queue_free()
 
 
 # ── interaction ───────────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ var skill_system_ref: Node = null
 var player_ref: Node = null
 var status_row: StatusIcons = null
 var pause_menu_open: bool = false
+var map_btn: Button = null  # "Карта" — opens the run-map overlay during a run
 
 # Boss bar — built on demand.
 var boss_bar_root: Control = null
@@ -72,6 +73,8 @@ func _ready() -> void:
 		GameManager.arena_timer.connect(_on_arena_timer)
 		GameManager.arena_currency_changed.connect(_on_arena_currency)
 		GameManager.run_node_cleared.connect(_on_run_node_cleared)
+		GameManager.run_started.connect(_update_map_button)
+		GameManager.run_completed.connect(_update_map_button)
 	_refresh()
 	_refresh_gold(GameManager.gold if GameManager else 0)
 	if hint_label:
@@ -91,7 +94,34 @@ func _ready() -> void:
 	_build_static_charge_counter()
 	_build_status_row()
 	_build_globes()
+	_build_map_button()
 	call_deferred("_find_skill_system")
+
+
+# "Карта" button — opens the run map as an overlay (RunFlow.open_map_overlay).
+# Shown only during a run (run_state set); the map closes itself on Esc. This is
+# the in-run entry point now that the map no longer auto-returns after a node.
+func _build_map_button() -> void:
+	map_btn = Button.new()
+	map_btn.text = "Карта"
+	map_btn.focus_mode = Control.FOCUS_NONE
+	map_btn.custom_minimum_size = Vector2(96, 36)
+	map_btn.add_theme_font_size_override("font_size", 16)
+	map_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	map_btn.position = Vector2(24, 24)
+	map_btn.pressed.connect(_on_map_button_pressed)
+	add_child(map_btn)
+	_update_map_button()
+
+
+func _on_map_button_pressed() -> void:
+	if RunFlow:
+		RunFlow.open_map_overlay()
+
+
+func _update_map_button(_a = null) -> void:
+	if map_btn:
+		map_btn.visible = GameManager != null and GameManager.run_state != null
 
 
 # Player buff/shield status row — added under the mana bar in the top-left stats
