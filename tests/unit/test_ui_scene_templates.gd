@@ -17,3 +17,16 @@ func test_pause_menu_instantiates_and_wires() -> void:
 	assert_not_null(pm.get("continue_btn"), "continue_btn @export resolved")
 	assert_not_null(pm.get("exit_btn"), "exit_btn @export resolved")
 	assert_not_null(pm.get("status_label"), "status_label @export resolved")
+
+
+func test_trade_panel_instantiates_and_wires() -> void:
+	var scene: PackedScene = load("res://scenes/ui/trade_panel.tscn")
+	assert_not_null(scene, "trade_panel.tscn loads as PackedScene")
+	var tp: Node = scene.instantiate()
+	add_child_autofree(tp)  # _ready runs: connects buttons, refreshes grid.
+	assert_not_null(tp.get("item_grid"), "item_grid @export resolved")
+	assert_not_null(tp.get("recipient_label"), "recipient_label @export resolved")
+	assert_not_null(tp.get("selected_label"), "selected_label @export resolved")
+	assert_not_null(tp.get("send_btn"), "send_btn @export resolved")
+	assert_not_null(tp.get("cycle_btn"), "cycle_btn @export resolved")
+	assert_not_null(tp.get("close_btn"), "close_btn @export resolved")

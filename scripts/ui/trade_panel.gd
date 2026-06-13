@@ -9,22 +9,24 @@ signal closed
 
 var selected_item: ItemInstance = null
 var recipient_pid: int = -1
-var item_grid: GridContainer = null
-var recipient_label: Label = null
-var send_btn: Button = null
-var selected_label: Label = null
 
-# Built procedurally.
-var dim: ColorRect = null
-var root: Control = null
+# Wired from trade_panel.tscn (the static frame — dim / centred panel / title /
+# recipient row / inventory grid / buttons). Dynamic content (item cells, the
+# recipient/selected text, send-enabled state) is still built/updated in code.
+@export var item_grid: GridContainer
+@export var recipient_label: Label
+@export var selected_label: Label
+@export var send_btn: Button
+@export var cycle_btn: Button
+@export var close_btn: Button
 
 
 func _ready() -> void:
-	layer = 75
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	# In coop we don't want to pause the world during a trade — combat may be
-	# happening on the other player's screen.
-	_build_ui()
+	# layer (75) + process_mode (ALWAYS — a trade must NOT pause the coop world,
+	# combat may be live on a teammate's screen) are set on the scene root.
+	cycle_btn.pressed.connect(_cycle_recipient)
+	send_btn.pressed.connect(_do_gift)
+	close_btn.pressed.connect(_close)
 	_pick_default_recipient()
 	_refresh()
 	if InventorySystem and not InventorySystem.inventory_changed.is_connected(_on_inv_changed):
@@ -40,89 +42,6 @@ func _on_inv_changed() -> void:
 	):
 		selected_item = null
 	_refresh()
-
-
-func _build_ui() -> void:
-	dim = UIBuilder.dim_overlay(Color(0, 0, 0, 0.78))
-	add_child(dim)
-
-	root = Control.new()
-	root.mouse_filter = Control.MOUSE_FILTER_PASS
-	add_child(root)
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var panel := PanelContainer.new()
-	panel.theme_type_variation = &"InventoryPanel"
-	panel.custom_minimum_size = Vector2(900, 640)
-	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	root.add_child(panel)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.offset_left = -450
-	panel.offset_top = -320
-	panel.offset_right = 450
-	panel.offset_bottom = 320
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	panel.add_child(margin)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 14)
-	margin.add_child(vb)
-
-	var title := _label("ОБМЕН В ОТРЯДЕ", 30, Color(1.0, 0.85, 0.45, 1))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(title)
-	var sub := _label(
-		"Выберите предмет из инвентаря, укажите товарища и отправьте.",
-		14,
-		Color(0.85, 0.75, 0.55, 1)
-	)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(sub)
-
-	# Recipient row.
-	var recip_row := HBoxContainer.new()
-	recip_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	recip_row.add_theme_constant_override("separation", 14)
-	vb.add_child(recip_row)
-	var send_to_lbl := _label("Кому:", 18, Color(0.95, 0.85, 0.55, 1))
-	recip_row.add_child(send_to_lbl)
-	recipient_label = _label("(нет товарища)", 18, Color(1.0, 0.85, 0.4, 1))
-	recip_row.add_child(recipient_label)
-	var cycle_btn := _make_button("Следующий товарищ", 220, 44, 14)
-	cycle_btn.pressed.connect(_cycle_recipient)
-	recip_row.add_child(cycle_btn)
-
-	# Inventory grid.
-	var inv_lbl := _label("ВАШ ИНВЕНТАРЬ", 18, Color(1.0, 0.7, 0.4, 1))
-	inv_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(inv_lbl)
-	item_grid = GridContainer.new()
-	item_grid.columns = 8
-	item_grid.add_theme_constant_override("h_separation", 6)
-	item_grid.add_theme_constant_override("v_separation", 6)
-	vb.add_child(item_grid)
-
-	selected_label = _label("Выберите предмет для отправки", 16, Color(0.95, 0.85, 0.55, 1))
-	selected_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(selected_label)
-
-	# Buttons.
-	var btn_row := HBoxContainer.new()
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.add_theme_constant_override("separation", 18)
-	vb.add_child(btn_row)
-	send_btn = _make_button("Подарить предмет", 240, 56, 20, Color(0.65, 1.0, 0.5, 1))
-	send_btn.pressed.connect(_do_gift)
-	btn_row.add_child(send_btn)
-	var close_btn := _make_button("Закрыть", 180, 56, 18)
-	close_btn.pressed.connect(_close)
-	btn_row.add_child(close_btn)
 
 
 func _pick_default_recipient() -> void:
@@ -266,28 +185,3 @@ func _unhandled_input(event: InputEvent) -> void:
 	):
 		_close()
 		get_viewport().set_input_as_handled()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Tiny UI helpers (consistent with merchant_panel.gd's button shape).
-func _label(t: String, sz: int, c: Color) -> Label:
-	var l := Label.new()
-	l.text = t
-	l.add_theme_color_override("font_color", c)
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	l.add_theme_constant_override("outline_size", 4)
-	l.add_theme_font_size_override("font_size", sz)
-	return l
-
-
-func _make_button(
-	text: String, min_w: int, min_h: int, font_size: int, color: Color = Color(1.0, 0.9, 0.55, 1)
-) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.custom_minimum_size = Vector2(min_w, min_h)
-	btn.add_theme_font_size_override("font_size", font_size)
-	btn.add_theme_color_override("font_color", color)
-	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	btn.add_theme_constant_override("outline_size", 4)
-	return btn
