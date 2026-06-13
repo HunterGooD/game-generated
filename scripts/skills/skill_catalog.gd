@@ -243,11 +243,19 @@ const _RAW := {
 		"spawn": "at_caster", "behavior": "ground",
 	},
 	"barb_blood_frenzy_block": {
-		"name": "Berserk", "scene": "res://scenes/skills/skill_barb_blood_frenzy.tscn",
+		"name": "Berserk", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_barb_cry.png",
 		"cooldown": 28.0, "mana_cost": 30.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_battlecry.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "start_frenzy", "args": [15.0]},
+			{
+				"type": "vfx", "sparks_color": Color(0.9, 0.1, 0.12, 1), "sparks_count": 20,
+				"flash_color": Color(0.7, 0.05, 0.08, 0.22), "flash_time": 0.25,
+				"shake_strength": 4.0, "shake_time": 0.2
+			},
+		],
 	},
 	"barb_worldsplitter_block": {
 		"name": "Titan Strike", "scene": "res://scenes/skills/skill_barb_worldsplitter.tscn",
@@ -612,11 +620,19 @@ const _RAW := {
 	# ── BARBARIAN ASCENSIONS ──
 	# Berserker R + slot swaps.
 	"barb_blood_frenzy": {
-		"name": "Blood Frenzy", "scene": "res://scenes/skills/skill_barb_blood_frenzy.tscn",
+		"name": "Blood Frenzy", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_barb_cry.png",
 		"cooldown": 65.0, "mana_cost": 40.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_battlecry.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "start_frenzy", "args": [15.0]},
+			{
+				"type": "vfx", "sparks_color": Color(0.9, 0.1, 0.12, 1), "sparks_count": 20,
+				"flash_color": Color(0.7, 0.05, 0.08, 0.22), "flash_time": 0.25,
+				"shake_strength": 4.0, "shake_time": 0.2
+			},
+		],
 	},
 	"barb_bloodstorm": {
 		"name": "Bloodstorm", "scene": "res://scenes/skills/skill_barb_bloodstorm.tscn",
