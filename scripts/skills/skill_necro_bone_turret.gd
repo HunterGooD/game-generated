@@ -54,13 +54,4 @@ func _process(delta: float) -> void:
 
 
 func _nearest() -> Node2D:
-	var best: Node2D = null
-	var bd: float = RANGE
-	for e in get_tree().get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")):
-			continue
-		var d: float = global_position.distance_to((e as Node2D).global_position)
-		if d < bd:
-			bd = d
-			best = e
-	return best
+	return SkillTargeting.nearest(get_tree(), global_position, RANGE)

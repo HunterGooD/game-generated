@@ -30,7 +30,7 @@ func _ready() -> void:
 	var chain: Array = []
 	var hit_set: Dictionary = {}
 	var start_pos: Vector2 = global_position
-	var nearest: Node = _find_nearest_enemy(start_pos, SEARCH_RANGE, hit_set)
+	var nearest: Node = SkillTargeting.nearest(get_tree(), start_pos, SEARCH_RANGE, hit_set)
 	if nearest == null:
 		# No target — still play a small fizzle so cast feels responsive.
 		if VfxManager:
@@ -46,7 +46,7 @@ func _ready() -> void:
 		total_jumps += 3
 	for i in total_jumps - 1:
 		var prev: Node2D = chain[chain.size() - 1] as Node2D
-		var next: Node = _find_nearest_enemy(prev.global_position, JUMP_RANGE, hit_set)
+		var next: Node = SkillTargeting.nearest(get_tree(), prev.global_position, JUMP_RANGE, hit_set)
 		if next == null:
 			break
 		chain.append(next)
@@ -72,26 +72,6 @@ func _ready() -> void:
 	# Self-destruct shortly after the bolts fade.
 	var t := get_tree().create_timer(0.5)
 	t.timeout.connect(queue_free)
-
-
-func _find_nearest_enemy(from: Vector2, range_max: float, exclude: Dictionary) -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var enemies := tree.get_nodes_in_group("enemy")
-	var best: Node = null
-	var best_dist: float = range_max
-	for e in enemies:
-		if not is_instance_valid(e):
-			continue
-		if exclude.has(e.get_instance_id()):
-			continue
-		var pos: Vector2 = (e as Node2D).global_position
-		var d: float = from.distance_to(pos)
-		if d < best_dist:
-			best_dist = d
-			best = e
-	return best
 
 
 func _draw_bolt_segment(a: Vector2, b: Vector2) -> void:

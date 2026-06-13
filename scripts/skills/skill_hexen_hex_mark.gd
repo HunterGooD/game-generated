@@ -207,18 +207,4 @@ func _finish(detonated: bool) -> void:
 
 
 func _nearest_enemy(pos: Vector2, max_dist: float) -> Node2D:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var best: Node2D = null
-	var best_d: float = max_dist
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		var d: float = pos.distance_to((e as Node2D).global_position)
-		if d < best_d:
-			best_d = d
-			best = e as Node2D
-	return best
+	return SkillTargeting.nearest(get_tree(), pos, max_dist)

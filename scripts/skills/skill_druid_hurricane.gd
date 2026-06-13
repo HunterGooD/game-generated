@@ -60,7 +60,7 @@ func _physics_process(delta: float) -> void:
 	retarget_t -= delta
 	if retarget_t <= 0.0 or current_target == null or not is_instance_valid(current_target):
 		retarget_t = 0.3
-		current_target = _find_nearest_enemy()
+		current_target = SkillTargeting.nearest(get_tree(), global_position)
 	# Chase target.
 	if current_target and is_instance_valid(current_target):
 		var to_t: Vector2 = current_target.global_position - global_position
@@ -78,35 +78,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _apply_damage() -> void:
-	var tree := get_tree()
-	if tree == null:
-		return
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		if global_position.distance_to((e as Node2D).global_position) <= RADIUS:
-			if e.has_method("take_damage"):
-				e.take_damage(damage, global_position)
-
-
-func _find_nearest_enemy() -> Node2D:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var best: Node2D = null
-	var best_d: float = INF
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		var d: float = global_position.distance_to((e as Node2D).global_position)
-		if d < best_d:
-			best_d = d
-			best = e as Node2D
-	return best
+	for e in SkillTargeting.in_radius(get_tree(), global_position, RADIUS):
+		if e.has_method("take_damage"):
+			e.take_damage(damage, global_position)
 
 
 func _spawn_twin() -> void:

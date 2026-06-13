@@ -41,16 +41,7 @@ func _ready() -> void:
 
 
 func _nearest(from: Vector2, used: Dictionary) -> Node2D:
-	var best: Node2D = null
-	var bd: float = LINK_RANGE
-	for e in get_tree().get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")) or used.has(e.get_instance_id()):
-			continue
-		var d: float = from.distance_to((e as Node2D).global_position)
-		if d < bd:
-			bd = d
-			best = e
-	return best
+	return SkillTargeting.nearest(get_tree(), from, LINK_RANGE, used)
 
 
 func _arc(a: Vector2, b: Vector2) -> void:

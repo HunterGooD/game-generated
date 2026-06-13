@@ -89,20 +89,4 @@ func _draw_segment(a: Vector2, b: Vector2) -> void:
 
 
 func _nearest_unhit_enemy(pos: Vector2, visited: Dictionary) -> Node2D:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var best: Node2D = null
-	var best_d: float = JUMP_RANGE
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		if visited.has(e.get_instance_id()):
-			continue
-		var d: float = pos.distance_to((e as Node2D).global_position)
-		if d < best_d:
-			best_d = d
-			best = e as Node2D
-	return best
+	return SkillTargeting.nearest(get_tree(), pos, JUMP_RANGE, visited)

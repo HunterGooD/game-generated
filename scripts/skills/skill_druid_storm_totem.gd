@@ -44,15 +44,7 @@ func _process(delta: float) -> void:
 	if _t > 0.0:
 		return
 	_t = FIRE_INTERVAL
-	var best: Node2D = null
-	var bd: float = RANGE
-	for e in get_tree().get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")):
-			continue
-		var d: float = global_position.distance_to((e as Node2D).global_position)
-		if d < bd:
-			bd = d
-			best = e
+	var best: Node2D = SkillTargeting.nearest(get_tree(), global_position, RANGE)
 	if best:
 		if VfxManager:
 			VfxManager.spawn_hit_sparks(best.global_position, Color(0.6, 0.85, 1.0, 1), 6)

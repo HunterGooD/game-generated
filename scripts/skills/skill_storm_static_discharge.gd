@@ -53,18 +53,11 @@ func _ready() -> void:
 			stacks = int(caster.call("consume_static_charge"))
 		# Total damage = base × (1.0 + stacks × 1.0). 0 stacks still deals base.
 		var burst_dmg: int = int(round(float(damage) * (1.0 + float(stacks))))
-		var tree := get_tree()
-		if tree:
-			for e in tree.get_nodes_in_group("enemy"):
-				if not is_instance_valid(e):
-					continue
-				if e.get("dead") == true:
-					continue
-				if global_position.distance_to((e as Node2D).global_position) <= RADIUS:
-					if e.has_method("take_damage"):
-						e.call("take_damage", burst_dmg, global_position)
-						if _ctx != null:
-							_ctx.apply_on_hit(e)
+		for e in SkillTargeting.in_radius(get_tree(), global_position, RADIUS):
+			if e.has_method("take_damage"):
+				e.call("take_damage", burst_dmg, global_position)
+				if _ctx != null:
+					_ctx.apply_on_hit(e)
 		# Capacitor Core refund.
 		if (
 			stacks >= REFUND_THRESHOLD
