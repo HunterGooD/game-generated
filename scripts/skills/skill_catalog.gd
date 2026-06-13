@@ -538,11 +538,19 @@ const _RAW := {
 	# ── ASCENSION (Spec Path) R abilities ──
 	# Battlemage (Mage). Icon/sfx reuse fire assets as placeholders for now.
 	"arcane_flameblade": {
-		"name": "Arcane Flameblade", "scene": "res://scenes/skills/skill_arcane_flameblade.tscn",
+		"name": "Arcane Flameblade", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_skill_fire_wall.png",
 		"cooldown": 70.0, "mana_cost": 60.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_fire_wall.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"effects": [
+			{"type": "caster_call", "method": "apply_buff", "args": [20.0, 1.35, 1.1]},
+			{"type": "caster_call", "method": "start_flameblade", "args": [20.0]},
+			{
+				"type": "vfx", "sparks_color": Color(1.0, 0.5, 0.2, 1), "sparks_count": 16,
+				"flash_color": Color(1.0, 0.55, 0.25, 0.18), "flash_time": 0.2
+			},
+		],
 	},
 	# Battlemage slot transforms (replace Fire Wall / Ice Bolt / Meteor).
 	"flame_cleave": {
@@ -740,11 +748,17 @@ const _RAW := {
 		"spawn": "with_caster", "behavior": "dash",
 	},
 	"rogue_vanish": {
-		"name": "Vanish", "scene": "res://scenes/skills/skill_rogue_vanish.tscn",
+		"name": "Vanish", "scene": "res://scenes/skills/skill_composed.tscn",
 		"icon": "res://assets/sprites/items/icon_rogue_smoke.png",
 		"cooldown": 12.0, "mana_cost": 20.0, "damage_mult": 1.0,
 		"sfx": "res://assets/audio/sfx/player/player_spell_smoke_bomb.mp3",
 		"spawn": "at_caster", "behavior": "buff",
+		"params": {"lifetime": 0.5},
+		"effects": [
+			{"type": "vfx", "sparks_color": Color(0.5, 0.5, 0.6, 1), "sparks_count": 16},
+			{"type": "caster_call", "method": "apply_stealth", "args": [1.5]},
+			{"type": "caster_call", "method": "start_backstab", "args": [2.0]},
+		],
 	},
 	"rogue_execution_fan": {
 		"name": "Execution Fan", "scene": "res://scenes/skills/skill_rogue_execution_fan.tscn",
