@@ -133,12 +133,12 @@ static func _roll_unique(class_id: String, ilvl: int = 1) -> ItemInstance:
 	var used: Dictionary = {}
 	for f in fixed:
 		var aid: String = String(f.get("id", ""))
-		var ameta: Dictionary = ItemDatabase.find_affix(aid)
+		var ameta := ItemDatabase.find_affix(aid)
 		var entry: Dictionary = {
 			"id": aid,
 			"value": float(f.get("value", 0)),
-			"title": String(ameta.get("title", aid.capitalize())),
-			"suffix": String(ameta.get("suffix", "")),
+			"title": ameta.title,
+			"suffix": ameta.suffix,
 		}
 		inst.affixes.append(entry)
 		used[aid] = true
@@ -187,9 +187,9 @@ static func roll_set_affixes(set_id: String, slot: int, ilvl: int) -> Array:
 	var out: Array = []
 	var used: Dictionary = {}
 	for i in min(2, theme.size()):
-		var meta: Dictionary = ItemDatabase.find_affix(String(theme[i]))
-		if meta.is_empty():
+		if not ItemDatabase.has_affix(String(theme[i])):
 			continue
+		var meta := ItemDatabase.find_affix(String(theme[i]))
 		out.append(roll_affix_entry(meta, ilvl, ItemDatabase.RARITY_SET))
 		used[String(theme[i])] = true
 	out += _roll_affixes_excluding(3 - out.size(), ilvl, ItemDatabase.RARITY_SET, slot, used)
@@ -246,36 +246,33 @@ static func _roll_affixes_excluding(
 	# Drop it from the pool so it never rolls in co-op; this also makes solo vs
 	# co-op gear meaningfully different (XP-gain is a singleplayer-only perk).
 	if NetManager and NetManager.is_multiplayer:
-		pool = pool.filter(func(a): return String(a.get("id", "")) != "xp_gain")
+		pool = pool.filter(func(a): return a.id != "xp_gain")
 	if not exclude.is_empty():
-		pool = pool.filter(func(a): return not exclude.has(String(a.get("id", ""))))
+		pool = pool.filter(func(a): return not exclude.has(a.id))
 	pool.shuffle()
 	var out: Array = []
 	for i in min(count, pool.size()):
-		var a: Dictionary = pool[i]
+		var a: AffixDefinition = pool[i]
 		out.append(roll_affix_entry(a, ilvl, rarity))
 	return out
 
 
 # Roll one affix value entry from its pool meta (shared by drop rolls and the
 # merchant's add-affix service).
-static func roll_affix_entry(meta: Dictionary, ilvl: int, rarity: String) -> Dictionary:
-	var min_v: float = float(meta.get("min", 1))
-	var max_v: float = float(meta.get("max", 1))
-	var per_ilvl: float = float(meta.get("per_ilvl", 0.5))
-	var v: float = randf_range(min_v, max_v) + per_ilvl * float(ilvl - 1)
+static func roll_affix_entry(meta: AffixDefinition, ilvl: int, rarity: String) -> Dictionary:
+	var v: float = randf_range(meta.roll_min, meta.roll_max) + meta.per_ilvl * float(ilvl - 1)
 	# Legendary gets +30% on rolled values to feel meaningfully stronger.
 	if rarity == ItemDatabase.RARITY_LEGENDARY:
 		v *= 1.3
 	# Round flat stats to integers — feels cleaner.
-	var suffix: String = String(meta.get("suffix", ""))
+	var suffix: String = meta.suffix
 	if suffix == "":
 		v = float(round(v))
 	else:
 		v = float(round(v * 10.0) / 10.0)
 	return {
-		"id": String(meta.get("id", "")),
+		"id": meta.id,
 		"value": v,
-		"title": String(meta.get("title", "?")),
+		"title": meta.title,
 		"suffix": suffix,
 	}

@@ -1130,23 +1130,39 @@ static func find_unique(id: String) -> Dictionary:
 	return {}
 
 
-static func find_affix(id: String) -> Dictionary:
-	for a in AFFIX_POOL:
-		if String(a.get("id", "")) == id:
-			return a
-	return {}
+# Lazily-built typed view of AFFIX_POOL (affix id -> AffixDefinition). AFFIX_POOL
+# stays the authoring source.
+static var _affix_defs_cache: Dictionary = {}
 
 
-# All affixes legal on `slot` (empty `slots` list = universal). Ring 2 shares
+static func _affix_defs() -> Dictionary:
+	if _affix_defs_cache.is_empty():
+		for a in AFFIX_POOL:
+			var def := AffixDefinition.from_dict(a)
+			_affix_defs_cache[def.id] = def
+	return _affix_defs_cache
+
+
+static func has_affix(id: String) -> bool:
+	return _affix_defs().has(id)
+
+
+# Typed affix template. Returns an AffixDefinition.unknown() placeholder for an
+# unknown id (guard with has_affix() to detect a genuine miss).
+static func find_affix(id: String) -> AffixDefinition:
+	var d = _affix_defs().get(id, null)
+	return d if d != null else AffixDefinition.unknown(id)
+
+
+# All affix templates legal on `slot` (empty `slots` = universal). Ring 2 shares
 # Ring 1's pool; unknown slots fall back to the full pool.
 static func affixes_for_slot(slot: int) -> Array:
 	var s: int = slot
 	if s == SLOT_RING_2:
 		s = SLOT_RING_1
 	var out: Array = []
-	for a in AFFIX_POOL:
-		var allowed: Array = a.get("slots", [])
-		if allowed.is_empty() or allowed.has(s) or s < 0:
+	for a in _affix_defs().values():
+		if a.slots.is_empty() or a.slots.has(s) or s < 0:
 			out.append(a)
 	return out
 

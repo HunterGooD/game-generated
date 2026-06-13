@@ -41,14 +41,14 @@ func test_slot_pools_respect_restrictions() -> void:
 	# gold_gain is boots/jewelry-only; damage never on helmet/chest/boots.
 	var helmet_ids: Array = []
 	for a in ItemDatabase.affixes_for_slot(ItemDatabase.SLOT_HELMET):
-		helmet_ids.append(String(a.get("id", "")))
+		helmet_ids.append(a.id)
 	assert_does_not_have(helmet_ids, "gold_gain", "no gold_gain on helmets")
 	assert_does_not_have(helmet_ids, "damage", "no damage on helmets")
 	assert_has(helmet_ids, "cdr", "helmets roll cdr")
 	assert_has(helmet_ids, "strength", "attributes are universal")
 	var boots_ids: Array = []
 	for a in ItemDatabase.affixes_for_slot(ItemDatabase.SLOT_BOOTS):
-		boots_ids.append(String(a.get("id", "")))
+		boots_ids.append(a.id)
 	assert_has(boots_ids, "move_speed", "boots roll move speed")
 	assert_does_not_have(boots_ids, "crit_chance", "no crit on boots")
 
@@ -64,7 +64,7 @@ func test_rolled_items_only_carry_legal_affixes() -> void:
 			continue
 		var legal: Dictionary = {}
 		for a in ItemDatabase.affixes_for_slot(item.get_slot()):
-			legal[String(a.get("id", ""))] = true
+			legal[a.id] = true
 		for a in item.affixes:
 			var aid: String = String(a.get("id", ""))
 			assert_true(

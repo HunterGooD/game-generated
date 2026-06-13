@@ -55,8 +55,8 @@ func test_sets_catalog_shape() -> void:
 func test_theme_affixes_exist_in_pool() -> void:
 	for sid in ItemDatabase.SETS:
 		for aid in ItemDatabase.SETS[sid].get("theme_affixes", []):
-			assert_false(
-				ItemDatabase.find_affix(String(aid)).is_empty(),
+			assert_true(
+				ItemDatabase.has_affix(String(aid)),
 				"%s theme affix %s not in AFFIX_POOL" % [sid, aid]
 			)
 
