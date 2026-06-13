@@ -1474,6 +1474,49 @@ func _perform_basic_attack() -> void:
 	if dir.length_squared() < 0.001:
 		dir = Vector2.RIGHT
 	dir = dir.normalized()
+	var dmg: int = _resolve_basic_attack_damage(dir)
+
+	# Check for basic-attack uniques — each class has one that swaps the default
+	# basic-attack scene out for an alternate. Returns the dispatched path or
+	# empty string if no unique was used.
+	var unique_path: String = _try_basic_attack_unique(dir, dmg)
+	if unique_path != "":
+		# Multiplayer: broadcast and skip the default dispatch below.
+		if NetManager and NetManager.is_multiplayer:
+			var ns_u := _find_net_sync()
+			if ns_u and ns_u.has_method("broadcast_skill_cast"):
+				ns_u.call(
+					"broadcast_skill_cast", "basic_unique", unique_path, global_position, dir, dmg
+				)
+		return
+	var spawned: Dictionary = _spawn_default_basic_attack(dir, origin, dmg)
+	var attack_scene_path: String = String(spawned.get("path", ""))
+	var attack_spawn_pos: Vector2 = spawned.get("pos", origin)
+
+	# Multiplayer: broadcast a visual-only copy of the basic attack so peers
+	# see our melee swing / dagger throw / magic bolt land.
+	if NetManager and NetManager.is_multiplayer and attack_scene_path != "":
+		var ns := _find_net_sync()
+		if ns and ns.has_method("broadcast_skill_cast"):
+			# Carry our class so peers theme the slash to the caster, not the viewer.
+			var cls_extra: Dictionary = {}
+			if GameManager:
+				cls_extra = {"cls": String(GameManager.player_class)}
+			ns.call(
+				"broadcast_skill_cast",
+				"basic_" + basic_attack_kind,
+				attack_scene_path,
+				attack_spawn_pos,
+				dir,
+				dmg,
+				cls_extra
+			)
+
+
+# Roll the basic attack's final damage and fire the on-attack side effects
+# (Battlemage melee mult + Flameblade proc, Blood Frenzy leech, stealth auto-crit
+# + Whisper-Edge burst). Returns the damage the spawned attack should carry.
+func _resolve_basic_attack_damage(dir: Vector2) -> int:
 	var base_dmg: int = GameManager.get_effective_damage() if GameManager else 14
 	# get_buff_damage_mult folds in active buff × ally aura × Pain Engine.
 	# Strength scales every basic attack (universal stat effect).
@@ -1488,7 +1531,6 @@ func _perform_basic_attack() -> void:
 		var missing: int = GameManager.player_max_hp - GameManager.player_hp
 		if missing > 0:
 			heal_amount(maxi(1, int(round(float(missing) * 0.02))))
-
 	# Stealth burst: next attack auto-crits.
 	if stealth_crit_charge:
 		dmg = int(round(float(dmg) * 3.0))
@@ -1496,22 +1538,14 @@ func _perform_basic_attack() -> void:
 		_remove_stealth()
 		# Whisper-Edge unique: stealth attack also blows up in a wide arc.
 		_maybe_whisper_edge_burst(dmg, dir)
+	return dmg
 
-	var attack_scene_path: String = ""
+
+# Spawn the default class basic attack (melee/claw swing, thrown dagger, or magic
+# bolt) and return {"path": scene_path, "pos": spawn_pos} for the net broadcast.
+func _spawn_default_basic_attack(dir: Vector2, origin: Vector2, dmg: int) -> Dictionary:
 	var attack_spawn_pos: Vector2 = origin
-	# Check for basic-attack uniques — each class has one that swaps the default
-	# basic-attack scene out for an alternate. Returns the dispatched path or
-	# empty string if no unique was used.
-	var unique_path: String = _try_basic_attack_unique(dir, dmg)
-	if unique_path != "":
-		# Multiplayer: broadcast and skip the default dispatch below.
-		if NetManager and NetManager.is_multiplayer:
-			var ns_u := _find_net_sync()
-			if ns_u and ns_u.has_method("broadcast_skill_cast"):
-				ns_u.call(
-					"broadcast_skill_cast", "basic_unique", unique_path, global_position, dir, dmg
-				)
-		return
+	var attack_scene_path: String = ""
 	match basic_attack_kind:
 		"melee", "claw":
 			var sw := MELEE_SCENE.instantiate()
@@ -1552,25 +1586,7 @@ func _perform_basic_attack() -> void:
 					"res://assets/audio/sfx/player/player_magic_cast.mp3", -10.0
 				)
 			attack_scene_path = "res://scenes/combat/player/magic_bolt.tscn"
-
-	# Multiplayer: broadcast a visual-only copy of the basic attack so peers
-	# see our melee swing / dagger throw / magic bolt land.
-	if NetManager and NetManager.is_multiplayer and attack_scene_path != "":
-		var ns := _find_net_sync()
-		if ns and ns.has_method("broadcast_skill_cast"):
-			# Carry our class so peers theme the slash to the caster, not the viewer.
-			var cls_extra: Dictionary = {}
-			if GameManager:
-				cls_extra = {"cls": String(GameManager.player_class)}
-			ns.call(
-				"broadcast_skill_cast",
-				"basic_" + basic_attack_kind,
-				attack_scene_path,
-				attack_spawn_pos,
-				dir,
-				dmg,
-				cls_extra
-			)
+	return {"path": attack_scene_path, "pos": attack_spawn_pos}
 
 
 func _find_net_sync() -> Node:
@@ -1604,32 +1620,34 @@ func camera_punch(amount: float = 0.08, duration: float = 0.25) -> void:
 # Basic-attack uniques — one per class. Player owns the unique transform id
 # (e.g. "basic_barb_shockwave"). When equipped, this dispatches the alt scene
 # and returns the spawned scene path. Empty string means no unique matched.
+# class → its basic-attack-replacing unique id. Absent class = no override.
+const BASIC_UNIQUE_BY_CLASS := {
+	"barbarian": "basic_barb_shockwave",
+	"rogue": "basic_rogue_triple_throw",
+	"mage": "basic_mage_phantom_edge",
+	"druid": "basic_druid_thunder_sphere",
+	"necromancer": "basic_necro_bone_lance",
+	"hexen": "basic_hexen_whipcrack",
+	"stormcaller": "basic_storm_voltaic_tonfa",
+}
+
+
+# If the player's class has its basic-attack unique equipped, spawn that variant
+# and return its scene path; else "" (caller falls back to the default swing).
 func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 	if InventorySystem == null or not InventorySystem.has_method("has_unique"):
 		return ""
 	if GameManager == null:
 		return ""
-	var cls: String = String(GameManager.player_class)
-	# Resolve which unique id (if any) is in play for this class.
-	var unique_id: String = ""
-	match cls:
-		"barbarian":
-			unique_id = "basic_barb_shockwave"
-		"rogue":
-			unique_id = "basic_rogue_triple_throw"
-		"mage":
-			unique_id = "basic_mage_phantom_edge"
-		"druid":
-			unique_id = "basic_druid_thunder_sphere"
-		"necromancer":
-			unique_id = "basic_necro_bone_lance"
-		"hexen":
-			unique_id = "basic_hexen_whipcrack"
-		"stormcaller":
-			unique_id = "basic_storm_voltaic_tonfa"
+	var unique_id: String = String(BASIC_UNIQUE_BY_CLASS.get(String(GameManager.player_class), ""))
 	if unique_id == "" or not InventorySystem.call("has_unique", unique_id):
 		return ""
 	var origin: Vector2 = cast_origin.global_position if cast_origin else global_position
+	return _spawn_basic_unique(unique_id, dir, dmg, origin)
+
+
+# Instantiate the per-unique basic-attack scene and return its path ("" on miss).
+func _spawn_basic_unique(unique_id: String, dir: Vector2, dmg: int, origin: Vector2) -> String:
 	match unique_id:
 		"basic_barb_shockwave":
 			var path := "res://scenes/combat/player/basic_shockwave.tscn"
