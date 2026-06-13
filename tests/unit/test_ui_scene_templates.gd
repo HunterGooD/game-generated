@@ -44,3 +44,16 @@ func test_hud_instantiates_and_wires() -> void:
 	assert_not_null(h.get("hp_bar"), "hp_bar @export resolved")
 	assert_not_null(h.get("xp_fill"), "xp_fill @export resolved")
 	assert_not_null(h.get("character_sheet"), "character_sheet @export resolved")
+
+
+func test_character_sheet_instantiates_and_wires() -> void:
+	var scene: PackedScene = load("res://scenes/ui/character_sheet.tscn")
+	assert_not_null(scene, "character_sheet.tscn loads as PackedScene")
+	var cs: Node = scene.instantiate()
+	add_child_autofree(cs)  # _ready connects salvage btn + inventory signals.
+	assert_not_null(cs.get("inventory_grid"), "inventory_grid @export resolved")
+	assert_not_null(cs.get("paper_doll"), "paper_doll @export resolved")
+	assert_not_null(cs.get("stats_box"), "stats_box @export resolved")
+	assert_not_null(cs.get("portrait"), "portrait @export resolved")
+	assert_not_null(cs.get("salvage_all_btn"), "salvage_all_btn @export resolved")
+	assert_not_null(cs.get("set_summary_label"), "set_summary_label @export resolved")

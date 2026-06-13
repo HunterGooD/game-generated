@@ -18,18 +18,21 @@ const SOCKET_DOT: float = 30.0
 var open: bool = false
 var selected_item: ItemInstance = null
 
-# Ссылки на построенные в коде узлы.
-var portrait: TextureRect = null
-var class_name_label: Label = null
-var level_label: Label = null
-var xp_bar: ProgressBar = null
-var xp_label: Label = null
-var gold_label: Label = null
-var materials_label: Label = null
-var stats_box: VBoxContainer = null
-var paper_doll: Control = null
-var set_summary_label: Label = null
-var inventory_grid: GridContainer = null
+# Wired from character_sheet.tscn (the static frame — header / 3 columns +
+# backdrops / hint). The dynamic content (stat rows, equipment slot tiles +
+# socket dots + link overlay, inventory cells) is still built/refreshed in code.
+@export var class_name_label: Label
+@export var level_label: Label
+@export var xp_bar: ProgressBar
+@export var xp_label: Label
+@export var gold_label: Label
+@export var materials_label: Label
+@export var portrait: TextureRect
+@export var stats_box: VBoxContainer
+@export var paper_doll: Control
+@export var set_summary_label: Label
+@export var salvage_all_btn: Button
+@export var inventory_grid: GridContainer
 
 # ПКМ-меню для предметов в сумке (Надеть / Разобрать / Продать) и на кукле
 # (Снять / Просверлить гнездо). _ctx_slot >= 0 — предмет сейчас надет.
@@ -113,10 +116,8 @@ class EquipCell:
 
 
 func _ready() -> void:
-	layer = 25
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	visible = false
-	_build_layout()
+	# layer (25) / process_mode (ALWAYS) / visible=false live on the scene root.
+	salvage_all_btn.pressed.connect(_on_salvage_all)
 	if InventorySystem:
 		InventorySystem.equipment_changed.connect(_on_inventory_dirty)
 		InventorySystem.inventory_changed.connect(_on_inventory_dirty)
@@ -129,220 +130,6 @@ func _on_inventory_dirty() -> void:
 		_rebuild_equipment()
 		_refresh_header()
 		_populate_stats()
-
-
-# ── Построение каркаса ───────────────────────────────────────────────────────
-func _build_layout() -> void:
-	var margin := get_node_or_null("Root/Panel/Margin") as MarginContainer
-	if margin == null:
-		return
-
-	var main := VBoxContainer.new()
-	main.add_theme_constant_override("separation", 10)
-	margin.add_child(main)
-
-	_build_header(main)
-	main.add_child(HSeparator.new())
-
-	# ── Три колонки: характеристики | кукла | инвентарь ──
-	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 22)
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	main.add_child(cols)
-
-	_build_stats_column(cols)
-	_build_equipment_column(cols)
-	_build_inventory_column(cols)
-	_build_hint(main)
-
-
-# Шапка: класс + уровень + полоса опыта + золото/материалы.
-func _build_header(main: VBoxContainer) -> void:
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 18)
-	main.add_child(head)
-
-	class_name_label = Label.new()
-	class_name_label.text = "Герой"
-	class_name_label.add_theme_color_override("font_color", Color(0.95, 0.3, 0.3, 1))
-	class_name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	class_name_label.add_theme_constant_override("outline_size", 6)
-	class_name_label.add_theme_font_size_override("font_size", 30)
-	head.add_child(class_name_label)
-
-	level_label = Label.new()
-	level_label.text = "Уровень 1"
-	level_label.add_theme_color_override("font_color", Color(1, 0.92, 0.55, 1))
-	level_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	level_label.add_theme_constant_override("outline_size", 5)
-	level_label.add_theme_font_size_override("font_size", 24)
-	level_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(level_label)
-
-	var xp_box := VBoxContainer.new()
-	xp_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	xp_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	xp_box.add_theme_constant_override("separation", 2)
-	head.add_child(xp_box)
-	xp_bar = ProgressBar.new()
-	xp_bar.custom_minimum_size = Vector2(0, 16)
-	xp_bar.show_percentage = false
-	xp_box.add_child(xp_bar)
-	xp_label = Label.new()
-	xp_label.text = "0 / 50 опыта"
-	xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	xp_label.add_theme_color_override("font_color", Color(0.9, 0.55, 0.4, 1))
-	xp_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	xp_label.add_theme_constant_override("outline_size", 3)
-	xp_label.add_theme_font_size_override("font_size", 13)
-	xp_box.add_child(xp_label)
-
-	var money_box := VBoxContainer.new()
-	money_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	money_box.add_theme_constant_override("separation", 2)
-	head.add_child(money_box)
-	gold_label = Label.new()
-	gold_label.text = "Золото: 0"
-	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4, 1))
-	gold_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	gold_label.add_theme_constant_override("outline_size", 4)
-	gold_label.add_theme_font_size_override("font_size", 18)
-	money_box.add_child(gold_label)
-	materials_label = Label.new()
-	materials_label.text = ""
-	materials_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	materials_label.add_theme_color_override("font_color", Color(0.75, 0.85, 0.9, 1))
-	materials_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	materials_label.add_theme_constant_override("outline_size", 3)
-	materials_label.add_theme_font_size_override("font_size", 13)
-	money_box.add_child(materials_label)
-
-
-# ЛЕВО: портрет + характеристики (прокручиваемые).
-func _build_stats_column(cols: HBoxContainer) -> void:
-	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(330, 0)
-	left.add_theme_constant_override("separation", 8)
-	cols.add_child(left)
-	portrait = TextureRect.new()
-	portrait.custom_minimum_size = Vector2(180, 180)
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	left.add_child(portrait)
-	var stats_title := Label.new()
-	stats_title.text = "Характеристики"
-	stats_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stats_title.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
-	stats_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	stats_title.add_theme_constant_override("outline_size", 4)
-	stats_title.add_theme_font_size_override("font_size", 19)
-	left.add_child(stats_title)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	left.add_child(scroll)
-	stats_box = VBoxContainer.new()
-	stats_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stats_box.add_theme_constant_override("separation", 1)
-	scroll.add_child(stats_box)
-
-
-# ЦЕНТР: кукла экипировки + бонусы комплектов.
-func _build_equipment_column(cols: HBoxContainer) -> void:
-	var mid := VBoxContainer.new()
-	mid.custom_minimum_size = Vector2(360, 0)
-	mid.add_theme_constant_override("separation", 8)
-	cols.add_child(mid)
-	var doll_lbl := Label.new()
-	doll_lbl.text = "Экипировка"
-	doll_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	doll_lbl.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
-	doll_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	doll_lbl.add_theme_constant_override("outline_size", 4)
-	doll_lbl.add_theme_font_size_override("font_size", 19)
-	mid.add_child(doll_lbl)
-	paper_doll = Control.new()
-	paper_doll.custom_minimum_size = Vector2(340, 470)
-	paper_doll.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	mid.add_child(paper_doll)
-	_add_backdrop(paper_doll, Color(0.6, 0.55, 0.55, 0.9))
-	set_summary_label = Label.new()
-	set_summary_label.text = ""
-	set_summary_label.add_theme_color_override("font_color", Color(0.45, 0.95, 0.45, 1))
-	set_summary_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	set_summary_label.add_theme_constant_override("outline_size", 3)
-	set_summary_label.add_theme_font_size_override("font_size", 13)
-	set_summary_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mid.add_child(set_summary_label)
-
-
-# ПРАВО: инвентарь.
-func _build_inventory_column(cols: HBoxContainer) -> void:
-	var right := VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 8)
-	cols.add_child(right)
-	var inv_head := HBoxContainer.new()
-	inv_head.add_theme_constant_override("separation", 12)
-	right.add_child(inv_head)
-	var inv_lbl := Label.new()
-	inv_lbl.text = "Инвентарь"
-	inv_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inv_lbl.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
-	inv_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	inv_lbl.add_theme_constant_override("outline_size", 4)
-	inv_lbl.add_theme_font_size_override("font_size", 19)
-	inv_head.add_child(inv_lbl)
-	var salvage_all_btn := Button.new()
-	salvage_all_btn.text = "Разобрать обычные и редкие"
-	salvage_all_btn.add_theme_font_size_override("font_size", 13)
-	salvage_all_btn.focus_mode = Control.FOCUS_NONE
-	salvage_all_btn.pressed.connect(_on_salvage_all)
-	inv_head.add_child(salvage_all_btn)
-	var inv_wrap := Control.new()
-	inv_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inv_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(inv_wrap)
-	_add_backdrop(inv_wrap, Color(0.55, 0.5, 0.5, 0.9))
-	var inv_margin := MarginContainer.new()
-	inv_margin.add_theme_constant_override("margin_left", 12)
-	inv_margin.add_theme_constant_override("margin_right", 12)
-	inv_margin.add_theme_constant_override("margin_top", 12)
-	inv_margin.add_theme_constant_override("margin_bottom", 12)
-	inv_wrap.add_child(inv_margin)
-	inv_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	inventory_grid = GridContainer.new()
-	inventory_grid.columns = 11
-	inventory_grid.add_theme_constant_override("h_separation", 6)
-	inventory_grid.add_theme_constant_override("v_separation", 6)
-	inv_margin.add_child(inventory_grid)
-
-
-# ── Подсказка снизу ──
-func _build_hint(main: VBoxContainer) -> void:
-	var hint := Label.new()
-	hint.text = "Tab / Esc — закрыть  •  ЛКМ — надеть/снять  •  ПКМ — действия  •  самоцветы тащите в гнёзда, ПКМ по гнезду — повернуть"
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_color_override("font_color", Color(0.6, 0.55, 0.4, 1))
-	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	hint.add_theme_constant_override("outline_size", 3)
-	hint.add_theme_font_size_override("font_size", 13)
-	main.add_child(hint)
-
-
-func _add_backdrop(parent: Control, tint: Color) -> void:
-	var bg := TextureRect.new()
-	var bg_path: String = "res://assets/textures/backgrounds/inventory_bg_dark.webp"
-	if ResourceLoader.exists(bg_path):
-		bg.texture = load(bg_path) as Texture2D
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.modulate = tint
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(bg)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 # ── Открытие/закрытие ────────────────────────────────────────────────────────

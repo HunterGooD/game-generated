@@ -1,11 +1,26 @@
-[gd_scene load_steps=3 format=3 uid="uid://b8plyrarchrsheet"]
+[gd_scene load_steps=4 format=3 uid="uid://b8plyrarchrsheet"]
 
 [ext_resource type="Script" path="res://scripts/ui/character_sheet.gd" id="1_cs"]
 [ext_resource type="Theme" path="res://assets/ui/theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" uid="uid://b7xdqd7xa67p7" path="res://assets/textures/backgrounds/inventory_bg_dark.webp" id="3_bg"]
 
-[node name="CharacterSheet" type="CanvasLayer"]
+[node name="CharacterSheet" type="CanvasLayer" node_paths=PackedStringArray("class_name_label", "level_label", "xp_bar", "xp_label", "gold_label", "materials_label", "portrait", "stats_box", "paper_doll", "set_summary_label", "salvage_all_btn", "inventory_grid")]
 layer = 25
+process_mode = 3
+visible = false
 script = ExtResource("1_cs")
+class_name_label = NodePath("Root/Panel/Margin/Main/Header/ClassName")
+level_label = NodePath("Root/Panel/Margin/Main/Header/Level")
+xp_bar = NodePath("Root/Panel/Margin/Main/Header/XpBox/XpBar")
+xp_label = NodePath("Root/Panel/Margin/Main/Header/XpBox/XpLabel")
+gold_label = NodePath("Root/Panel/Margin/Main/Header/MoneyBox/Gold")
+materials_label = NodePath("Root/Panel/Margin/Main/Header/MoneyBox/Materials")
+portrait = NodePath("Root/Panel/Margin/Main/Cols/Left/Portrait")
+stats_box = NodePath("Root/Panel/Margin/Main/Cols/Left/Scroll/StatsBox")
+paper_doll = NodePath("Root/Panel/Margin/Main/Cols/Mid/PaperDoll")
+set_summary_label = NodePath("Root/Panel/Margin/Main/Cols/Mid/SetSummary")
+salvage_all_btn = NodePath("Root/Panel/Margin/Main/Cols/Right/InvHead/SalvageAll")
+inventory_grid = NodePath("Root/Panel/Margin/Main/Cols/Right/InvWrap/InvMargin/InventoryGrid")
 
 [node name="Root" type="Control" parent="."]
 layout_mode = 3
@@ -32,11 +47,222 @@ offset_left = -850.0
 offset_top = -465.0
 offset_right = 850.0
 offset_bottom = 465.0
+grow_horizontal = 2
+grow_vertical = 2
 theme_type_variation = &"DialogPanel"
 
 [node name="Margin" type="MarginContainer" parent="Root/Panel"]
 layout_mode = 2
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_right = 24
 theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 14
+
+[node name="Main" type="VBoxContainer" parent="Root/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Root/Panel/Margin/Main"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="ClassName" type="Label" parent="Root/Panel/Margin/Main/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 30
+text = "Герой"
+
+[node name="Level" type="Label" parent="Root/Panel/Margin/Main/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(1, 0.92, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 24
+text = "Уровень 1"
+
+[node name="XpBox" type="VBoxContainer" parent="Root/Panel/Margin/Main/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 2
+
+[node name="XpBar" type="ProgressBar" parent="Root/Panel/Margin/Main/Header/XpBox"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+show_percentage = false
+
+[node name="XpLabel" type="Label" parent="Root/Panel/Margin/Main/Header/XpBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.55, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+text = "0 / 50 опыта"
+horizontal_alignment = 1
+
+[node name="MoneyBox" type="VBoxContainer" parent="Root/Panel/Margin/Main/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 2
+
+[node name="Gold" type="Label" parent="Root/Panel/Margin/Main/Header/MoneyBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "Золото: 0"
+horizontal_alignment = 2
+
+[node name="Materials" type="Label" parent="Root/Panel/Margin/Main/Header/MoneyBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.85, 0.9, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 2
+
+[node name="HSep" type="HSeparator" parent="Root/Panel/Margin/Main"]
+layout_mode = 2
+
+[node name="Cols" type="HBoxContainer" parent="Root/Panel/Margin/Main"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 22
+
+[node name="Left" type="VBoxContainer" parent="Root/Panel/Margin/Main/Cols"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Portrait" type="TextureRect" parent="Root/Panel/Margin/Main/Cols/Left"]
+custom_minimum_size = Vector2(180, 180)
+layout_mode = 2
+size_flags_horizontal = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StatsTitle" type="Label" parent="Root/Panel/Margin/Main/Cols/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.7, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 19
+text = "Характеристики"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Root/Panel/Margin/Main/Cols/Left"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="StatsBox" type="VBoxContainer" parent="Root/Panel/Margin/Main/Cols/Left/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[node name="Mid" type="VBoxContainer" parent="Root/Panel/Margin/Main/Cols"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DollLbl" type="Label" parent="Root/Panel/Margin/Main/Cols/Mid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.7, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 19
+text = "Экипировка"
+horizontal_alignment = 1
+
+[node name="PaperDoll" type="Control" parent="Root/Panel/Margin/Main/Cols/Mid"]
+custom_minimum_size = Vector2(340, 470)
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="DollBg" type="TextureRect" parent="Root/Panel/Margin/Main/Cols/Mid/PaperDoll"]
+modulate = Color(0.6, 0.55, 0.55, 0.9)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("3_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="SetSummary" type="Label" parent="Root/Panel/Margin/Main/Cols/Mid"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.45, 0.95, 0.45, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="Right" type="VBoxContainer" parent="Root/Panel/Margin/Main/Cols"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="InvHead" type="HBoxContainer" parent="Root/Panel/Margin/Main/Cols/Right"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="InvLbl" type="Label" parent="Root/Panel/Margin/Main/Cols/Right/InvHead"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.95, 0.7, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 19
+text = "Инвентарь"
+
+[node name="SalvageAll" type="Button" parent="Root/Panel/Margin/Main/Cols/Right/InvHead"]
+focus_mode = 0
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Разобрать обычные и редкие"
+
+[node name="InvWrap" type="Control" parent="Root/Panel/Margin/Main/Cols/Right"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="InvBg" type="TextureRect" parent="Root/Panel/Margin/Main/Cols/Right/InvWrap"]
+modulate = Color(0.55, 0.5, 0.5, 0.9)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("3_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="InvMargin" type="MarginContainer" parent="Root/Panel/Margin/Main/Cols/Right/InvWrap"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="InventoryGrid" type="GridContainer" parent="Root/Panel/Margin/Main/Cols/Right/InvWrap/InvMargin"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+columns = 11
+
+[node name="Hint" type="Label" parent="Root/Panel/Margin/Main"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.55, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+text = "Tab / Esc — закрыть  •  ЛКМ — надеть/снять  •  ПКМ — действия  •  самоцветы тащите в гнёзда, ПКМ по гнезду — повернуть"
+horizontal_alignment = 1
