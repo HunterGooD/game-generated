@@ -153,27 +153,8 @@ func _ready() -> void:
 func _sync_component_stats(full_heal: bool = false) -> void:
 	if stats_component == null:
 		return
-
-	_runtime_base_stats.max_health = float(max_hp)
-	_runtime_base_stats.move_speed = move_speed
-	_runtime_base_stats.armor = 0.0
-	_runtime_base_stats.damage = float(damage_unit)
-	_runtime_base_stats.max_mana = 0.0
-	_runtime_base_stats.mana_regen = 0.0
-	_runtime_base_stats.attack_speed = 1.0
-	_runtime_base_stats.crit_chance = 0.0
-	_runtime_base_stats.crit_damage = 1.5
-	_runtime_base_stats.dash_charges = 0
-	stats_component.stats_changed.emit()
-
-	if health_component:
-		health_component.max_hp = max(1.0, stats_component.get_max_health())
-		if full_heal:
-			health_component.current_hp = health_component.max_hp
-		else:
-			health_component.current_hp = clampf(float(hp), 0.0, health_component.max_hp)
-		health_component.is_dead = dead or health_component.current_hp <= 0.0
-		health_component.hp_change.emit(health_component.current_hp, health_component.max_hp)
+	_write_runtime_stats(float(max_hp), move_speed, float(damage_unit))
+	_push_health(full_heal, hp, dead)
 
 
 func _physics_process(delta: float) -> void:

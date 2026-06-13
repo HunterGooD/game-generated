@@ -41,6 +41,38 @@ func _setup_components() -> void:
 		hurtbox.damage_receiver = self
 
 
+# Populate the runtime stats resource (enemies/bosses only differ by which field
+# feeds `damage`) and notify the StatsComponent. Caller passes the per-class
+# values so no shared hp/speed state has to live in the base.
+func _write_runtime_stats(max_health: float, move_speed_val: float, damage_val: float) -> void:
+	_runtime_base_stats.max_health = max_health
+	_runtime_base_stats.move_speed = move_speed_val
+	_runtime_base_stats.armor = 0.0
+	_runtime_base_stats.damage = damage_val
+	_runtime_base_stats.max_mana = 0.0
+	_runtime_base_stats.mana_regen = 0.0
+	_runtime_base_stats.attack_speed = 1.0
+	_runtime_base_stats.crit_chance = 0.0
+	_runtime_base_stats.crit_damage = 1.5
+	_runtime_base_stats.dash_charges = 0
+	if stats_component:
+		stats_component.stats_changed.emit()
+
+
+# Push the resolved max HP into the health component and set current HP (full
+# heal or clamped to `hp_now`), then emit hp_change. No-op without a health comp.
+func _push_health(full_heal: bool, hp_now: int, is_dead: bool) -> void:
+	if health_component == null:
+		return
+	health_component.max_hp = max(1.0, stats_component.get_max_health())
+	if full_heal:
+		health_component.current_hp = health_component.max_hp
+	else:
+		health_component.current_hp = clampf(float(hp_now), 0.0, health_component.max_hp)
+	health_component.is_dead = is_dead or health_component.current_hp <= 0.0
+	health_component.hp_change.emit(health_component.current_hp, health_component.max_hp)
+
+
 # The active run's NetSync node (multiplayer replication hub), or null in solo.
 func _find_net_sync() -> Node:
 	var tree := get_tree()
