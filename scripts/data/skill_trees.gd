@@ -20,7 +20,7 @@ extends RefCounted
 # (parents пусто) открыты всегда. Состояние выбора — GameManager.tree_nodes.
 # Карты подмен SkillCatalog СТРОИТ из all_variant_bindings (единый источник).
 
-const CLASS_IDS := ["barbarian", "rogue", "mage", "stormcaller", "hexen", "necromancer", "druid"]
+# Канонический список классов — GameManager.class_ids() (порядок UI-пикеров).
 
 # Стоимость замены навыка (вариант) в очках; ранг навыка/пассивка/стат/ult — 1.
 const VARIANT_COST := 2
@@ -34,16 +34,7 @@ const STAT_NODES := [
 	{"id": "stat_intelligence", "stat": "intelligence", "name": "Интеллект"},
 ]
 
-# Стихия on-hit статус-узлов по классу (тематично).
-const _CLASS_ONHIT := {
-	"mage": "fire",
-	"barbarian": "bleed",
-	"rogue": "poison",
-	"stormcaller": "frost",
-	"hexen": "curse",
-	"necromancer": "poison",
-	"druid": "bleed",
-}
+# Стихия on-hit статус-узлов по классу — ClassDefinition.on_hit_element.
 const _ONHIT_LABEL := {
 	"fire": ["Поджог", "Навык поджигает врагов при попадании (горение)."],
 	"bleed": ["Кровоток", "Навык вызывает кровотечение при попадании."],
@@ -383,7 +374,10 @@ static func _augment(base: Array, cls: String) -> Array:
 			has_onhit[_node_slot_of(n)] = true
 		if String(n["id"]).ends_with("_cdr"):
 			has_cdr[_node_slot_of(n)] = true
-	var element: String = String(_CLASS_ONHIT.get(cls, "bleed"))
+	# on-hit status element per class (folded into ClassDefinition.on_hit_element).
+	var element: String = GameManager.class_def(cls).on_hit_element
+	if element == "":
+		element = "bleed"
 	var lbl: Array = _ONHIT_LABEL.get(element, ["Эффект", "Накладывает эффект."])
 	for n in base:
 		if String(n.get("kind", "")) != "skill":
@@ -3592,7 +3586,7 @@ static func variant_ids_for_slot(cls: String, slot: int) -> Array:
 # (transform, base_skill) каждого варианта — для построения карт SkillCatalog.
 static func all_variant_bindings() -> Array:
 	var out: Array = []
-	for cls in CLASS_IDS:
+	for cls in GameManager.class_ids():
 		var root_by_slot: Dictionary = {}
 		for n in nodes_for(cls):
 			if String(n["kind"]) == "skill":

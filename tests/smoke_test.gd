@@ -189,7 +189,7 @@ func _check_unique_item_transforms() -> void:
 	var base_skills: Dictionary = SkillCatalog.transform_base()
 	# Every root skill_id (constellation roots), across all classes.
 	var root_ids := {}
-	for cls in SkillTrees.CLASS_IDS:
+	for cls in GameManager.class_ids():
 		for n in SkillTrees.nodes_for(String(cls)):
 			if String(n.get("kind", "")) == "skill":
 				root_ids[String(n["skill_id"])] = true
@@ -221,7 +221,7 @@ func _check_skill_trees() -> void:
 	var overrides: Dictionary = SkillCatalog.transform_overrides()
 	var base_skills: Dictionary = SkillCatalog.transform_base()
 	var status_elements := ["fire", "bleed", "frost", "poison", "curse"]
-	for cls in SkillTrees.CLASS_IDS:
+	for cls in GameManager.class_ids():
 		var nodes: Array = SkillTrees.nodes_for(String(cls))
 		var ids := {}
 		var max_row: int = 0
@@ -286,7 +286,7 @@ func _check_skill_trees() -> void:
 					_ok()  # inline name/desc, nothing to resolve
 	# Set 4pc grants must target a real tree node or a stat-column node.
 	for set_id in ItemDatabase.SETS:
-		for cls in SkillTrees.CLASS_IDS:
+		for cls in GameManager.class_ids():
 			var grant: Dictionary = ItemDatabase.set_node_grant(String(set_id), String(cls))
 			if grant.is_empty():
 				continue

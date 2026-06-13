@@ -1617,21 +1617,6 @@ func camera_punch(amount: float = 0.08, duration: float = 0.25) -> void:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Basic-attack uniques — one per class. Player owns the unique transform id
-# (e.g. "basic_barb_shockwave"). When equipped, this dispatches the alt scene
-# and returns the spawned scene path. Empty string means no unique matched.
-# class → its basic-attack-replacing unique id. Absent class = no override.
-const BASIC_UNIQUE_BY_CLASS := {
-	"barbarian": "basic_barb_shockwave",
-	"rogue": "basic_rogue_triple_throw",
-	"mage": "basic_mage_phantom_edge",
-	"druid": "basic_druid_thunder_sphere",
-	"necromancer": "basic_necro_bone_lance",
-	"hexen": "basic_hexen_whipcrack",
-	"stormcaller": "basic_storm_voltaic_tonfa",
-}
-
-
 # If the player's class has its basic-attack unique equipped, spawn that variant
 # and return its scene path; else "" (caller falls back to the default swing).
 func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
@@ -1639,7 +1624,9 @@ func _try_basic_attack_unique(dir: Vector2, dmg: int) -> String:
 		return ""
 	if GameManager == null:
 		return ""
-	var unique_id: String = String(BASIC_UNIQUE_BY_CLASS.get(String(GameManager.player_class), ""))
+	# Basic-attack uniques — one per class, folded into ClassDefinition.basic_unique
+	# (was the local BASIC_UNIQUE_BY_CLASS dict). "" = no override for this class.
+	var unique_id: String = GameManager.class_def(String(GameManager.player_class)).basic_unique
 	if unique_id == "" or not InventorySystem.call("has_unique", unique_id):
 		return ""
 	var origin: Vector2 = cast_origin.global_position if cast_origin else global_position
