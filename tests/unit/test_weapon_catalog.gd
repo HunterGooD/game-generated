@@ -27,6 +27,9 @@ func test_all_kinds_resolve_with_expected_fields() -> void:
 	assert_eq(bolt.team, "player", "bolt passes a team to setup()")
 	assert_eq(bolt.scene_path, "res://scenes/combat/player/magic_bolt.tscn")
 
+	assert_eq(melee.sfx_db, -8.0, "melee/dagger sfx volume")
+	assert_eq(bolt.sfx_db, -10.0, "bolt sfx is quieter")
+
 
 func test_unknown_kind_falls_back_to_bolt() -> void:
 	# Old `match`'s `_:` branch treated any non-melee/claw/dagger as a ranged bolt.

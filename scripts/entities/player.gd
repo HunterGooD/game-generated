@@ -17,9 +17,8 @@ const DASH_COOLDOWN: float = 1.5
 @export var health_component: HealthComponent
 @export var status_effect_receiver: StatusEffectReceiverComponent
 
-const BOLT_SCENE: PackedScene = preload("res://scenes/combat/player/magic_bolt.tscn")
-const DAGGER_SCENE: PackedScene = preload("res://scenes/combat/player/thrown_dagger.tscn")
-const MELEE_SCENE: PackedScene = preload("res://scenes/combat/player/melee_swing.tscn")
+# Basic-attack scenes are resolved per weapon kind via WeaponCatalog (data-driven);
+# see _spawn_default_basic_attack. (Were preloaded MELEE/DAGGER/BOLT_SCENE consts.)
 const DASH_TRAIL_TEX: String = "res://assets/sprites/effects/cast_flash.png"
 
 var move_speed: float = 220.0
@@ -396,19 +395,12 @@ func _refresh_basic_attack() -> void:
 
 
 func _configure_basic_attack(kind: String) -> void:
+	# Cadence + mana now come from the weapon catalog (WeaponCatalog.WEAPONS);
+	# unknown kinds fall back to "bolt" there (the old `_:` branch).
 	basic_attack_kind = kind
-	match kind:
-		"melee", "claw":
-			# Melee / druid human claw / Battlemage fire blade — short range.
-			basic_attack_interval = 0.45 if kind == "melee" else 0.40
-			basic_attack_mana_cost = 0.0
-		"dagger":
-			basic_attack_interval = 0.40
-			basic_attack_mana_cost = 0.0
-		_:
-			# Ranged bolt-kind basics (mage, necromancer, hexen, stormcaller).
-			basic_attack_interval = 0.55
-			basic_attack_mana_cost = 4.0
+	var w := WeaponCatalog.get_def(kind)
+	basic_attack_interval = w.interval
+	basic_attack_mana_cost = w.mana_cost
 
 
 func _sync_component_stats_from_game_manager() -> void:
@@ -1544,49 +1536,33 @@ func _resolve_basic_attack_damage(dir: Vector2) -> int:
 # Spawn the default class basic attack (melee/claw swing, thrown dagger, or magic
 # bolt) and return {"path": scene_path, "pos": spawn_pos} for the net broadcast.
 func _spawn_default_basic_attack(dir: Vector2, origin: Vector2, dmg: int) -> Dictionary:
-	var attack_spawn_pos: Vector2 = origin
-	var attack_scene_path: String = ""
-	match basic_attack_kind:
-		"melee", "claw":
-			var sw := MELEE_SCENE.instantiate()
-			get_tree().current_scene.add_child(sw)
-			attack_spawn_pos = global_position + dir * 30.0
-			sw.global_position = attack_spawn_pos
-			if sw.has_method("setup"):
-				sw.call("setup", dir, dmg)
-			if AudioManager:
-				if basic_attack_kind == "claw" and druid_form != "human":
-					AudioManager.play_sfx_path(
-						"res://assets/audio/sfx/player/player_druid_bite_hit.mp3", -10.0
-					)
-				else:
-					AudioManager.play_sfx_path(
-						"res://assets/audio/sfx/player/player_melee_swing.mp3", -8.0
-					)
-			attack_scene_path = "res://scenes/combat/player/melee_swing.tscn"
-		"dagger":
-			var d := DAGGER_SCENE.instantiate()
-			get_tree().current_scene.add_child(d)
-			d.global_position = origin
-			if d.has_method("setup"):
-				d.call("setup", dir, dmg)
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_dagger_throw.mp3", -8.0
-				)
-			attack_scene_path = "res://scenes/combat/player/thrown_dagger.tscn"
-		_:
-			var bolt := BOLT_SCENE.instantiate()
-			get_tree().current_scene.add_child(bolt)
-			bolt.global_position = origin
-			if bolt.has_method("setup"):
-				bolt.call("setup", dir, dmg, "player")
-			if AudioManager:
-				AudioManager.play_sfx_path(
-					"res://assets/audio/sfx/player/player_magic_cast.mp3", -10.0
-				)
-			attack_scene_path = "res://scenes/combat/player/magic_bolt.tscn"
-	return {"path": attack_scene_path, "pos": attack_spawn_pos}
+	# Generic spawn driven by the weapon catalog (WeaponCatalog). The kind picks
+	# the scene / spawn placement / setup signature / sfx; behaviour matches the
+	# old per-kind match. Druid claw in beast form keeps its bite-sfx override.
+	var w := WeaponCatalog.get_def(basic_attack_kind)
+	var packed: PackedScene = w.get_scene()
+	if packed == null:
+		return {"path": "", "pos": origin}
+	var node := packed.instantiate()
+	get_tree().current_scene.add_child(node)
+	var attack_spawn_pos: Vector2 = (
+		global_position + dir * w.offset if w.spawn == "ahead" else origin
+	)
+	(node as Node2D).global_position = attack_spawn_pos
+	if node.has_method("setup"):
+		if w.team != "":
+			node.call("setup", dir, dmg, w.team)
+		else:
+			node.call("setup", dir, dmg)
+	if AudioManager:
+		var sfx_path: String = w.sfx_path
+		var sfx_db: float = w.sfx_db
+		if basic_attack_kind == "claw" and druid_form != "human":
+			sfx_path = "res://assets/audio/sfx/player/player_druid_bite_hit.mp3"
+			sfx_db = -10.0
+		if sfx_path != "":
+			AudioManager.play_sfx_path(sfx_path, sfx_db)
+	return {"path": w.scene_path, "pos": attack_spawn_pos}
 
 
 func _find_net_sync() -> Node:

@@ -17,6 +17,7 @@ var interval: float = 0.55  # seconds between basic attacks (attack cadence)
 var mana_cost: float = 0.0
 var scene_path: String = ""  # the attack scene spawned per swing/throw/cast
 var sfx_path: String = ""  # default on-attack sfx (callers may override by state)
+var sfx_db: float = -8.0  # volume for the on-attack sfx
 # Where the attack node spawns: "ahead" = caster.global_position + dir * offset
 # (melee swings land in front); "at_origin" = the caster's cast_origin (ranged).
 var spawn: String = "at_origin"
@@ -27,6 +28,15 @@ var team: String = ""
 var anim: String = "attack"  # AnimatedSprite2D animation to play while attacking
 var combo: Array = []  # reserved — chained-attack steps (unused today)
 
+var _scene_cache: PackedScene = null
+
+
+# The attack scene, loaded once and cached (mirrors SkillDefinition.get_scene).
+func get_scene() -> PackedScene:
+	if _scene_cache == null and scene_path != "" and ResourceLoader.exists(scene_path):
+		_scene_cache = load(scene_path) as PackedScene
+	return _scene_cache
+
 
 static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDefinition:
 	var w := WeaponDefinition.new()
@@ -35,6 +45,7 @@ static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDefinition:
 	w.mana_cost = float(d.get("mana_cost", 0.0))
 	w.scene_path = String(d.get("scene", ""))
 	w.sfx_path = String(d.get("sfx", ""))
+	w.sfx_db = float(d.get("sfx_db", -8.0))
 	w.spawn = String(d.get("spawn", "at_origin"))
 	w.offset = float(d.get("offset", 0.0))
 	w.team = String(d.get("team", ""))
