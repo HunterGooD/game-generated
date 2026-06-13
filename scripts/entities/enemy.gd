@@ -1,5 +1,5 @@
 class_name Enemy
-extends CharacterBody2D
+extends CombatEntity
 
 # Base enemy — chase player, deal damage, drop loot. Subclasses tune behavior
 # via the EnemyConfig dictionary they pass through `configure()`.
@@ -53,14 +53,11 @@ var _aura: Sprite2D = null
 const SHIELD_COOLDOWN: float = 4.0
 const ELITE_EXPLODE_RADIUS: float = 130.0
 
-@export var sprite: Sprite2D
+# sprite, hurtbox, stats_component, health_component, status_effect_receiver
+# are inherited @export refs from CombatEntity.
 @export var hp_bar: ProgressBar
 @export var collision_shape: CollisionShape2D
 @export var hitbox: HitBoxComponent
-@export var hurtbox: HurtBoxComponent
-@export var stats_component: StatsComponent
-@export var health_component: HealthComponent
-@export var status_effect_receiver: StatusEffectReceiverComponent
 @export var ai_component: EnemyAIComponent
 @export var reward_drop: RewardDropComponent
 
@@ -154,7 +151,7 @@ var _puppet_target_pos: Vector2 = Vector2.ZERO
 # State flags.
 var _idle_jitter: Vector2 = Vector2.ZERO
 var _idle_jitter_t: float = 0.0
-var _runtime_base_stats: ActorStatsResource = ActorStatsResource.new()
+# _runtime_base_stats is inherited from CombatEntity.
 var _melee_hitbox_active: bool = false
 
 
@@ -188,22 +185,7 @@ func _ready() -> void:
 	_find_player()
 
 
-func _setup_components() -> void:
-	if stats_component:
-		stats_component.base_stats = _runtime_base_stats
-	if health_component:
-		health_component.main_stats = stats_component
-		if not health_component.hp_change.is_connected(_on_health_component_changed):
-			health_component.hp_change.connect(_on_health_component_changed)
-		if not health_component.dead.is_connected(_on_health_component_dead):
-			health_component.dead.connect(_on_health_component_dead)
-	if status_effect_receiver:
-		status_effect_receiver.main_stats = stats_component
-		status_effect_receiver.health_component = health_component
-	if hurtbox:
-		hurtbox.health_component = health_component
-		hurtbox.status_effect_receiver = status_effect_receiver
-		hurtbox.damage_receiver = self
+# _setup_components() is inherited from CombatEntity.
 
 
 func _sync_component_stats(full_heal: bool = false) -> void:
@@ -974,8 +956,7 @@ func _on_health_component_changed(current_hp: float, current_max_hp: float) -> v
 			hp_bar_shown = true
 
 
-func _on_health_component_dead(_damage_payload: DamageInstance) -> void:
-	_die()
+# _on_health_component_dead() is inherited from CombatEntity (calls _die()).
 
 
 func receive_damage_payload(payload: DamageInstance) -> bool:
@@ -1959,14 +1940,7 @@ func _die_dissolve_and_free() -> void:
 		add_child(safety)
 
 
-func _find_net_sync() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var scene := tree.current_scene
-	if scene == null:
-		return null
-	return scene.get_node_or_null("NetSync")
+# _find_net_sync() is inherited from CombatEntity.
 
 
 func _drop_loot() -> void:

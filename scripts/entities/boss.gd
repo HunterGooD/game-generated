@@ -1,4 +1,4 @@
-extends CharacterBody2D
+extends CombatEntity
 
 # Boss entity — phase-driven, telegraph-based ARPG boss.
 # Configured via boss_database.gd. Spawned by enemy_spawner on milestone waves.
@@ -15,11 +15,8 @@ const HIT_FLASH_SHADER: Shader = preload("res://assets/shaders/hit_flash.gdshade
 const DISSOLVE_SHADER: Shader = preload("res://assets/shaders/dissolve.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://assets/shaders/outline.gdshader")
 
-@export var sprite: Sprite2D
-@export var hurtbox: HurtBoxComponent
-@export var stats_component: StatsComponent
-@export var health_component: HealthComponent
-@export var status_effect_receiver: StatusEffectReceiverComponent
+# sprite, hurtbox, stats_component, health_component, status_effect_receiver
+# are inherited @export refs from CombatEntity.
 
 var boss_id: String = ""
 var boss_data: Dictionary = {}
@@ -46,7 +43,7 @@ var transition_lockout: float = 0.0
 var is_puppet: bool = false
 var network_id: int = -1
 var _puppet_target_pos: Vector2 = Vector2.ZERO
-var _runtime_base_stats: ActorStatsResource = ActorStatsResource.new()
+# _runtime_base_stats is inherited from CombatEntity.
 
 
 func configure(id: String, wave: int) -> void:
@@ -150,22 +147,7 @@ func _ready() -> void:
 		_apply_visual()
 
 
-func _setup_components() -> void:
-	if stats_component:
-		stats_component.base_stats = _runtime_base_stats
-	if health_component:
-		health_component.main_stats = stats_component
-		if not health_component.hp_change.is_connected(_on_health_component_changed):
-			health_component.hp_change.connect(_on_health_component_changed)
-		if not health_component.dead.is_connected(_on_health_component_dead):
-			health_component.dead.connect(_on_health_component_dead)
-	if status_effect_receiver:
-		status_effect_receiver.main_stats = stats_component
-		status_effect_receiver.health_component = health_component
-	if hurtbox:
-		hurtbox.health_component = health_component
-		hurtbox.status_effect_receiver = status_effect_receiver
-		hurtbox.damage_receiver = self
+# _setup_components() is inherited from CombatEntity.
 
 
 func _sync_component_stats(full_heal: bool = false) -> void:
@@ -614,8 +596,7 @@ func _on_health_component_changed(current_hp: float, current_max_hp: float) -> v
 	boss_hp_changed.emit(hp, max_hp)
 
 
-func _on_health_component_dead(_damage_payload: DamageInstance) -> void:
-	_die()
+# _on_health_component_dead() is inherited from CombatEntity (calls _die()).
 
 
 func receive_damage_payload(payload: DamageInstance) -> bool:
@@ -829,14 +810,7 @@ func _die_dissolve_and_free() -> void:
 		add_child(safety)
 
 
-func _find_net_sync() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var scene := tree.current_scene
-	if scene == null:
-		return null
-	return scene.get_node_or_null("NetSync")
+# _find_net_sync() is inherited from CombatEntity.
 
 
 func apply_remote_state(state: Dictionary) -> void:
