@@ -246,8 +246,9 @@ func _on_net_message(type: String, msg: Dictionary, from_player: int) -> void:
 					String(GameManager.run_node_active.get("type", ""))
 				)
 				GameManager.run_node_active = {}
-				# No auto-return to the map — the player reopens it via the HUD
-				# "Map" button (run map is an overlay now). Matches the host path.
+				# Taking the host's run_return means a node was completed — open the
+				# map overlay so the client picks the next node (matches the host).
+				open_map_overlay()
 
 
 # Leave the run and return to the hub (the staging area). Abandons the current run.
@@ -283,13 +284,15 @@ func _on_node_entered(node: Dictionary) -> void:
 func _on_node_cleared(_node: Dictionary) -> void:
 	if not _flow_active:
 		return
-	# Co-op host: tell the party the node is done (clears their node state). Nobody
-	# auto-returns to the map now — the run map is an overlay opened from the HUD
-	# "Map" button, so the player stays in the cleared scene until they reopen it.
+	# run_node_cleared only fires when the player TAKES a node's exit portal (dungeon
+	# boss exit / arena reward portal / node-room exit) — a deliberate "I'm done"
+	# action — so opening the run map as an overlay here is the manual flow, not an
+	# auto-yank the instant combat ends. (The HUD "Карта" button reopens it anytime.)
 	if is_coop_host():
 		NetManager.send("run_return", {})
 	votes.clear()
 	votes_changed.emit()
+	open_map_overlay()
 
 
 func _change_scene(path: String) -> void:
