@@ -48,11 +48,7 @@ func _chill_nearby() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e) or bool(e.get("dead")):
-			continue
-		if global_position.distance_to((e as Node2D).global_position) > NOVA_RADIUS:
-			continue
+	for e in SkillTargeting.in_radius(tree, global_position, NOVA_RADIUS):
 		if e.has_method("apply_chill"):
 			e.call("apply_chill", CHILL_DURATION, 1)
 		elif e.has_method("apply_slow"):

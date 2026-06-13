@@ -29,22 +29,13 @@ func setup_context(ctx: SkillContext) -> void:
 	if ss and ss.has_method("get_modifier"):
 		var stacks: int = int(ss.call("get_modifier", 3, "necro_pulse_radius"))
 		radius *= (1.0 + 0.3 * float(stacks))
-	var tree := get_tree()
-	if tree == null:
-		return
 	var hits: int = 0
-	for e in tree.get_nodes_in_group("enemy"):
-		if not is_instance_valid(e):
-			continue
-		if e.get("dead") == true:
-			continue
-		var d: float = caster.global_position.distance_to((e as Node2D).global_position)
-		if d <= radius:
-			if e.has_method("take_damage"):
-				e.take_damage(damage, caster.global_position)
-				if _ctx != null:
-					_ctx.apply_on_hit(e)
-			hits += 1
+	for e in SkillTargeting.in_radius(get_tree(), caster.global_position, radius):
+		if e.has_method("take_damage"):
+			e.take_damage(damage, caster.global_position)
+			if _ctx != null:
+				_ctx.apply_on_hit(e)
+		hits += 1
 	# Heal up to the cap.
 	if hits > 0 and GameManager:
 		var heal_pct: float = clamp(HEAL_PCT_PER_HIT * float(hits), 0.0, HEAL_CAP_PCT)
