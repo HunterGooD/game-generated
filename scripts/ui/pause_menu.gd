@@ -12,24 +12,26 @@ signal closed
 
 const MAIN_MENU_PATH: String = "res://scenes/main.tscn"
 
-var dim: ColorRect = null
-var panel: PanelContainer = null
-var title_label: Label = null
-var status_label: Label = null
-var continue_btn: Button = null
-var exit_btn: Button = null
+# Wired from pause_menu.tscn (the static frame — dim / centred panel / title /
+# status / buttons — lives in the scene now; the script keeps only logic).
+@export var status_label: Label
+@export var continue_btn: Button
+@export var exit_btn: Button
 
 var is_coop: bool = false
 var closing: bool = false
 
 
 func _ready() -> void:
-	layer = 90
-	process_mode = Node.PROCESS_MODE_ALWAYS
-
+	# layer (90) + process_mode (ALWAYS, so the menu still processes input while
+	# the tree is paused) are set on the scene root.
 	is_coop = NetManager != null and NetManager.is_multiplayer
 
-	_build_ui()
+	# Co-op relabels the exit button; the scene ships the solo label.
+	if is_coop:
+		exit_btn.text = "Вернуться в лобби"
+	continue_btn.pressed.connect(_on_continue)
+	exit_btn.pressed.connect(_on_exit)
 
 	# Request pause. In solo this freezes the tree directly. In co-op this
 	# broadcasts a pause_request and the tree only freezes when everyone is
@@ -41,63 +43,6 @@ func _ready() -> void:
 		_update_status_label()
 	else:
 		get_tree().paused = true
-
-
-func _build_ui() -> void:
-	# Dim background.
-	dim = UIBuilder.dim_overlay(Color(0, 0, 0, 0.72))
-	add_child(dim)
-
-	# Centered panel.
-	panel = PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(panel)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(420, 0)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 32)
-	margin.add_theme_constant_override("margin_right", 32)
-	margin.add_theme_constant_override("margin_top", 28)
-	margin.add_theme_constant_override("margin_bottom", 28)
-	panel.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	margin.add_child(vbox)
-
-	title_label = Label.new()
-	title_label.text = "ПАУЗА"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 32)
-	title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45, 1))
-	title_label.add_theme_color_override("font_outline_color", Color(0.1, 0.02, 0.0, 1))
-	title_label.add_theme_constant_override("outline_size", 5)
-	vbox.add_child(title_label)
-
-	status_label = Label.new()
-	status_label.text = ""
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status_label.add_theme_font_size_override("font_size", 14)
-	status_label.add_theme_color_override("font_color", Color(0.85, 0.82, 0.7, 1))
-	status_label.add_theme_color_override("font_outline_color", Color(0.05, 0.0, 0.0, 1))
-	status_label.add_theme_constant_override("outline_size", 3)
-	status_label.visible = false
-	vbox.add_child(status_label)
-
-	continue_btn = Button.new()
-	continue_btn.text = "Продолжить"
-	continue_btn.custom_minimum_size = Vector2(0, 48)
-	continue_btn.add_theme_font_size_override("font_size", 20)
-	continue_btn.pressed.connect(_on_continue)
-	vbox.add_child(continue_btn)
-
-	exit_btn = Button.new()
-	exit_btn.text = "Вернуться в лобби" if is_coop else "Выйти в главное меню"
-	exit_btn.custom_minimum_size = Vector2(0, 48)
-	exit_btn.add_theme_font_size_override("font_size", 20)
-	exit_btn.pressed.connect(_on_exit)
-	vbox.add_child(exit_btn)
 
 
 func _update_status_label() -> void:
